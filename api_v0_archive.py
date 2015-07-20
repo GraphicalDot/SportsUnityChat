@@ -12,8 +12,8 @@ class QueryHandler:
 
 class ArchiveAcessHandler(tornado.web.RequestHandler):
     def get(self):
-    	from_timestamp = str(self.get_arguments("from", True)) 
-        to_timestamp = str(self.get_arguments("to", True))
+    	from_timestamp = str(self.get_arguments("from")) or 0
+        to_timestamp = str(self.get_arguments("to")) or 345
         print(from_timestamp)
         print(to_timestamp)
         skip = self.get_arguments("skip", True) or 0
