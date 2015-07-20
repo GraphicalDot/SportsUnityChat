@@ -8,12 +8,12 @@ class QueryHandler:
 	def get_results(cls, query, variables):
 		connection = psycopg2.connect("dbname=test host=localhost user=test password=test")
 		cursor = connection.cursor()
-		return cursor.execute(query)
+		return cursor.execute(query, variables)
 
 class ArchiveAcessHandler(tornado.web.RequestHandler):
     def get(self):
-    	from_timestamp = self.get_arguments("from") 
-        to_timestamp = self.get_arguments("to") 
+    	from_timestamp = str(self.get_arguments("from")) 
+        to_timestamp = str(self.get_arguments("to"))
         print(from_timestamp)
         print(to_timestamp)
         skip = self.get_arguments("skip", True) or 0
@@ -21,7 +21,7 @@ class ArchiveAcessHandler(tornado.web.RequestHandler):
         response = {}
         response['version'] = 0.1
         try:
-        	response['info'] = QueryHandler.get_results(" SELECT txt FROM archive WHERE timestamp > " + str(from_timestamp) + " AND timestamp < " + str(to_timestamp) + " OFFSET " + str(skip) + " LIMIT " + str(limit) + ";")
+        	response['info'] = QueryHandler.get_results(" SELECT txt FROM archive WHERE timestamp > %s AND timestamp < %s OFFSET %s LIMIT %s; ",(from_timestamp, to_timestamp, skip, limit,))
         	response['status'] = 200
         except Exception, e:
             response['info'] = " Error: %s" % e
