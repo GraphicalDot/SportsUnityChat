@@ -21,7 +21,7 @@ class ArchiveAcessHandler(tornado.web.RequestHandler):
         	response['info'] = QueryHandler.get_results(" SELECT txt FROM archives WHERE timestamp > (%s) AND timestamp < (%s) OFFSET (%s) LIMIT (%s); ",(from_timestamp, to_timestamp, skip, limit, ))
         	response['status'] = 200
         except Exception, e:
-            response['info'] = " An error has occured. Developers should be notified "
+            response['info'] = " Error: %s" % e
             response['status'] = 500
         self.write(response)
 
