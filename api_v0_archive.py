@@ -5,7 +5,7 @@ import psycopg2
 class QueryHandler:
 	@classmethod
 	def get_results(cls, query, variables):
-		connection = psycopg2.connect("dbname=development host=localhost user=development password=development")
+		connection = psycopg2.connect("dbname=test host=localhost user=test password=test")
 		cursor = connection.cursor()
 		return cursor.execute(query, variables)
 
