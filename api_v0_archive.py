@@ -32,6 +32,23 @@ class ArchiveAcessHandler(tornado.web.RequestHandler):
 			response['status'] = 500
 		self.write(response)
 
+class GroupsHandler(tornado.web.RequestHandler):
+	def get(self):
+		# from_timestamp = self.get_arguments("from") 
+		# to_timestamp = self.get_arguments("to")
+		skip = self.get_arguments("skip", True) or [0]
+		limit = self.get_arguments("limit", True) or [100]
+		response = {}
+		response['version'] = 0.1
+		try:
+			response['info'] = QueryHandler.get_results(" SELECT name FROM muc_room OFFSET %s LIMIT %s; " \
+														,(skip[0], limit[0],))
+			response['status'] = 200
+		except Exception, e:
+			response['info'] = " Error: %s" % e
+			response['status'] = 500
+		self.write(response)
+
 class GroupsMessagesHandler(tornado.web.RequestHandler):
 	def get(self):
 		from_timestamp = self.get_arguments("from") 
@@ -92,6 +109,7 @@ class UserGroupMessagesHandler(tornado.web.RequestHandler):
 
 application = tornado.web.Application([
 	(r"/messages", ArchiveAcessHandler),
+	(r"/groups", GroupsHandler),
 	(r"/groups_messages", GroupsMessagesHandler),
 	(r"/group_messages", GroupMessagesHandler),
 	(r"/user_group", UserGroupMessagesHandler),
