@@ -10,9 +10,9 @@ class QueryHandler:
 	def get_results(cls, query, variables):
 		connection = psycopg2.connect("dbname=test host=localhost user=test password=test")
 		cursor = connection.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-		print(str(query) + str(variables))
 		print(cursor.mogrify(query, variables))
-		return cursor.execute(query, variables)
+		cursor.execute(query, variables)
+		return cursor.fetchall()
 
 class ArchiveAcessHandler(tornado.web.RequestHandler):
 	def get(self):
