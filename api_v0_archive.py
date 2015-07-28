@@ -6,6 +6,9 @@ import tornado
 import psycopg2.extras
 import requests
 from requests.auth import HTTPBasicAuth
+import facebook
+import subprocess
+import register
 
 class UserHandler:
 	def post(self):
@@ -17,10 +20,10 @@ class LocationHandler(tornado.web.RequestHandler):
 		response = {}
 		try:
 			user = str(self.get_arguments("user", True)[0])
-			longtitude = int(self.get_arguments("long", True)[0])
-			latitude = int(self.get_arguments("lat", True)[0])
+			longtitude = float(self.get_arguments("lng", True)[0])
+			latitude = float(self.get_arguments("lat", True)[0])
 			username = str.split(user,"@")[0]
-			query = " UPDATE users SET lat = %s, long = %s " \
+			query = " UPDATE users SET lat = %s, lng = %s " \
 					" WHERE username = %s; "
 			QueryHandler.execute(query, (latitude, longtitude, username))
 		except TypeError, e:
@@ -36,24 +39,39 @@ class LocationHandler(tornado.web.RequestHandler):
 			self.write(response)
 
 class RegistrationHandler:
+	@classmethod
+	def register(cls, fb_id, token):
+		try:
+			registration = register.Register(fb_id, token)
+			if registration.connect(('localhost', 5222)):
+				registration.process(block=True)
+				response = "Success"
+			else:
+				response = "Failed registration"
+		except Exception, e:
+			response = " %s " % e
+		else:
+			return response
+
+
+class AuthenticationHandler(tornado.web.RequestHandler):
 	def get(self):
+		response = {}
 		try:
 			fb_id = self.get_arguments("fb_id")[0]
-			server = "localhost"
-			virtualhost = "mm.io"
-			url = "http://%s:5222/admin/server/%s/user/" % (server, virtualhost)
-			auth = HTTPBasicAuth("user", "password")
-			data = {
-			    'newusername': fb_iid,
-			    'newuserpassword': "new_password",
-			    'addnewuser': "Add User"
-			}
-			resp = requests.post(url, data=data, auth=auth)
-			response['status'] = 200
-			response["password"] = "newuserpassword"
+			token = self.get_arguments("token")[0]
+			graph = facebook.GraphAPI(token)
+			fb_json = graph.get_object('/me/friends')
 		except Exception, e:
+			response['info'] = " Error : % s " % e 
 			response['status'] = 500
-		self.write(response)
+		else:
+			response['info'] = RegistrationHandler.register(fb_id, token) 
+			response['list'] = fb_json['data']
+			response['status'] = 200
+			response["password"] = token
+		finally:
+			self.write(response)
 
 class QueryHandler:
 	@classmethod
@@ -176,7 +194,7 @@ application = tornado.web.Application([
 	(r"/groups_messages", GroupsMessagesHandler),
 	(r"/group_messages", GroupMessagesHandler),
 	(r"/user_group", UserGroupMessagesHandler),
-	(r"/register", RegistrationHandler),
+	(r"/register", AuthenticationHandler),
 	(r"/location", LocationHandler),
 ], 
 autoreload = True,
