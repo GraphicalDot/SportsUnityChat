@@ -27,7 +27,7 @@ class LocationHandler(tornado.web.RequestHandler):
 			response["message"] = " Invalid Arguments "
 			response["status"] = 400
 		except Exception, e:
-			response["message"] = " Internal Server Failure "
+			response["info"] = " Error %s " % e
 			response["status"] = 500
 		else:
 			response['message'] = "Success"
@@ -78,6 +78,7 @@ class ArchiveAcessHandler(tornado.web.RequestHandler):
 														,(from_timestamp[0], to_timestamp[0], skip[0], limit[0],))
 			response['status'] = 200
 		except Exception, e:
+			print(e)
 			response['info'] = " Error: %s" % e
 			response['status'] = 500
 		self.write(response)
