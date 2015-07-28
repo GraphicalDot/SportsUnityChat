@@ -22,7 +22,7 @@ class LocationHandler(tornado.web.RequestHandler):
 			username = str.split(user,"@")[0]
 			query = " UPDATE users SET lat = %s, long = %s " \
 					" WHERE username = %s; "
-			QueryHandler.get_results(query, (latitude, longtitude, username))
+			QueryHandler.execute(query, (latitude, longtitude, username))
 		except TypeError, e:
 			response["info"] = " Error: % s " % e
 			response["status"] = 400
@@ -63,6 +63,13 @@ class QueryHandler:
 		print(cursor.mogrify(query, variables))
 		cursor.execute(query, variables)
 		return cursor.fetchall()
+
+	@classmethod
+	def execute(cls, query, variables):
+		connection = psycopg2.connect("dbname=test host=localhost user=test password=test")
+		cursor = connection.cursor()
+		print(cursor.mogrify(query, variables))
+		cursor.execute(query, variables)
 
 class ArchiveAcessHandler(tornado.web.RequestHandler):
 	def get(self):
