@@ -4,6 +4,56 @@ import psycopg2
 from tornado.log import enable_pretty_logging
 import tornado
 import psycopg2.extras
+import requests
+from requests.auth import HTTPBasicAuth
+
+class UserHandler:
+	def post(self):
+		user = self.get_arguments("user", True)
+		friends = self.get_arguments("friends", True)
+
+class LocationHandler(tornado.web.RequestHandler):
+	def get(self):
+		response = {}
+		try:
+			user = self.get_arguments("user", True)[0]
+			longtitude = self.get_arguments("long", True)[0]
+			latitude = self.get_arguments("lat", True)[0]
+			username = str.split(username,"@")[0]
+			query = " UPDATE TABLE users SET users.lat = %s, user.long = %s " \
+					" WHERE users.username = '%s'; "
+			QueryHandler.execute(query, (latitude, longtitude, username))
+		except TypeError, e:
+			response["message"] = " Invalid Arguments "
+			response["status"] = 400
+		except Exception, e:
+			response["message"] = " Internal Server Failure "
+			response["status"] = 500
+		else:
+			response['message'] = "Success"
+			response["status"] = 200
+		finally:
+			self.write(response)
+
+class RegistrationHandler:
+	def get(self):
+		try:
+			fb_id = self.get_arguments("fb_id")[0]
+			server = "localhost"
+			virtualhost = "mm.io"
+			url = "http://%s:5222/admin/server/%s/user/" % (server, virtualhost)
+			auth = HTTPBasicAuth("user", "password")
+			data = {
+			    'newusername': fb_id,
+			    'newuserpassword': "new_password",
+			    'addnewuser': "Add User"
+			}
+			resp = requests.post(url, data=data, auth=auth)
+			response['status'] = 200
+			response["password"] = "newuserpassword"
+		except Exception, e:
+			response['status'] = 500
+		self.write(response)
 
 class QueryHandler:
 	@classmethod
@@ -113,6 +163,8 @@ application = tornado.web.Application([
 	(r"/groups_messages", GroupsMessagesHandler),
 	(r"/group_messages", GroupMessagesHandler),
 	(r"/user_group", UserGroupMessagesHandler),
+	(r"/register", RegistrationHandler),
+	(r"/location", LocationHandler),
 ], 
 autoreload = True,
 )
