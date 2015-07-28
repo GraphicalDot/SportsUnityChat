@@ -44,7 +44,7 @@ class RegistrationHandler:
 			url = "http://%s:5222/admin/server/%s/user/" % (server, virtualhost)
 			auth = HTTPBasicAuth("user", "password")
 			data = {
-			    'newusername': fb_id,
+			    'newusername': fb_iid,
 			    'newuserpassword': "new_password",
 			    'addnewuser': "Add User"
 			}
@@ -62,7 +62,10 @@ class QueryHandler:
 		cursor = connection.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
 		print(cursor.mogrify(query, variables))
 		cursor.execute(query, variables)
-		return cursor.fetchall()
+		results = cursor.fetchall()
+		connection.commit()
+		cursor.close()
+		return results
 
 	@classmethod
 	def execute(cls, query, variables):
@@ -70,6 +73,8 @@ class QueryHandler:
 		cursor = connection.cursor()
 		print(cursor.mogrify(query, variables))
 		cursor.execute(query, variables)
+		connection.commit()
+		cursor.close()
 
 class ArchiveAcessHandler(tornado.web.RequestHandler):
 	def get(self):
