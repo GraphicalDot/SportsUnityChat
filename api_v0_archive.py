@@ -16,13 +16,13 @@ class LocationHandler(tornado.web.RequestHandler):
 	def get(self):
 		response = {}
 		try:
-			user = self.get_arguments("user", True)[0]
-			longtitude = self.get_arguments("long", True)[0]
-			latitude = self.get_arguments("lat", True)[0]
+			user = str(self.get_arguments("user", True)[0])
+			longtitude = int(self.get_arguments("long", True)[0])
+			latitude = int(self.get_arguments("lat", True)[0])
 			username = str.split(user,"@")[0]
-			query = " UPDATE TABLE users SET users.lat = %s, user.long = %s " \
-					" WHERE users.username = '%s'; "
-			QueryHandler.execute(query, (latitude, longtitude, username))
+			query = " UPDATE users SET lat = %s, long = %s " \
+					" WHERE username = %s; "
+			QueryHandler.get_results(query, (latitude, longtitude, username))
 		except TypeError, e:
 			response["info"] = " Error: % s " % e
 			response["status"] = 400
