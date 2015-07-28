@@ -19,12 +19,12 @@ class LocationHandler(tornado.web.RequestHandler):
 			user = self.get_arguments("user", True)[0]
 			longtitude = self.get_arguments("long", True)[0]
 			latitude = self.get_arguments("lat", True)[0]
-			username = str.split(username,"@")[0]
+			username = str.split(user,"@")[0]
 			query = " UPDATE TABLE users SET users.lat = %s, user.long = %s " \
 					" WHERE users.username = '%s'; "
 			QueryHandler.execute(query, (latitude, longtitude, username))
 		except TypeError, e:
-			response["message"] = " Invalid Arguments "
+			response["info"] = " Error: % s " % e
 			response["status"] = 400
 		except Exception, e:
 			response["info"] = " Error %s " % e
