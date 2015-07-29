@@ -7,13 +7,9 @@ import psycopg2.extras
 import requests
 from requests.auth import HTTPBasicAuth
 import facebook
+import ConfigParser
 import subprocess
 import register
-
-class UserHandler:
-	def post(self):
-		user = self.get_arguments("user", True)
-		friends = self.get_arguments("friends", True)
 
 class LocationHandler(tornado.web.RequestHandler):
 	def get(self):
@@ -26,9 +22,6 @@ class LocationHandler(tornado.web.RequestHandler):
 			query = " UPDATE users SET lat = %s, lng = %s " \
 					" WHERE username = %s; "
 			QueryHandler.execute(query, (latitude, longtitude, username))
-		except TypeError, e:
-			response["info"] = " Error: % s " % e
-			response["status"] = 400
 		except Exception, e:
 			response["info"] = " Error %s " % e
 			response["status"] = 500
@@ -38,37 +31,59 @@ class LocationHandler(tornado.web.RequestHandler):
 		finally:
 			self.write(response)
 
-class RegistrationHandler:
-	@classmethod
-	def register(cls, fb_id, token):
+class User:
+	def __init__(self, username, password):
+		self.username = username
+		self.password = password
+
+	def exists(self):
+		query = " SELECT * FROM users WHERE username = %s;"
+		variables = (str.split(self.username,'@')[0],)
+		return len(QueryHandler.get_results(query, variables)) != 0
+
+	def create_new(self):
 		try:
-			registration = register.Register(fb_id, token)
+			registration = register.Register(self.username, self.password)
+			registration.register_plugin('xep_0030') 
+			registration.register_plugin('xep_0004') 
+			registration.register_plugin('xep_0066') 
+			registration.register_plugin('xep_0077') 
+			registration['xep_0077'].force_registration = True
 			if registration.connect(('localhost', 5222)):
 				registration.process(block=True)
-				response = "Success"
+				response, status = "Success", 200
 			else:
-				response = "Failed registration"
+				response, status = "Failed registration", 500
 		except Exception, e:
-			response = " %s " % e
-		else:
-			return response
+			response, status = " %s " % e, 500
+		finally:
+			return response, status
 
+	def register(self):
+		print("Exists or not " + str(self.exists()))
+		if self.exists():
+			response, status = " User already registered ", 200
+		else:
+			response, status = self.create_new()
+		return response, status
 
 class AuthenticationHandler(tornado.web.RequestHandler):
 	def get(self):
 		response = {}
 		try:
-			fb_id = self.get_arguments("fb_id")[0]
-			token = self.get_arguments("token")[0]
+			fb_id = str(self.get_arguments("fb_id")[0])
+			token = str(self.get_arguments("token")[0])
 			graph = facebook.GraphAPI(token)
 			fb_json = graph.get_object('/me/friends')
 		except Exception, e:
 			response['info'] = " Error : % s " % e 
 			response['status'] = 500
 		else:
-			response['info'] = RegistrationHandler.register(fb_id, token) 
+			username = fb_id + "@mm.io"
+			user = User(username, token)
+			response['info'], response['status'] = user.register()
+			response['username'] = username 
 			response['list'] = fb_json['data']
-			response['status'] = 200
 			response["password"] = token
 		finally:
 			self.write(response)
