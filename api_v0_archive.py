@@ -39,7 +39,13 @@ class User:
 	def exists(self):
 		query = " SELECT * FROM users WHERE username = %s;"
 		variables = (str.split(self.username,'@')[0],)
-		return len(QueryHandler.get_results(query, variables)) != 0
+		user_info = QueryHandler.get_results(query, variables)
+		if len(user_info) == 0:
+			registered = False
+		else:
+			self.password = user_info[0]['password']
+			registered = True
+		return registered
 
 	def create_new(self):
 		try:
@@ -75,6 +81,8 @@ class AuthenticationHandler(tornado.web.RequestHandler):
 			token = str(self.get_arguments("token")[0])
 			graph = facebook.GraphAPI(token)
 			fb_json = graph.get_object('/me/friends')
+		
+		# TO-DO explicit error messages
 		except Exception, e:
 			response['info'] = " Error : % s " % e 
 			response['status'] = 500
@@ -84,7 +92,7 @@ class AuthenticationHandler(tornado.web.RequestHandler):
 			response['info'], response['status'] = user.register()
 			response['username'] = username 
 			response['list'] = fb_json['data']
-			response["password"] = token
+			response["password"] = user.password
 		finally:
 			self.write(response)
 
@@ -130,8 +138,6 @@ class ArchiveAcessHandler(tornado.web.RequestHandler):
 
 class GroupsHandler(tornado.web.RequestHandler):
 	def get(self):
-		# from_timestamp = self.get_arguments("from") 
-		# to_timestamp = self.get_arguments("to")
 		skip = self.get_arguments("skip", True) or [0]
 		limit = self.get_arguments("limit", True) or [100]
 		response = {}
