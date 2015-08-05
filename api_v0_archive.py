@@ -1,16 +1,19 @@
-import tornado.ioloop
+#TO-DO non blocking database wrapper
+import random
+import tornado.ioloop, tornado.options
 import tornado.web
 import psycopg2
 from tornado.log import enable_pretty_logging
 import tornado
 import psycopg2.extras
 import requests
+from IPython import embed
 from requests.auth import HTTPBasicAuth
 import facebook
 import ConfigParser
 import subprocess
 import register
-
+tornado.options.parse_config_file('api.conf')
 class LocationHandler(tornado.web.RequestHandler):
 	def get(self):
 		response = {}
@@ -32,7 +35,7 @@ class LocationHandler(tornado.web.RequestHandler):
 			self.write(response)
 
 class User:
-	def __init__(self, username, password):
+	def __init__(self, username, password = None):
 		self.username = username
 		self.password = password
 
@@ -65,36 +68,116 @@ class User:
 		finally:
 			return response, status
 
-	def register(self):
-		print("Exists or not " + str(self.exists()))
+	def handle_registration(self):
 		if self.exists():
 			response, status = " User already registered ", 200
 		else:
-			response, status = self.create_new()
+			response, status = self.register()
 		return response, status
 
-class AuthenticationHandler(tornado.web.RequestHandler):
+	def register(self):
+		random_integer = int(random.random()*10000) 
+		query = " INSERT INTO registered_users (username, authorization_code) VALUES ( %s, %s); "
+		variables = (self.username, random_integer,)
+		try:
+			QueryHandler.execute(query, variables)
+			return self.send_message(random_integer)
+		except Exception, e:
+			return " Error while sending message : % s" % e, 500
+
+	def send_message(self, random_integer):
+		number = str.split(self.username,'@')[0]
+		payload = {
+			'method' : 'SendMessage',
+			'msg_type' : 'TEXT',
+			'auth_scheme' : 'plain',
+			'v' : '1.1',
+			'format' : 'text',
+			'send_to' : number,
+			'msg' : message + random_integer ,
+			' userid' : gupshup_id,
+			'password' : gupshup_password,
+		}
+		response = requests.get(message_gateway, params=payload)
+		response = response.split("|")
+		if str.lower(response[0]) == "success":
+			return "Success", 200
+		else:
+			return "Failure", 500
+
+
+class FacebookHandler(tornado.web.RequestHandler):
 	def get(self):
 		response = {}
 		try:
 			fb_id = str(self.get_arguments("fb_id")[0])
 			token = str(self.get_arguments("token")[0])
+			user_id = str(self.get_arguments('id')[0])
+
+			username = str.split(user_id,"@")[0]
+
+			args = {'fields' : 'id,name,email,friends', }
 			graph = facebook.GraphAPI(token)
-			fb_json = graph.get_object('/me/friends')
-		
+			fb_json = graph.get_object('me', **args)
+
+			fb_name = fb_json['name']
+			
+			self.set_fb_details(fb_id, username, fb_name)
+
+			friends_details = self.get_friends_id(fb_json['friends']['data'])
 		# TO-DO explicit error messages
 		except Exception, e:
 			response['info'] = " Error : % s " % e 
 			response['status'] = 500
 		else:
-			username = fb_id + "@mm.io"
-			user = User(username, token)
-			response['info'], response['status'] = user.register()
-			response['username'] = username 
-			response['list'] = fb_json['data']
-			response["password"] = user.password
+			response['list'] = friends_details
+			response['status'] = 200
 		finally:
 			self.write(response)
+
+	def get_friends_id(self, friends_details):
+		friends_id_name = []
+		for friend_detail in friends_details:
+			friend_id_name = {}
+			query = " SELECT * FROM users WHERE fb_id = %s;"
+			variables = (friend_detail['id'],)
+			results = QueryHandler.get_results(query, variables)
+			if len(results) > 0:
+				friend_id_name['id'] = results['username'] + '@mm.io'
+				friend_id_name['fb_name'] = results['fb_name'] + '@mm.io'
+				friends_id_name.append(friend_id_name)
+		return friends_id_name
+
+
+	def set_fb_details(self, fb_id, username, fb_name):
+		query = " UPDATE users SET fb_id = %s, fb_name = %s WHERE username = %s ;"
+		variables = (fb_id, fb_name, username)
+		QueryHandler.execute(query, variables)
+
+class RegistrationHandler(tornado.web.RequestHandler):
+	def get(self):
+		response = {}
+		try:
+			number = str(self.get_arguments("phone_number")[0])
+			username = str.strip(number) + "@mm.io"
+			user = User(username)
+			response['info'], response['status'] = user.handle_registration()
+		except Exception, e:
+			response['info'] = " Error: %s " % e
+			response['status'] = 500
+		finally:
+			self.write(response)
+			
+class AuthorizationHandler(tornado.web.RequestHandler):
+	def get(self):
+		try:
+			pass
+		except Exception, e:
+			pass
+		else:
+			pass
+		finally:
+			pass
 
 class QueryHandler:
 	@classmethod
@@ -209,19 +292,24 @@ class UserGroupMessagesHandler(tornado.web.RequestHandler):
 			response['status'] = 500
 		self.write(response)
 
-application = tornado.web.Application([
-	(r"/messages", ArchiveAcessHandler),
-	(r"/groups", GroupsHandler),
-	(r"/groups_messages", GroupsMessagesHandler),
-	(r"/group_messages", GroupMessagesHandler),
-	(r"/user_group", UserGroupMessagesHandler),
-	(r"/register", AuthenticationHandler),
-	(r"/location", LocationHandler),
-], 
-autoreload = True,
-)
+def make_app():
+	return tornado.web.Application([
+		(r"/messages", ArchiveAcessHandler),
+		(r"/groups", GroupsHandler),
+		(r"/groups_messages", GroupsMessagesHandler),
+		(r"/group_messages", GroupMessagesHandler),
+		(r"/user_group", UserGroupMessagesHandler),
+		(r"/register", RegistrationHandler),
+		(r"/authorize", AuthorizationHandler),
+		(r"/location", LocationHandler),
+		(r"/fb_friends", FacebookHandler),
+	], 
+	autoreload = True,
+	)
+
 
 if __name__ == "__main__":
+	app = make_app()
 	enable_pretty_logging()
-	application.listen(3000)
+	app.listen(3000)
 	tornado.ioloop.IOLoop.current().start()
