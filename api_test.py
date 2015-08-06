@@ -14,7 +14,7 @@ class RegistrationTest(AsyncHTTPTestCase):
 	_phone_number = '9560488236'
 	_auth_code = 'ASDFG'
 	_registration_url = "/register?phone_number=" + str(_phone_number)
-	_authorization_url = "/authorize?phone_number=" + str(_phone_number)\
+	_creation_url = "/create?phone_number=" + str(_phone_number)\
 						+ "&auth_code=" + str(_auth_code)
 	
 	def get_app(self):
@@ -31,14 +31,14 @@ class RegistrationTest(AsyncHTTPTestCase):
 		assert record
 		self.assertEqual(200, json.loads(response.body)['status'])
 
-	def test_user_authorization(self):
+	def test_user_creation(self):
 		username = self._phone_number + "@mm.io"
 		query = " UPDATE registered_users SET authorization_code = %s"\
 				" WHERE username = %s; "
 		variables = (self._auth_code, username,)
 		QueryHandler.execute(query, variables)
 
-		self.http_client.fetch(self.get_url(self._authorization_url), self.stop)
+		self.http_client.fetch(self.get_url(self._creation_url), self.stop)
 		response = self.wait(timeout = 20)
 
 		query = " SELECT * FROM users WHERE username = %s; "

@@ -326,6 +326,7 @@ def make_app():
 
 
 if __name__ == "__main__":
+	tornado.options.parse_config_file('config.py')
 	app = make_app()
 	enable_pretty_logging()
 	app.listen(3000)

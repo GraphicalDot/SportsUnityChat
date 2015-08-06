@@ -2,11 +2,11 @@
 Apis:- 
 1> Store locations
 2> Get Facebook friends 
+2> Register
+3> Create
 
 To Do :-
 1> Retrieve nearby users 
-2> Register
-3> Authorize
 
 
 Store location:- 
@@ -26,10 +26,7 @@ Register a new number for authorization
 Format:- <ip>/register?number=<phone_number>
 Result:- Status Message and info
 
-Authorize:-
-Authorize an existing number for xmpp account
-Format:- <ip>/authorize?number=<phone_number>&password=<password>
+Create:-
+Create an existing number for xmpp account
+Format:- <ip>/authorize?phone_number=<phone_number>&auth_code=<auth_code>
 Result:- Json message having user password for authenticating in ejabberd services and/or appropriate status code and message 
-
-
-
