@@ -47,7 +47,6 @@ class RegistrationTest(AsyncHTTPTestCase):
 	def test_user_registration(self):
 		self.http_client.fetch(self.get_url(self._registration_url), self.stop)
 		response = self.wait()
-		embed()
 		print response.body
 		username = self._phone_number + "@mm.io"
 		query = " SELECT * FROM registered_users WHERE username = %s "

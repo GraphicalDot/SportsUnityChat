@@ -1,6 +1,6 @@
 #TO-DO non blocking database wrapper
 import random
-import tornado.ioloop, tornado.options
+import tornado.ioloop
 import tornado.web
 import psycopg2
 from tornado.log import enable_pretty_logging
@@ -13,7 +13,10 @@ import facebook
 import ConfigParser
 import subprocess
 import register
-tornado.options.parse_config_file('api.conf')
+import ConfigParser
+config = ConfigParser.ConfigParser()
+config.read('config.py')
+
 class LocationHandler(tornado.web.RequestHandler):
 	def get(self):
 		response = {}
@@ -87,23 +90,25 @@ class User:
 
 	def send_message(self, random_integer):
 		number = str.split(self.username,'@')[0]
+		message = config.get('database','message') + "  " + str(random_integer)
 		payload = {
 			'method' : 'SendMessage',
+			'send_to' : str.strip(number),
+			'msg' : str.strip(message) ,
 			'msg_type' : 'TEXT',
+			'userid' : config.get('database','gupshup_id'),
 			'auth_scheme' : 'plain',
+			'password' : config.get('database','gupshup_password'),
 			'v' : '1.1',
 			'format' : 'text',
-			'send_to' : number,
-			'msg' : message + random_integer ,
-			' userid' : gupshup_id,
-			'password' : gupshup_password,
 		}
-		response = requests.get(message_gateway, params=payload)
-		response = response.split("|")
-		if str.lower(response[0]) == "success":
+		response = requests.get(config.get('database','message_gateway'), params=payload)
+		response = str.split(str(response.text),'|')
+		if str.strip(str.lower(response[0])) == "success":
 			return "Success", 200
 		else:
-			return "Failure", 500
+			error = response[2] 
+			return error, 500
 
 
 class FacebookHandler(tornado.web.RequestHandler):
@@ -309,6 +314,7 @@ def make_app():
 
 
 if __name__ == "__main__":
+	tornado.options.parse_config_file('config.py')
 	app = make_app()
 	enable_pretty_logging()
 	app.listen(3000)
