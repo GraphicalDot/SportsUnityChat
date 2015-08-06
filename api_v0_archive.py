@@ -1,4 +1,5 @@
 #TO-DO non blocking database wrapper
+import time
 import random
 import tornado.ioloop
 import tornado.web
@@ -40,7 +41,26 @@ class LocationHandler(tornado.web.RequestHandler):
 class User:
 	def __init__(self, username, password = None):
 		self.username = username
-		self.password = password
+		self.password = str(password)
+
+	def handle_creation(self):
+		if self.exists():
+			response, status = " User already created ", 200
+		else:
+			if not self.token_expired():
+				response, status = self.create_new()
+			else:
+				response, status = " Token already expired ", 400
+		return response, status
+
+	def token_expired(self):
+		query = " SELECT * FROM registered_users WHERE username = %s ;"
+		variables = (self.username,)
+
+		record = QueryHandler.get_results(query, variables)
+
+		token_expired = record[0]['expiration_time'] < int(time.time())
+		return token_expired 
 
 	def exists(self):
 		query = " SELECT * FROM users WHERE username = %s;"
@@ -69,19 +89,26 @@ class User:
 		except Exception, e:
 			response, status = " %s " % e, 500
 		finally:
+			print " Response in registering users %s " % response
 			return response, status
 
 	def handle_registration(self):
-		if self.exists():
-			response, status = " User already registered ", 200
-		else:
-			response, status = self.register()
+		self.delete_if_registered()
+		response, status = self.register()
 		return response, status
 
+	def delete_if_registered(self):
+		query = " DELETE FROM registered_users WHERE username = %s ;"
+		
+		variables = (self.username,)
+		QueryHandler.execute(query, variables)
+
 	def register(self):
-		random_integer = int(random.random()*10000) 
-		query = " INSERT INTO registered_users (username, authorization_code) VALUES ( %s, %s); "
-		variables = (self.username, random_integer,)
+		random_integer = int(random.random()*10000)
+		expiration_time = int(time.time()) + int(config.get('registration','expiry_period_sec'))
+
+		query = " INSERT INTO registered_users (username, authorization_code, expiration_time) VALUES ( %s, %s, %s); "
+		variables = (self.username, random_integer, expiration_time)
 		try:
 			QueryHandler.execute(query, variables)
 			return self.send_message(random_integer)
@@ -173,16 +200,23 @@ class RegistrationHandler(tornado.web.RequestHandler):
 		finally:
 			self.write(response)
 			
-class AuthorizationHandler(tornado.web.RequestHandler):
+class CreationHandler(tornado.web.RequestHandler):
 	def get(self):
+		response = {}
 		try:
-			pass
+			phone_number = str(self.get_arguments("phone_number")[0])
+			username = str.strip(phone_number) + "@mm.io"
+			auth_code = str(self.get_arguments("auth_code")[0])
+			password = int(random.random()*1000000) 
+			user = User(username, password)
+			response['info'], response ['status'] = user.handle_creation()
+			response ['password'] = user.password
+			user.delete_if_registered()
 		except Exception, e:
-			pass
-		else:
-			pass
+			response['info'] = " Error %s " % e
+			response ['status'] = 500
 		finally:
-			pass
+			self.write(response)
 
 class QueryHandler:
 	@classmethod
@@ -305,7 +339,7 @@ def make_app():
 		(r"/group_messages", GroupMessagesHandler),
 		(r"/user_group", UserGroupMessagesHandler),
 		(r"/register", RegistrationHandler),
-		(r"/authorize", AuthorizationHandler),
+		(r"/authorize", CreationHandler),
 		(r"/location", LocationHandler),
 		(r"/fb_friends", FacebookHandler),
 	], 
