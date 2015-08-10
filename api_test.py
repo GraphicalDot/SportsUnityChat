@@ -31,6 +31,24 @@ class RegistrationTest(AsyncHTTPTestCase):
 		assert record
 		self.assertEqual(200, json.loads(response.body)['status'])
 
+	def test_wrong_auth_code_failure(self):
+		username = self._phone_number + "@mm.io"
+		query = " UPDATE registered_users SET authorization_code = '12345'"\
+				" WHERE username = %s; "
+		variables = (username,)
+		QueryHandler.execute(query, variables)
+
+		self.http_client.fetch(self.get_url(self._creation_url), self.stop)
+		response = self.wait(timeout = 20)
+
+		query = " SELECT * FROM users WHERE username = %s; "
+		variables = (self._phone_number,)
+		record = QueryHandler.get_results(query, variables)
+
+		self.assertEqual(str(username), record[0]['username']+"@mm.io")
+		self.assertNotEqual(json.loads(response.body)['status'], 200)
+		self.assertEqual(json.loads(response.body)['password'], None)
+
 	def test_user_creation(self):
 		username = self._phone_number + "@mm.io"
 		query = " UPDATE registered_users SET authorization_code = %s"\
@@ -52,7 +70,7 @@ class RegistrationTest(AsyncHTTPTestCase):
 class FacebookFriendServiceTest(AsyncHTTPTestCase):
 	_facebook_id = 145634995501895
 	_id = '9560488236@mm.io'
-	_token = 'CAACEdEose0cBAJ1HGisnZAKrL2y0sjv0rTJh2CjyTrLHVvODuvbGUwYIQ6RZBaGKgfY7YrP7F1X0jEyKth64odT3vmGi5oUXCw0PTCQTEp3rQvqL7b0utyIZCKar32BdCZCoZAqL8IBZAMlYjNtR1dfPqd8qperFZBIIrediWGwWjoe8D9wIFZApeM2GHKx9eGgZCIcd6ijLtCTGBZAW8CxGek'
+	_token = 'CAACEdEose0cBAIDsa7frvOzodUblHU2QI0RZBfOLJ83ZC1H5tjWv6fewitEiBX2IsmgdDF30p6eodF0pQ8FAkcA63OaipqIv608QZBsxUPmJWoY9kb8pEOFJCBWyY6LPZA80RlQl3sk0K2KZCZCrgb2KBMviXadyu5llk4Eii2ZCLL9AeX3LkhIfEBZAeG3xEVkN5HIR4RfsQFFpeLP3uthB'
 	_get_facebook_friends = '/fb_friends?fb_id=' + str(_facebook_id) + '&token=' + str(_token) + '&id=9560488236@mm.io'
 
 	def get_app(self):

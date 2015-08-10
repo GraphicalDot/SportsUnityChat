@@ -38,28 +38,35 @@ class LocationHandler(tornado.web.RequestHandler):
 			self.write(response)
 
 class User:
+
 	def __init__(self, username, password = None):
 		self.username = username
 		self.password = str(password)
 
-	def handle_creation(self):
-		if self.exists():
-			response, status = " User already created ", 200
-		else:
-			if not self.token_expired():
+	def handle_creation(self, auth_code):
+		if self.is_token_correct(auth_code):
+			is_registered, password = self.exists()
+			if not is_registered:
 				response, status = self.create_new()
+				password = self.password
 			else:
-				response, status = " Token already expired ", 400
-		return response, status
+				response, status = " User already created ", 200
+				self.password = password
+		else:
+			response, status, password = " Wrong or Expired Token ", 400, None
+		return response, status, password
 
-	def token_expired(self):
-		query = " SELECT * FROM registered_users WHERE username = %s ;"
-		variables = (self.username,)
+	def is_token_correct(self, auth_code):
+		query = " SELECT * FROM registered_users WHERE username = %s AND authorization_code = %s ;"
+		variables = (self.username,auth_code,)
 
 		record = QueryHandler.get_results(query, variables)
-
-		token_expired = record[0]['expiration_time'] < int(time.time())
-		return token_expired 
+		
+		if record and (record[0]['expiration_time'] > int(time.time())):
+			is_token_correct = True
+		else:
+			is_token_correct = False
+		return is_token_correct 
 
 	def exists(self):
 		query = " SELECT * FROM users WHERE username = %s;"
@@ -67,10 +74,11 @@ class User:
 		user_info = QueryHandler.get_results(query, variables)
 		if len(user_info) == 0:
 			registered = False
+			password = None
 		else:
-			self.password = user_info[0]['password']
+			password = user_info[0]['password']
 			registered = True
-		return registered
+		return registered, password
 
 	def create_new(self):
 		try:
@@ -208,9 +216,7 @@ class CreationHandler(tornado.web.RequestHandler):
 			auth_code = str(self.get_arguments("auth_code")[0])
 			password = int(random.random()*1000000) 
 			user = User(username, password)
-			response['info'], response ['status'] = user.handle_creation()
-			response ['password'] = user.password
-			user.delete_if_registered()
+			response['info'], response ['status'], response['password'] = user.handle_creation(auth_code)
 		except Exception, e:
 			response['info'] = " Error %s " % e
 			response ['status'] = 500
