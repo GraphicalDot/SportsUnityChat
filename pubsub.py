@@ -53,7 +53,8 @@ class PubSubService():
 			print("Unable to connect.")
 
 if __name__ == '__main__':
-	xmpp = PubSubClient()
+	xmpp = PubSubClient(node=config.get('pubsub', 'node'), 
+		message=config.get('pubsub', 'sample_message'))
 	xmpp.register_plugin('xep_0030') 
 	xmpp.register_plugin('xep_0004') 
 	xmpp.register_plugin('xep_0066') 
