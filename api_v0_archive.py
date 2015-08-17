@@ -111,7 +111,7 @@ class User:
 		QueryHandler.execute(query, variables)
 
 	def register(self):
-		random_integer = int(random.random()*10000)
+		random_integer = random.randint(1000,9999)
 		expiration_time = int(time.time()) + int(config.get('registration','expiry_period_sec'))
 
 		query = " INSERT INTO registered_users (username, authorization_code, expiration_time) VALUES ( %s, %s, %s); "
@@ -198,7 +198,7 @@ class RegistrationHandler(tornado.web.RequestHandler):
 		response = {}
 		try:
 			number = str(self.get_arguments("phone_number")[0])
-			username = str.strip(number) + "@mm.io"
+			username = str.strip(number) + config.get('xmpp','domain')
 			user = User(username)
 			response['info'], response['status'] = user.handle_registration()
 		except Exception, e:
@@ -212,7 +212,7 @@ class CreationHandler(tornado.web.RequestHandler):
 		response = {}
 		try:
 			phone_number = str(self.get_arguments("phone_number")[0])
-			username = str.strip(phone_number) + "@mm.io"
+			username = str.strip(phone_number) + config.get('xmpp','domain')
 			auth_code = str(self.get_arguments("auth_code")[0])
 			password = int(random.random()*1000000) 
 			user = User(username, password)
