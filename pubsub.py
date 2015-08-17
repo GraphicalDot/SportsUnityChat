@@ -39,6 +39,7 @@ class PubSubService():
 		xmpp.register_plugin('xep_0199') # XMPP Ping
 		if xmpp.connect(('localhost', 5222)):
 			xmpp.process(block=True)
+			xmpp.disconnect()
 			print("Done")
 		else:
 			print("Unable to connect.")
