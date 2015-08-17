@@ -99,7 +99,8 @@ class PubSubServiceTest(AsyncHTTPTestCase):
 	def test_xml_creator(self):
 		from pubsub import PubSubClient
 		node = "example"
-		pubsub = PubSubClient(node)
+		message = "example"
+		pubsub = PubSubClient(node, message)
 		xml = ET.tostring(pubsub.create_xml_stanza())
 		xml_dict = xmltodict.parse(xml)
 		assert xml_dict['pubsub']

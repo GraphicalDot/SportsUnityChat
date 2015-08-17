@@ -1,22 +1,32 @@
 from sleekxmpp import ClientXMPP
 from xml.etree import cElementTree as ET
 import ConfigParser
+from IPython import embed
 config = ConfigParser.ConfigParser()
 config.read('config.py')
 
 class PubSubClient(ClientXMPP):
 	""" Handles PubSub by creating custom xml stanza and then sending it """
 
-	def  __init__(self, node):
+	def  __init__(self, node, message):
 		self.node = node
+		self.message = message
 		ClientXMPP.__init__(self,
 			config.get('pubsub','pubsub_jid'), 
 			config.get('pubsub','pubsub_password'))
-		self.add_event_handler('session_start', self.send_pubsub_stanza)
+		self.add_event_handler('session_start', self.start)
 
-	def send_pubsub_stanza(self):
+	def start(self, event):
 		iq = self.handle_pubsub_iq()
-		iq.send()
+		try:
+			message = iq.send(block=True, now=True)
+			print("Message sent")
+			self.disconnect(reconnect=False, wait=None)
+		except IqError as e:
+			logging.error("Could not send")
+			self.disconnect(reconnect=False)
+		except IqTimeout:
+			logging.error("No response from server.")
 
 	def handle_pubsub_iq(self):
 		pubsub_addr = config.get('pubsub','pubsub_addr')
@@ -28,18 +38,28 @@ class PubSubClient(ClientXMPP):
 		publish = ET.SubElement(pubsub, 'publish', node=self.node) 
 		item = ET.SubElement(publish, 'item')
 		entry = ET.SubElement(item, 'entry')
+		entry.text = self.message
 		return pubsub
 
 class PubSubService():
-	def __init__(self, node):
-		xmpp = PubSubClient(node)
-		xmpp.register_plugin('xep_0030') # Service Discovery
-		xmpp.register_plugin('xep_0004') # Data Forms
-		xmpp.register_plugin('xep_0060') # PubSub
-		xmpp.register_plugin('xep_0199') # XMPP Ping
+	def __init__(self, 
+			node=config.get('pubsub', 'node'), 
+			message=config.get('pubsub', 'sample_message')):
+		xmpp = PubSubClient(node, message)
 		if xmpp.connect(('localhost', 5222)):
 			xmpp.process(block=True)
-			xmpp.disconnect()
 			print("Done")
 		else:
 			print("Unable to connect.")
+
+if __name__ == '__main__':
+	xmpp = PubSubClient()
+	xmpp.register_plugin('xep_0030') 
+	xmpp.register_plugin('xep_0004') 
+	xmpp.register_plugin('xep_0066') 
+	xmpp.register_plugin('xep_0077') 
+	if xmpp.connect(('localhost', 5222)):
+		xmpp.process(block=True)
+		print("Done")
+	else:
+		print("Unable to connect.")
