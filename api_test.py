@@ -48,7 +48,6 @@ class RegistrationTest(AsyncHTTPTestCase):
 		variables = (self._phone_number,)
 		record = QueryHandler.get_results(query, variables)
 
-		assert len(record) = 0
 		self.assertNotEqual(json.loads(response.body)['status'], 200)
 		self.assertEqual(json.loads(response.body)['password'], None)
 
