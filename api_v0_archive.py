@@ -1,5 +1,4 @@
-#TO-DO non blocking database wrapper
-from global_func import QueryHandler
+from global_func import QueryHandler, S3Handler
 import time
 import random
 import tornado.ioloop
@@ -38,10 +37,20 @@ class LocationHandler(tornado.web.RequestHandler):
 			self.write(response)
 
 class User:
-
 	def __init__(self, username, password = None):
 		self.username = username
 		self.password = str(password)
+
+	def authenticate(self):
+		query = " SELECT * FROM users WHERE username = %s AND password = %s; "
+		variables = (self.username, self.password,)
+
+		record = QueryHandler.get_results(query, variables)
+
+		if record:
+			return True
+		else:
+			return False		
 
 	def handle_creation(self, auth_code):
 		if self.is_token_correct(auth_code):
@@ -315,6 +324,49 @@ class UserGroupMessagesHandler(tornado.web.RequestHandler):
 			response['status'] = 500
 		self.write(response)
 
+class PubSubEventHandler(tornado.web.RequestHandler):
+	def get(self):
+		response = {}
+		try:
+			name = self.get_arguments("name")[0]
+			 
+		except Exception, e:
+			response['message'] = " Internal Server Error "
+			response['status'] = 500
+		except NameError:
+			response['message'] = " Proper parameters not supplied "
+			response['status'] = 500
+		else:
+			response['message'] = "Success"
+			response['status'] = 200
+		finally:
+			self.write(response)		
+
+class ProfilePicHandler(tornado.web.RequestHandler):
+	def post(self):
+		response = {}
+		try:
+			profile_pic_bucket = config.get('amazon', 'profile_pics_bucket')
+			info = self.request.files['file'][0]
+			file_name = info['filename']
+			image_file = info['body']
+			username = self.get_arguments('username')[0]
+			password = self.get_arguments('password')[0]
+			user = User(username, password)
+			if user.authenticate():
+				s3 = S3Handler(profile_pic_bucket)
+				s3.upload(username, image_file)
+				response['status'] = 200 
+				response['info'] = 'Success' 
+			else:
+				response['status'] = 400
+				response['info'] = 'Invalid Credentials'
+		except Exception, e:
+			response['status'] = 500 
+			response['info'] = 'error is: %s' % e 
+		finally:
+			self.write(response)
+
 def make_app():
 	return tornado.web.Application([
 		(r"/messages", ArchiveAcessHandler),
@@ -326,6 +378,8 @@ def make_app():
 		(r"/create", CreationHandler),
 		(r"/location", LocationHandler),
 		(r"/fb_friends", FacebookHandler),
+		(r"/new_event", PubSubEventHandler),
+		(r"/profile_pic", ProfilePicHandler),
 	], 
 	autoreload = True,
 	)
