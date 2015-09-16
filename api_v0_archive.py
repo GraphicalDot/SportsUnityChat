@@ -54,10 +54,13 @@ class User:
 
 	def handle_creation(self, auth_code):
 		if self.is_token_correct(auth_code):
-			is_registered, password = self.exists()
-			if not is_registered:
+			is_created, password = self.exists()
+			if not is_created:
 				response, status = self.create_new()
+				if status == 200:
+					self.delete_registered()
 				password = self.password
+
 			else:
 				response, status = " User already created ", 200
 				self.password = password
@@ -109,11 +112,12 @@ class User:
 			return response, status
 
 	def handle_registration(self):
-		self.delete_if_registered()
+		self.delete_registered()
 		response, status = self.register()
 		return response, status
 
-	def delete_if_registered(self):
+	def delete_registered(self):
+		print "deleting registered user"
 		query = " DELETE FROM registered_users WHERE username = %s ;"
 
 		variables = (self.username,)
