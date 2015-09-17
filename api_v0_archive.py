@@ -13,6 +13,7 @@ import ConfigParser
 import subprocess
 import register
 import ConfigParser
+from notification_adapter import NotificationAdapter
 config = ConfigParser.ConfigParser()
 config.read('config.py')
 
@@ -371,6 +372,14 @@ class ProfilePicHandler(tornado.web.RequestHandler):
 		finally:
 			self.write(response)
 
+class FootballEvents(tornado.web.RequestHandler):
+	def post(self):
+		response = {}
+		event = tornado.escape.json_decode(self.request.body)
+		notifier = NotificationAdapter(event, "Football")
+		notifier.notify()
+
+
 def make_app():
 	return tornado.web.Application([
 		(r"/messages", ArchiveAcessHandler),
@@ -382,8 +391,8 @@ def make_app():
 		(r"/create", CreationHandler),
 		(r"/location", LocationHandler),
 		(r"/fb_friends", FacebookHandler),
-		(r"/new_event", PubSubEventHandler),
 		(r"/profile_pic", ProfilePicHandler),
+		(r"/football_notifications", FootballEvents),
 	], 
 	autoreload = True,
 	)
