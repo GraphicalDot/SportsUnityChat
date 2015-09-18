@@ -376,9 +376,15 @@ class FootballEvents(tornado.web.RequestHandler):
 	def post(self):
 		response = {}
 		event = tornado.escape.json_decode(self.request.body)
-		notifier = NotificationAdapter(event, "Football")
-		notifier.notify()
+		if event:
+			NotificationAdapter(event, "Football").notify()
 
+class TennisEvents(tornado.web.RequestHandler):
+	def post(self):
+		response = {}
+		event = tornado.escape.json_decode(self.request.body)
+		if event:
+			NotificationAdapter(event, "Tennis").notify()	
 
 def make_app():
 	return tornado.web.Application([
@@ -393,6 +399,7 @@ def make_app():
 		(r"/fb_friends", FacebookHandler),
 		(r"/profile_pic", ProfilePicHandler),
 		(r"/football_notifications", FootballEvents),
+		(r"/tennis_notifications", TennisEvents),
 	], 
 	autoreload = True,
 	)

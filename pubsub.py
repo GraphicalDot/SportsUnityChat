@@ -1,5 +1,6 @@
 from sleekxmpp import ClientXMPP
 from xml.etree import cElementTree as ET
+from sleekxmpp.exceptions import IqError, IqTimeout
 import ConfigParser
 from IPython import embed
 config = ConfigParser.ConfigParser()
@@ -17,7 +18,7 @@ class PubSubNotificationClient(ClientXMPP):
 
 	def start(self, event):
 		iq = self.handle_pubsub_iq()
-		print "sending: %s " % ET.tostring(self.notification)
+		# print "sending: %s " % str(ET.tostring(self.notification))
 		try:
 			message = iq.send(block=True, now=True)
 			print("Message sent")
