@@ -1,7 +1,5 @@
 from sport_notifications import SportNotifications
 from xml.etree import cElementTree as ET
-import tornado
-from IPython import embed
 import time
 
 class TennisNotifications(SportNotifications):
