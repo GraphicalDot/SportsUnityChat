@@ -14,7 +14,7 @@ expiry_period_sec=1800
 
 [pubsub]
 pubsub_addr=pubsub.mm.io
-pubsub_jid=satish@mm.io
+pubsub_jid=aakarshi@mm.io
 pubsub_password=password
 sample_message=Lorem Ipsum is simply dummy text of the printing and typesetting industry please consider donating a small sum to help pay for the hosting and bandwidth bill
 node=princely_musings

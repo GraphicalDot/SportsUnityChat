@@ -1,19 +1,17 @@
 from global_func import QueryHandler, S3Handler
+from notification_adapter import NotificationAdapter
+from tornado.log import enable_pretty_logging
 import time
 import random
 import tornado.ioloop
 import tornado.web
-from tornado.log import enable_pretty_logging
 import tornado
 import requests
 from IPython import embed
-from requests.auth import HTTPBasicAuth
 import facebook
-import ConfigParser
-import subprocess
 import register
 import ConfigParser
-from notification_adapter import NotificationAdapter
+
 config = ConfigParser.ConfigParser()
 config.read('config.py')
 
@@ -374,17 +372,21 @@ class ProfilePicHandler(tornado.web.RequestHandler):
 
 class FootballEvents(tornado.web.RequestHandler):
 	def post(self):
-		response = {}
 		event = tornado.escape.json_decode(self.request.body)
 		if event:
 			NotificationAdapter(event, "Football").notify()
 
 class TennisEvents(tornado.web.RequestHandler):
 	def post(self):
-		response = {}
 		event = tornado.escape.json_decode(self.request.body)
 		if event:
 			NotificationAdapter(event, "Tennis").notify()	
+
+class CricketEvents(tornado.web.RequestHandler):
+	def post(self):
+		event = tornado.escape.json_decode(self.request.body)
+		if event:
+			NotificationAdapter(event, "Cricket").notify()
 
 def make_app():
 	return tornado.web.Application([
@@ -400,6 +402,7 @@ def make_app():
 		(r"/profile_pic", ProfilePicHandler),
 		(r"/football_notifications", FootballEvents),
 		(r"/tennis_notifications", TennisEvents),
+		(r"/cricket_notifications", CricketEvents),
 	], 
 	autoreload = True,
 	)
