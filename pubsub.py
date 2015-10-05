@@ -1,10 +1,10 @@
 from sleekxmpp import ClientXMPP
-from xml.etree import cElementTree as ET
 from sleekxmpp.exceptions import IqError, IqTimeout
 import ConfigParser
-from IPython import embed
+import logging
 config = ConfigParser.ConfigParser()
 config.read('config.py')
+
 
 class PubSubNotificationClient(ClientXMPP):
 	""" Handles PubSub by creating custom xml stanza and then sending it """
@@ -33,6 +33,7 @@ class PubSubNotificationClient(ClientXMPP):
 		pubsub_addr = config.get('pubsub','pubsub_addr')
 		iq = self.make_iq_set(sub = self.notification, ito=pubsub_addr)
 		return iq
+
 
 class PubSubNotificationService():
 	"""Acts as the interface to the xmpp pubsub service 

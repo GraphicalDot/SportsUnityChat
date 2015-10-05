@@ -1,20 +1,10 @@
-from pubsub import PubSubNotificationClient
-from tornado.testing import AsyncHTTPTestCase, LogTrapTestCase
-import unittest
-from global_func import QueryHandler, S3Handler
-import api_v0_archive
-import facebook
-from IPython import embed 
-import json
-import os, sys
-import requests
-import psycopg2
-import psycopg2.extras
-import xmltodict, json
-from xml.etree import cElementTree as ET
 from ConfigParser import ConfigParser
 from notification_adapter import NotificationAdapter
-from football_notifications import FootballNotifications
+from tornado.testing import AsyncHTTPTestCase
+from xml.etree import cElementTree as ET
+import api_v0_archive
+import unittest
+import xmltodict, json
 config = ConfigParser()
 config.read('config.py')
 
@@ -62,6 +52,7 @@ _xml_football_data_element = [
 		"match_status" ,
 		"match_time"
 	] 
+
 
 class PubSubServiceTest(AsyncHTTPTestCase):
 
