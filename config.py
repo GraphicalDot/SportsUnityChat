@@ -7,7 +7,7 @@ message=Welcome to Sports Unity App. Your authorization code is
 gupshup_id=2000147230
 gupshup_password=6u71LGpxDq
 message_gateway=http://enterprise.smsgupshup.com/GatewayAPI/rest
-facebook_token=CAACEdEose0cBADGSZCvidtkfs9Ec1a31qZAlkoGAYfREgnAGv8YwZBfvl1SShzVD7LyyPBMGSOWxnFZB4xPhqVcAhD057FeZB8aem0kf3EVaIEtVh30xmQAEi1rM1AVZAiav4cAOrZAuvp1XE6HaPX2LFZCqHZBdkdYJEgtO3Vg5rjr8TN522IZBmvpSFClMxhZCn5ppbynxlzJhZCEfkjbJMyBY
+facebook_token=CAACEdEose0cBAEOItEWeH9TrbFEKLkUyZAWoIh8vmKPZBUIgaE4J0JcGkM3UpyxGapT58rOEZBQ6F4adcsBX0Jraj4z8tXjW7A0rKpeSyGZA2mrc3yogadh9OK69E0PVcjPjPq90cGe1XTVF2kVgZCNGHxjJta24zfDtuZAZCqR05VfkCjiWHGXoL9SRDbQQ4cLcpyx7jm8nAZDZD
 
 [registration]
 expiry_period_sec=1800
@@ -29,6 +29,6 @@ profile_pics_bucket=sports_unity_profile_pics
 acl=public-read
 
 [tests]
-test_phone_number = 9999823930
+test_phone_number = 9560488236
 test_facebook_id = 145634995501895
 profile_pic_url = http://localhost:3000/profile_pic

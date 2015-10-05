@@ -6,7 +6,6 @@ import tornado.web
 from tornado.log import enable_pretty_logging
 import tornado
 import requests
-from IPython import embed
 from requests.auth import HTTPBasicAuth
 import facebook
 import subprocess

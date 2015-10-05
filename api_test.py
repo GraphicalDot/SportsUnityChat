@@ -7,7 +7,6 @@ import psycopg2.extras
 import unittest
 import requests
 import sys
-from IPython import embed
 
 import api_v0_archive
 config = ConfigParser()
@@ -92,8 +91,8 @@ class RegistrationTest(AsyncHTTPTestCase):
 		query = " SELECT * FROM users WHERE username = %s; "
 		variables = (self._phone_number,)
 		record = QueryHandler.get_results(query, variables)
-		self.assertEqual(str(username), record[0]['username']+config.get('xmpp','domain'))
 		self.assertEqual(json.loads(response.body)['status'], 200)
+		self.assertEqual(str(username), record[0]['username']+config.get('xmpp','domain'))
 		self.assertEqual(json.loads(response.body)['password'], record[0]['password'])
 
 		query = " SELECT * FROM registered_users WHERE username = %s; "
