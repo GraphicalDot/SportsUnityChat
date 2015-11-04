@@ -12,6 +12,7 @@ import subprocess
 import register
 import ConfigParser
 from notification_adapter import NotificationAdapter
+import os
 config = ConfigParser.ConfigParser()
 config.read('config.py')
 
@@ -56,8 +57,6 @@ class User:
 			is_created, password = self.exists()
 			if not is_created:
 				response, status = self.create_new()
-				if status == 200:
-					self.delete_registered()
 				password = self.password
 
 			else:
@@ -65,6 +64,7 @@ class User:
 				self.password = password
 		else:
 			response, status, password = " Wrong or Expired Token ", 400, None
+		self.delete_registered()
 		return response, status, password
 
 	def is_token_correct(self, auth_code):
@@ -369,6 +369,42 @@ class ProfilePicHandler(tornado.web.RequestHandler):
 		finally:
 			self.write(response)
 
+class MediaHandler(tornado.web.RequestHandler):
+	def post(self):
+		response = {}
+		try:
+			info = self.request.files['file'][0]
+			file_name = "media/" + info['filename']
+			image_file = info['body']
+			if not os.path.isfile(file_name): 
+				media_file = open(file_name, 'w')
+				media_file.write(image_file)
+			response['status'] = 200 
+			response['info'] = 'Success' 
+		except Exception, e:
+			response['status'] = 500 
+			response['info'] = 'error is: %s' % e 
+		finally:
+			self.write(response)
+
+	def get(self):
+		response = {}
+		file_name = "media/" + self.get_arguments("filename")[0]
+		try:
+			if os.path.isfile(file_name):
+				f = open(file_name, 'r')
+				self.write(f.read())
+				f.close()
+			else:  
+				response['info'] = 'Not Found' 
+				response['status'] = 400 
+		except Exception, e:
+			response['status'] = 500 
+			response['info'] = 'error is: %s' % e 
+			self.write(response)
+
+
+
 class FootballEvents(tornado.web.RequestHandler):
 	def post(self):
 		response = {}
@@ -397,6 +433,7 @@ def make_app():
 		(r"/profile_pic", ProfilePicHandler),
 		(r"/football_notifications", FootballEvents),
 		(r"/tennis_notifications", TennisEvents),
+		(r"/media", MediaHandler),
 	], 
 	autoreload = True,
 	)
