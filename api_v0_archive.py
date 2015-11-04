@@ -2,19 +2,14 @@ from global_func import QueryHandler, S3Handler
 from notification_adapter import NotificationAdapter
 from tornado.log import enable_pretty_logging
 from tornado.options import options
-import ConfigParser
-import facebook
 import time
-import tornado
 import tornado.ioloop
 import tornado.web
 import random
 import tornado
 import requests
 import os
-from requests.auth import HTTPBasicAuth
 import facebook
-import subprocess
 import register
 import ConfigParser
 
@@ -59,32 +54,25 @@ class User:
         else:
             return False
 
-	def handle_creation(self, auth_code):
-		print 'inside handle creation'
-		if self.is_token_correct(auth_code):
-			print 'if token correct'
-			is_created, password = self.exists()
-			if not is_created:
-				print 'if user is not already present'
-				response, status = self.create_new()
-				password = self.password
-
-			else:
-				print 'uer already present'
-				response, status = " User already created ", 200
-				self.password = password
-		else:
-			print 'if token is wrong'
-			response, status, password = " Wrong or Expired Token ", 400, None
-		self.delete_registered()
-		return response, status, password
+    def handle_creation(self, auth_code):
+        if self.is_token_correct(auth_code):
+            is_created, password = self.exists()
+            if not is_created:
+                response, status = self.create_new()
+                password = self.password
+            else:
+                response, status = " User already created ", 200
+                self.password = password
+        else:
+            response, status, password = " Wrong or Expired Token ", 400, None
+        self.delete_registered()
+        return response, status, password
 
     def is_token_correct(self, auth_code):
         query = " SELECT * FROM registered_users WHERE username = %s AND authorization_code = %s ;"
-        variables = (self.username,auth_code,)
+        variables = (self.username, auth_code,)
 
         record = QueryHandler.get_results(query, variables)
-
         if record and (record[0]['expiration_time'] > int(time.time())):
             is_token_correct = True
         else:
@@ -93,7 +81,7 @@ class User:
 
     def exists(self):
         query = " SELECT * FROM users WHERE username = %s;"
-        variables = (str.split(self.username,'@')[0],)
+        variables = (str.split(self.username, '@')[0],)
         user_info = QueryHandler.get_results(query, variables)
         if len(user_info) == 0:
             registered = False
@@ -135,7 +123,7 @@ class User:
 
     def register(self):
         random_integer = random.randint(1000,9999)
-        expiration_time = int(time.time()) + int(config.get('registration','expiry_period_sec'))
+        expiration_time = int(time.time()) + int(config.get('registration', 'expiry_period_sec'))
 
         query = " INSERT INTO registered_users (username, authorization_code, expiration_time) VALUES ( %s, %s, %s); "
         variables = (self.username, random_integer, expiration_time)
@@ -145,36 +133,28 @@ class User:
         except Exception, e:
             return " Error while sending message : % s" % e, 500
 
-	def send_message(self, random_integer):
-		print 'inside send message'
-		number = str.split(self.username,'@')[0]
-		message = config.get('database','message') + "  " + str(random_integer)
-		print 'present time:', datetime.datetime.now()
-#		print 'after adding 10 seconds:', datetime.datetime.now() + datetime.timedelta(0, 10)
-#		a = datetime.datetime.now() + datetime.timedelta(0, 10)
-#		trunc =  a.strftime("%Y-%m-%d %H:%M:%S")
-#		print 'trunc time:', trunc
-		payload = {
-			'method' : 'SendMessage',
-			'send_to' : str.strip(number),
-			'msg' : str.strip(message),
-			'msg_type' : 'TEXT',
-			'userid' : config.get('database','gupshup_id'),
-			'auth_scheme' : 'plain',
-			'password' : config.get('database','gupshup_password'),
-			'v' : '1.1',
-			'format' : 'text',
-		}
-		print 'payload:', payload
-		response = requests.get(config.get('database','message_gateway'), params=payload)
-		response = str.split(str(response.text),'|')
-		if str.strip(str.lower(response[0])) == "success":
-			print 'if success'
-			return "Success", 200
-		else:
-			print 'if failure'
-			error = response[2] 
-			return error, 500
+    def send_message(self, random_integer):
+        number = str.split(self.username,'@')[0]
+        message = config.get('database','message') + "  " + str(random_integer)
+        payload = {
+            'method': 'SendMessage',
+            'send_to': str.strip(number),
+            'msg': str.strip(message),
+            'msg_type': 'TEXT',
+            'userid': config.get('database','gupshup_id'),
+            'auth_scheme': 'plain',
+            'password': config.get('database','gupshup_password'),
+            'v': '1.1',
+            'format': 'text',
+        }
+        response = requests.get(config.get('database','message_gateway'), params=payload)
+        response = str.split(str(response.text),'|')
+        if str.strip(str.lower(response[0])) == "success":
+            return "Success", 200
+        else:
+            error = response[2]
+            return error, 500
+
 
 class FacebookHandler(tornado.web.RequestHandler):
     def get(self):
@@ -401,38 +381,38 @@ class ProfilePicHandler(tornado.web.RequestHandler):
 
 
 class MediaHandler(tornado.web.RequestHandler):
-	def post(self):
-		response = {}
-		try:
-			info = self.request.files['file'][0]
-			file_name = "media/" + info['filename']
-			image_file = info['body']
-			if not os.path.isfile(file_name): 
-				media_file = open(file_name, 'w')
-				media_file.write(image_file)
-			response['status'] = 200 
-			response['info'] = 'Success' 
-		except Exception, e:
-			response['status'] = 500 
-			response['info'] = 'error is: %s' % e 
-		finally:
-			self.write(response)
+    def post(self):
+        response = {}
+        try:
+            info = self.request.files['file'][0]
+            file_name = "media/" + info['filename']
+            image_file = info['body']
+            if not os.path.isfile(file_name):
+                media_file = open(file_name, 'w')
+                media_file.write(image_file)
+            response['status'] = 200
+            response['info'] = 'Success'
+        except Exception, e:
+            response['status'] = 500
+            response['info'] = 'error is: %s' % e
+        finally:
+            self.write(response)
 
-	def get(self):
-		response = {}
-		file_name = "media/" + self.get_arguments("filename")[0]
-		try:
-			if os.path.isfile(file_name):
-				f = open(file_name, 'r')
-				self.write(f.read())
-				f.close()
-			else:  
-				response['info'] = 'Not Found' 
-				response['status'] = 400 
-		except Exception, e:
-			response['status'] = 500 
-			response['info'] = 'error is: %s' % e 
-			self.write(response)
+    def get(self):
+        response = {}
+        file_name = "media/" + self.get_arguments("filename")[0]
+        try:
+            if os.path.isfile(file_name):
+                f = open(file_name, 'r')
+                self.write(f.read())
+                f.close()
+            else:
+                response['info'] = 'Not Found'
+                response['status'] = 400
+        except Exception, e:
+            response['status'] = 500
+            response['info'] = 'error is: %s' % e
+            self.write(response)
 
 
 
@@ -452,49 +432,48 @@ class TennisEvents(tornado.web.RequestHandler):
             NotificationAdapter(event, "Tennis").notify()
 
 class FootballEvents(tornado.web.RequestHandler):
-	def post(self):
-		event = tornado.escape.json_decode(self.request.body)
-		if event:
-			NotificationAdapter(event, "Football").notify()
+    def post(self):
+        event = tornado.escape.json_decode(self.request.body)
+        if event:
+            NotificationAdapter(event, "Football").notify()
 
 
 class TennisEvents(tornado.web.RequestHandler):
-	def post(self):
-		event = tornado.escape.json_decode(self.request.body)
-		if event:
-			NotificationAdapter(event, "Tennis").notify()	
+    def post(self):
+        event = tornado.escape.json_decode(self.request.body)
+        if event:
+            NotificationAdapter(event, "Tennis").notify()
 
 class CricketEvents(tornado.web.RequestHandler):
-	def post(self):
-		event = tornado.escape.json_decode(self.request.body)
-		if event:
-			NotificationAdapter(event, "Cricket").notify()
+    def post(self):
+        event = tornado.escape.json_decode(self.request.body)
+        if event:
+            NotificationAdapter(event, "Cricket").notify()
+
 
 def make_app():
-	return tornado.web.Application([
-		(r"/messages", ArchiveAcessHandler),
-		(r"/groups", GroupsHandler),
-		(r"/groups_messages", GroupsMessagesHandler),
-		(r"/group_messages", GroupMessagesHandler),
-		(r"/user_group", UserGroupMessagesHandler),
-		(r"/register", RegistrationHandler),
-		(r"/create", CreationHandler),
-		(r"/location", LocationHandler),
-		(r"/fb_friends", FacebookHandler),
-		(r"/profile_pic", ProfilePicHandler),
-		(r"/football_notifications", FootballEvents),
-		(r"/tennis_notifications", TennisEvents),
-		(r"/media", MediaHandler),
-		(r"/cricket_notifications", CricketEvents),
-	], 
-	autoreload = True,
-	)
+    return tornado.web.Application([
+                                       (r"/messages", ArchiveAcessHandler),
+                                       (r"/groups", GroupsHandler),
+                                       (r"/groups_messages", GroupsMessagesHandler),
+                                       (r"/group_messages", GroupMessagesHandler),
+                                       (r"/user_group", UserGroupMessagesHandler),
+                                       (r"/register", RegistrationHandler),
+                                       (r"/create", CreationHandler),
+                                       (r"/location", LocationHandler),
+                                       (r"/fb_friends", FacebookHandler),
+                                       (r"/profile_pic", ProfilePicHandler),
+                                       (r"/football_notifications", FootballEvents),
+                                       (r"/tennis_notifications", TennisEvents),
+                                       (r"/media", MediaHandler),
+                                       (r"/cricket_notifications", CricketEvents),
+                                       ],
+                                   autoreload = True,
+                                   )
 
 if __name__ == "__main__":
-
-	app = make_app()
-
-	options.log_file_prefix  = "tornado_log"
-	enable_pretty_logging(options=options)
-	app.listen(3000)
-	tornado.ioloop.IOLoop.current().start()
+    app = make_app()
+    options.log_file_prefix  = "tornado_log"
+    enable_pretty_logging(options=options)
+    app.listen(3000)
+    tornado.ioloop.IOLoop.current().start()

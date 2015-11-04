@@ -1,4 +1,5 @@
 from ConfigParser import ConfigParser
+import time
 from global_func import QueryHandler, S3Handler
 from tornado.testing import AsyncHTTPTestCase
 import json
@@ -50,7 +51,7 @@ class RegistrationTest(AsyncHTTPTestCase):
     def test_user_registration(self):
         self.http_client.fetch(self.get_url(self._registration_url), self.stop)
         response = self.wait(timeout = 20)
-        username = self._phone_number + config.get('xmpp','domain')
+        username = self._phone_number + config.get('xmpp', 'domain')
         query = " SELECT * FROM registered_users WHERE username = %s "
         variables = (username,)
         record = QueryHandler.get_results(query, variables)
@@ -65,7 +66,7 @@ class RegistrationTest(AsyncHTTPTestCase):
         QueryHandler.execute(query, variables)
 
         self.http_client.fetch(self.get_url(self._creation_url), self.stop)
-        response = self.wait(timeout = 20)
+        response = self.wait(timeout=20)
 
         query = " SELECT * FROM users WHERE username = %s; "
         variables = (self._phone_number,)
@@ -75,21 +76,22 @@ class RegistrationTest(AsyncHTTPTestCase):
         self.assertEqual(json.loads(response.body)['password'], None)
 
     def test_user_creation(self):
+        username = self._phone_number + config.get('xmpp', 'domain')
+
         query = " DELETE FROM users WHERE username = %s;"
         variables = (self._phone_number,)
         QueryHandler.execute(query, variables)
 
-        username = self._phone_number + config.get('xmpp','domain')
-        query = " UPDATE registered_users SET authorization_code = %s" \
-                " WHERE username = %s; "
-        variables = (self._auth_code, username,)
+        expiration_time = int(time.time()) + int(config.get('registration', 'expiry_period_sec'))
+        query = " INSERT INTO registered_users (username, authorization_code, expiration_time) VALUES ( %s, %s, %s); "
+        variables = (username, self._auth_code, expiration_time)
         QueryHandler.execute(query, variables)
 
         self.http_client.fetch(self.get_url(self._creation_url), self.stop)
-        response = self.wait(timeout = 20)
+        response = self.wait(timeout=20)
 
         query = " SELECT * FROM users WHERE username = %s; "
-        variables = (self._phone_number,)
+        variables = (self._phone_number, )
         record = QueryHandler.get_results(query, variables)
         self.assertEqual(json.loads(response.body)['status'], 200)
         self.assertEqual(str(username), record[0]['username']+config.get('xmpp','domain'))
@@ -127,14 +129,11 @@ class FacebookFriendServiceTest(AsyncHTTPTestCase):
         except psycopg2.IntegrityError:
             pass
 
-		self.http_client.fetch(self.get_url(self._get_facebook_friends), self.stop)
-		self.wait(timeout = 20)
-		query = " SELECT * FROM users WHERE fb_id = %s ;"
-		results = QueryHandler.get_results(query, (self._facebook_id, ))
-		self.assertEqual(results[0]['username'], str.split(self._id,'@')[0])
-
-    def get_app(self):
-        return api_v0_archive.make_app()
+        self.http_client.fetch(self.get_url(self._get_facebook_friends), self.stop)
+        self.wait(timeout = 20)
+        query = " SELECT * FROM users WHERE fb_id = %s ;"
+        results = QueryHandler.get_results(query, (self._facebook_id, ))
+        self.assertEqual(results[0]['username'], str.split(self._id,'@')[0])
 
     def get_app(self):
         return api_v0_archive.make_app()
