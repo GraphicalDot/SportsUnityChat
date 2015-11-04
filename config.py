@@ -1,8 +1,8 @@
 [database]
-database=test
-host=localhost
-user=test
-password=test
+database=test_database
+host=masterdb
+user=aakarshi
+password=aakarshi
 message=Welcome to Sports Unity App. Your authorization code is  
 gupshup_id=2000147230
 gupshup_password=6u71LGpxDq
@@ -23,12 +23,12 @@ node=princely_musings
 domain=@mm.io
 
 [amazon]
-amazon_access_key=AKIAJQ4YKSYEDJGYH7ZA
-amazon_secret_key=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
+amazon_access_key=AKIAJBDUSAQY2QTMKXIA
+amazon_secret_key=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
 profile_pics_bucket=sports_unity_profile_pics
 acl=public-read
 
 [tests]
-test_phone_number = 9560488236
-test_facebook_id = 145634995501895
+test_facebook_id=145634995501895
+test_phone_number=919560488236
 profile_pic_url = http://localhost:3000/profile_pic

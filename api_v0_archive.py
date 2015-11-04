@@ -1,17 +1,23 @@
 from global_func import QueryHandler, S3Handler
+from notification_adapter import NotificationAdapter
+from tornado.log import enable_pretty_logging
+from tornado.options import options
+import ConfigParser
+import facebook
 import time
-import random
+import tornado
 import tornado.ioloop
 import tornado.web
-from tornado.log import enable_pretty_logging
+import random
 import tornado
 import requests
+import os
 from requests.auth import HTTPBasicAuth
 import facebook
 import subprocess
 import register
 import ConfigParser
-from notification_adapter import NotificationAdapter
+
 config = ConfigParser.ConfigParser()
 config.read('config.py')
 
@@ -23,7 +29,7 @@ class LocationHandler(tornado.web.RequestHandler):
             user = str(self.get_arguments("user", True)[0])
             longtitude = float(self.get_arguments("lng", True)[0])
             latitude = float(self.get_arguments("lat", True)[0])
-            username = str.split(user,"@")[0]
+            username = str.split(user, "@")[0]
             query = " UPDATE users SET lat = %s, lng = %s " \
                     " WHERE username = %s; "
             QueryHandler.execute(query, (latitude, longtitude, username))
@@ -53,21 +59,25 @@ class User:
         else:
             return False
 
-    def handle_creation(self, auth_code):
-        if self.is_token_correct(auth_code):
-            is_created, password = self.exists()
-            if not is_created:
-                response, status = self.create_new()
-                if status == 200:
-                    self.delete_registered()
-                password = self.password
+	def handle_creation(self, auth_code):
+		print 'inside handle creation'
+		if self.is_token_correct(auth_code):
+			print 'if token correct'
+			is_created, password = self.exists()
+			if not is_created:
+				print 'if user is not already present'
+				response, status = self.create_new()
+				password = self.password
 
-            else:
-                response, status = " User already created ", 200
-                self.password = password
-        else:
-            response, status, password = " Wrong or Expired Token ", 400, None
-        return response, status, password
+			else:
+				print 'uer already present'
+				response, status = " User already created ", 200
+				self.password = password
+		else:
+			print 'if token is wrong'
+			response, status, password = " Wrong or Expired Token ", 400, None
+		self.delete_registered()
+		return response, status, password
 
     def is_token_correct(self, auth_code):
         query = " SELECT * FROM registered_users WHERE username = %s AND authorization_code = %s ;"
@@ -135,28 +145,36 @@ class User:
         except Exception, e:
             return " Error while sending message : % s" % e, 500
 
-    def send_message(self, random_integer):
-        number = str.split(self.username,'@')[0]
-        message = config.get('database','message') + "  " + str(random_integer)
-        payload = {
-        'method' : 'SendMessage',
-        'send_to' : str.strip(number),
-        'msg' : str.strip(message),
-        'msg_type' : 'TEXT',
-        'userid' : config.get('database','gupshup_id'),
-        'auth_scheme' : 'plain',
-        'password' : config.get('database','gupshup_password'),
-        'v' : '1.1',
-        'format' : 'text',
-        }
-        response = requests.get(config.get('database','message_gateway'), params=payload)
-        response = str.split(str(response.text),'|')
-        if str.strip(str.lower(response[0])) == "success":
-            return "Success", 200
-        else:
-            error = response[2]
-            return error, 500
-
+	def send_message(self, random_integer):
+		print 'inside send message'
+		number = str.split(self.username,'@')[0]
+		message = config.get('database','message') + "  " + str(random_integer)
+		print 'present time:', datetime.datetime.now()
+#		print 'after adding 10 seconds:', datetime.datetime.now() + datetime.timedelta(0, 10)
+#		a = datetime.datetime.now() + datetime.timedelta(0, 10)
+#		trunc =  a.strftime("%Y-%m-%d %H:%M:%S")
+#		print 'trunc time:', trunc
+		payload = {
+			'method' : 'SendMessage',
+			'send_to' : str.strip(number),
+			'msg' : str.strip(message),
+			'msg_type' : 'TEXT',
+			'userid' : config.get('database','gupshup_id'),
+			'auth_scheme' : 'plain',
+			'password' : config.get('database','gupshup_password'),
+			'v' : '1.1',
+			'format' : 'text',
+		}
+		print 'payload:', payload
+		response = requests.get(config.get('database','message_gateway'), params=payload)
+		response = str.split(str(response.text),'|')
+		if str.strip(str.lower(response[0])) == "success":
+			print 'if success'
+			return "Success", 200
+		else:
+			print 'if failure'
+			error = response[2] 
+			return error, 500
 
 class FacebookHandler(tornado.web.RequestHandler):
     def get(self):
@@ -166,9 +184,9 @@ class FacebookHandler(tornado.web.RequestHandler):
             token = str(self.get_arguments("token")[0])
             user_id = str(self.get_arguments('id')[0])
 
-            username = str.split(user_id,"@")[0]
+            username = str.split(user_id, "@")[0]
 
-            args = {'fields' : 'id,name,email,friends', }
+            args = {'fields': 'id,name,email,friends', }
             graph = facebook.GraphAPI(token)
             fb_json = graph.get_object('me', **args)
 
@@ -200,6 +218,7 @@ class FacebookHandler(tornado.web.RequestHandler):
                 friends_id_name.append(friend_id_name)
         return friends_id_name
 
+
     def set_fb_details(self, fb_id, username, fb_name):
         query = " UPDATE users SET fb_id = %s, fb_name = %s WHERE username = %s ;"
         variables = (fb_id, fb_name, username)
@@ -211,7 +230,7 @@ class RegistrationHandler(tornado.web.RequestHandler):
         response = {}
         try:
             number = str(self.get_arguments("phone_number")[0])
-            username = str.strip(number) + config.get('xmpp','domain')
+            username = str.strip(number) + config.get('xmpp', 'domain')
             user = User(username)
             response['info'], response['status'] = user.handle_registration()
         except Exception, e:
@@ -226,14 +245,14 @@ class CreationHandler(tornado.web.RequestHandler):
         response = {}
         try:
             phone_number = str(self.get_arguments("phone_number")[0])
-            username = str.strip(phone_number) + config.get('xmpp','domain')
+            username = str.strip(phone_number) + config.get('xmpp', 'domain')
             auth_code = str(self.get_arguments("auth_code")[0])
-            password = int(random.random()*1000000)
+            password = int(random.random() * 1000000)
             user = User(username, password)
-            response['info'], response ['status'], response['password'] = user.handle_creation(auth_code)
+            response['info'], response['status'], response['password'] = user.handle_creation(auth_code)
         except Exception, e:
             response['info'] = " Error %s " % e
-            response ['status'] = 500
+            response['status'] = 500
         finally:
             self.write(response)
 
@@ -249,7 +268,7 @@ class ArchiveAcessHandler(tornado.web.RequestHandler):
         try:
             response['info'] = QueryHandler.get_results(" SELECT txt, username FROM archive WHERE timestamp > %s " \
                                                         " AND timestamp < %s OFFSET %s LIMIT %s; " \
-                                                        ,(from_timestamp[0], to_timestamp[0], skip[0], limit[0],))
+                                                        , (from_timestamp[0], to_timestamp[0], skip[0], limit[0],))
             response['status'] = 200
         except Exception, e:
             print(e)
@@ -266,7 +285,7 @@ class GroupsHandler(tornado.web.RequestHandler):
         response['version'] = 0.1
         try:
             response['info'] = QueryHandler.get_results(" SELECT name FROM muc_room OFFSET %s LIMIT %s; " \
-                                                        ,(skip[0], limit[0],))
+                                                        , (skip[0], limit[0],))
             response['status'] = 200
         except Exception, e:
             response['info'] = " Error: %s" % e
@@ -306,7 +325,8 @@ class GroupMessagesHandler(tornado.web.RequestHandler):
         try:
             response['info'] = QueryHandler.get_results(" SELECT txt, username FROM archive WHERE timestamp > %s " \
                                                         " AND timestamp < %s AND bare_peer LIKE %s OFFSET %s LIMIT %s;" \
-                                                        ,(from_timestamp[0], to_timestamp[0], group[0], skip[0], limit[0],))
+                                                        , (
+                    from_timestamp[0], to_timestamp[0], group[0], skip[0], limit[0],))
             response['status'] = 200
         except Exception, e:
             response['info'] = " Error: %s" % e
@@ -327,7 +347,7 @@ class UserGroupMessagesHandler(tornado.web.RequestHandler):
             response['info'] = QueryHandler.get_results(" SELECT txt, username FROM archive WHERE timestamp > %s " \
                                                         " AND timestamp < %s AND username LIKE %s AND bare_peer " \
                                                         " LIKE '%%@conference.mm.io' OFFSET %s LIMIT %s; " \
-                                                        ,(from_timestamp[0], to_timestamp[0], user[0], skip[0], limit[0],))
+                                                        , (from_timestamp[0], to_timestamp[0], user[0], skip[0], limit[0],))
             response['status'] = 200
         except Exception, e:
             response['info'] = " Error: %s" % e
@@ -380,6 +400,42 @@ class ProfilePicHandler(tornado.web.RequestHandler):
             self.write(response)
 
 
+class MediaHandler(tornado.web.RequestHandler):
+	def post(self):
+		response = {}
+		try:
+			info = self.request.files['file'][0]
+			file_name = "media/" + info['filename']
+			image_file = info['body']
+			if not os.path.isfile(file_name): 
+				media_file = open(file_name, 'w')
+				media_file.write(image_file)
+			response['status'] = 200 
+			response['info'] = 'Success' 
+		except Exception, e:
+			response['status'] = 500 
+			response['info'] = 'error is: %s' % e 
+		finally:
+			self.write(response)
+
+	def get(self):
+		response = {}
+		file_name = "media/" + self.get_arguments("filename")[0]
+		try:
+			if os.path.isfile(file_name):
+				f = open(file_name, 'r')
+				self.write(f.read())
+				f.close()
+			else:  
+				response['info'] = 'Not Found' 
+				response['status'] = 400 
+		except Exception, e:
+			response['status'] = 500 
+			response['info'] = 'error is: %s' % e 
+			self.write(response)
+
+
+
 class FootballEvents(tornado.web.RequestHandler):
     def post(self):
         response = {}
@@ -395,28 +451,50 @@ class TennisEvents(tornado.web.RequestHandler):
         if event:
             NotificationAdapter(event, "Tennis").notify()
 
+class FootballEvents(tornado.web.RequestHandler):
+	def post(self):
+		event = tornado.escape.json_decode(self.request.body)
+		if event:
+			NotificationAdapter(event, "Football").notify()
+
+
+class TennisEvents(tornado.web.RequestHandler):
+	def post(self):
+		event = tornado.escape.json_decode(self.request.body)
+		if event:
+			NotificationAdapter(event, "Tennis").notify()	
+
+class CricketEvents(tornado.web.RequestHandler):
+	def post(self):
+		event = tornado.escape.json_decode(self.request.body)
+		if event:
+			NotificationAdapter(event, "Cricket").notify()
 
 def make_app():
-    return tornado.web.Application([
-                                       (r"/messages", ArchiveAcessHandler),
-                                       (r"/groups", GroupsHandler),
-                                       (r"/groups_messages", GroupsMessagesHandler),
-                                       (r"/group_messages", GroupMessagesHandler),
-                                       (r"/user_group", UserGroupMessagesHandler),
-                                       (r"/register", RegistrationHandler),
-                                       (r"/create", CreationHandler),
-                                       (r"/location", LocationHandler),
-                                       (r"/fb_friends", FacebookHandler),
-                                       (r"/profile_pic", ProfilePicHandler),
-                                       (r"/football_notifications", FootballEvents),
-                                       (r"/tennis_notifications", TennisEvents),
-                                       ],
-                                   autoreload = True,
-                                   )
-
+	return tornado.web.Application([
+		(r"/messages", ArchiveAcessHandler),
+		(r"/groups", GroupsHandler),
+		(r"/groups_messages", GroupsMessagesHandler),
+		(r"/group_messages", GroupMessagesHandler),
+		(r"/user_group", UserGroupMessagesHandler),
+		(r"/register", RegistrationHandler),
+		(r"/create", CreationHandler),
+		(r"/location", LocationHandler),
+		(r"/fb_friends", FacebookHandler),
+		(r"/profile_pic", ProfilePicHandler),
+		(r"/football_notifications", FootballEvents),
+		(r"/tennis_notifications", TennisEvents),
+		(r"/media", MediaHandler),
+		(r"/cricket_notifications", CricketEvents),
+	], 
+	autoreload = True,
+	)
 
 if __name__ == "__main__":
-    app = make_app()
-    enable_pretty_logging()
-    app.listen(3000)
-    tornado.ioloop.IOLoop.current().start()
+
+	app = make_app()
+
+	options.log_file_prefix  = "tornado_log"
+	enable_pretty_logging(options=options)
+	app.listen(3000)
+	tornado.ioloop.IOLoop.current().start()

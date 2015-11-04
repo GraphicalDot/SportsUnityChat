@@ -105,15 +105,14 @@ class FacebookFriendServiceTest(AsyncHTTPTestCase):
 
     _facebook_id = config.get('tests', 'test_facebook_id')
     _id = config.get('tests', 'test_phone_number') + '@mm.io'
-    _token = config.get('database', 'facebook_token')
+    _token = config.get('database','facebook_token')
     _get_facebook_friends = '/fb_friends?fb_id=' + str(_facebook_id) + '&token=' + str(_token) + \
                             '&id=' + config.get('tests', 'test_phone_number') + '@mm.io'
 
     def test_fb_graph_api(self):
         self.http_client.fetch(self.get_url(self._get_facebook_friends), self.stop)
-        response = self.wait(timeout=20)
+        response = self.wait(timeout = 20)
         self.assertEqual(200, json.loads(response.body)['status'])
-
 
     def test_fb_id_storage(self):
         try:
@@ -128,12 +127,14 @@ class FacebookFriendServiceTest(AsyncHTTPTestCase):
         except psycopg2.IntegrityError:
             pass
 
-        self.http_client.fetch(self.get_url(self._get_facebook_friends), self.stop)
-        self.wait(timeout=20)
-        query = " SELECT * FROM users WHERE fb_id = %s ;"
-        results = QueryHandler.get_results(query, (self._facebook_id, ))
-        self.assertEqual(results[0]['username'], str.split(self._id,'@')[0])
+		self.http_client.fetch(self.get_url(self._get_facebook_friends), self.stop)
+		self.wait(timeout = 20)
+		query = " SELECT * FROM users WHERE fb_id = %s ;"
+		results = QueryHandler.get_results(query, (self._facebook_id, ))
+		self.assertEqual(results[0]['username'], str.split(self._id,'@')[0])
 
+    def get_app(self):
+        return api_v0_archive.make_app()
 
     def get_app(self):
         return api_v0_archive.make_app()
@@ -159,16 +160,16 @@ class ProfilePicServiceTest(AsyncHTTPTestCase):
 
         file_data = {'file': open(file_name, 'rb')}
         data = {
-            'username': self.username,
-            'password': self.password
+        'username': self.username,
+        'password': self.password
         }
         response = requests.post(config.get('tests', 'profile_pic_url'), data=data, files=file_data)
         self.assertEqual(json.loads(response.text)['status'], 200)
 
         file_data = {'file': open(file_name, 'rb')}
         data = {
-            'username': self.username,
-            'password': 'password1'
+        'username': self.username,
+        'password': 'password1'
         }
         response = requests.post(config.get('tests', 'profile_pic_url'), data=data, files=file_data)
         self.assertNotEqual(json.loads(response.text)['status'], 200)

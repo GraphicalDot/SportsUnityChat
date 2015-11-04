@@ -15,9 +15,7 @@ To Do :-
 3> Publish Tennis Notifcations 
 4> Publish Cricket Notifcations 
 
-
-
-Store location:- 
+Store location:-
 
 Store location is a GET REST api which stores the lat long of the users, so that the radius queries can be run.
 Format :- <ip>/location?user=ashwin@mm.io&lat=<latitude coordinates>&lng=<longtitude coordinates>
@@ -73,8 +71,19 @@ a. Clone repository:
 b. Install local packages:
 >> sudo apt-get install python-pip
 >> sudo apt-get install erlang=18.1
-Install Postgres following steps as described on : https://www.digitalocean.com/community/tutorials/how-to-install-and-use-postgresql-on-ubuntu-14-04
-Install Tornado as described in : http://www.tornadoweb.org/en/stable/#installation
+
+* If faced problem in installing erlang, refer following steps:
+    * sudo apt-get -y install build-essential m4 libncurses5-dev libssh-dev unixodbc-dev libgmp3-dev libwxgtk2.8-dev libglu1-mesa-dev fop xsltproc default-jdk
+     * wget http://www.erlang.org/download/otp_src_18.1.tar.gz
+     * tar -xvzf otp_src_18.1.tar.gz
+     * chmod -R 777 otp_src_18.1
+     * cd otp_src_18.1
+     * ./configure
+     * sudo make
+     * sudo make install
+
+>> Install Postgres following steps as described on : https://www.digitalocean.com/community/tutorials/how-to-install-and-use-postgresql-on-ubuntu-14-04
+>> Install Tornado as described in : http://www.tornadoweb.org/en/stable/#installation
 >> pip install requests
 
 Install 'ejabberd' (version: 15.06) in following steps:
@@ -95,6 +104,14 @@ v) [sudo] make
 
 * If finds problem with pam, install pam separately following below steps:
  >> sudo apt-get install libpam0g-dev
+
+* If finds problem with yaml.h file:
+  >> wget http://pyyaml.org/download/libyaml/yaml-0.1.5.tar.gz
+  >> tar -xvf yaml-0.1.5.tar.gz
+  >> cd yaml-0.1.5
+  >> ./configure
+  >> sudo make
+  >> sudo make installs
 
 vi) [sudo] make install
 vii) Start ejabberd service using this command: ejabberdctl start
