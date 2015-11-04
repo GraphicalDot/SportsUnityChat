@@ -973,3 +973,4 @@
 [I 151104 06:07:53 web:1908] 200 GET /create?&auth_code=9123&phone_number=919717261060 (127.0.0.1) 47.60ms
 [I 151104 06:08:05 web:1908] 200 GET /create?&auth_code=9831&phone_number=919971419925 (127.0.0.1) 41.09ms
 [W 151104 06:16:44 web:1908] 404 POST /azenv.php?auth=144661780649&a=PSCMN&i=917100888&p=80 (127.0.0.1) 0.60ms
+[I 151104 06:55:46 autoreload:204] /home/ubuntu/chat_api/notification_adapter.py modified; restarting server

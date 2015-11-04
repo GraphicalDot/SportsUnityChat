@@ -1,21 +1,20 @@
 from global_func import QueryHandler, S3Handler
 from tornado.options import define, options
 import datetime
+from notification_adapter import NotificationAdapter
+from tornado.log import enable_pretty_logging
 import time
 import random
 import tornado.ioloop
 import tornado.web
-from tornado.log import enable_pretty_logging
 import tornado
 import requests
-from IPython import embed
 from requests.auth import HTTPBasicAuth
 import facebook
-import ConfigParser
 import subprocess
 import register
 import ConfigParser
-from notification_adapter import NotificationAdapter
+
 config = ConfigParser.ConfigParser()
 config.read('config.py')
 
@@ -81,7 +80,7 @@ class User:
 		variables = (self.username,auth_code,)
 
 		record = QueryHandler.get_results(query, variables)
-		
+
 		if record and (record[0]['expiration_time'] > int(time.time())):
 			is_token_correct = True
 		else:
@@ -127,7 +126,6 @@ class User:
 	def delete_registered(self):
 		print "deleting registered user"
 		query = " DELETE FROM registered_users WHERE username = %s ;"
-
 		variables = (self.username,)
 		QueryHandler.execute(query, variables)
 
@@ -155,7 +153,7 @@ class User:
 		payload = {
 			'method' : 'SendMessage',
 			'send_to' : str.strip(number),
-			'msg' : str.strip(message) ,
+			'msg' : str.strip(message),
 			'msg_type' : 'TEXT',
 			'userid' : config.get('database','gupshup_id'),
 			'auth_scheme' : 'plain',
@@ -244,7 +242,7 @@ class CreationHandler(tornado.web.RequestHandler):
 			phone_number = str(self.get_arguments("phone_number")[0])
 			username = str.strip(phone_number) + config.get('xmpp','domain')
 			auth_code = str(self.get_arguments("auth_code")[0])
-			password = int(random.random()*1000000) 
+			password = int(random.random()*1000000)
 			user = User(username, password)
 			print 'auth code:', auth_code, password, username
 			response['info'], response ['status'], response['password'] = user.handle_creation(auth_code)
@@ -258,7 +256,7 @@ class CreationHandler(tornado.web.RequestHandler):
 
 class ArchiveAcessHandler(tornado.web.RequestHandler):
 	def get(self):
-		from_timestamp = self.get_arguments("from") 
+		from_timestamp = self.get_arguments("from")
 		to_timestamp = self.get_arguments("to")
 		skip = self.get_arguments("skip", True) or [0]
 		limit = self.get_arguments("limit", True) or [100]
@@ -393,17 +391,21 @@ class ProfilePicHandler(tornado.web.RequestHandler):
 
 class FootballEvents(tornado.web.RequestHandler):
 	def post(self):
-		response = {}
 		event = tornado.escape.json_decode(self.request.body)
 		if event:
 			NotificationAdapter(event, "Football").notify()
 
 class TennisEvents(tornado.web.RequestHandler):
 	def post(self):
-		response = {}
 		event = tornado.escape.json_decode(self.request.body)
 		if event:
 			NotificationAdapter(event, "Tennis").notify()	
+
+class CricketEvents(tornado.web.RequestHandler):
+	def post(self):
+		event = tornado.escape.json_decode(self.request.body)
+		if event:
+			NotificationAdapter(event, "Cricket").notify()
 
 def make_app():
 	return tornado.web.Application([
@@ -419,6 +421,7 @@ def make_app():
 		(r"/profile_pic", ProfilePicHandler),
 		(r"/football_notifications", FootballEvents),
 		(r"/tennis_notifications", TennisEvents),
+		(r"/cricket_notifications", CricketEvents),
 	], 
 	autoreload = True,
 	)
