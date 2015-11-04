@@ -2,7 +2,6 @@ from sleekxmpp import ClientXMPP
 from sleekxmpp.exceptions import IqError, IqTimeout
 import ConfigParser
 import logging
-from IPython import embed
 config = ConfigParser.ConfigParser()
 config.read('config.py')
 

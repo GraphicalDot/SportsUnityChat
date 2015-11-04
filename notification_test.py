@@ -76,6 +76,7 @@ _xml_cricket_data_element = [
 ]
 
 
+
 class PubSubServiceTest(AsyncHTTPTestCase):
 
 	_publish_score = '/publish_score?sport=football&score'

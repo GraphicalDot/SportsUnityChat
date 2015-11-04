@@ -7,6 +7,7 @@ import ConfigParser
 config = ConfigParser.ConfigParser()
 config.read('config.py')
 
+
 class QueryHandler:
 	@classmethod
 	def get_connection(cls):
@@ -37,6 +38,7 @@ class QueryHandler:
 		cursor.execute(query, variables)
 		connection.commit()
 		cursor.close()
+
 
 class S3Handler:
 	def __init__(self, bucket_name):

@@ -20,7 +20,6 @@ class NotificationAdapter(object):
 	def notify(self):
 		notification = self.sport_notification.create_stanza()
 		PubSubNotificationService(notification)
-		
 
 	def __getattr__(self, attr):
 		return getattr(self.sport_notification, attr)
