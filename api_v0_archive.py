@@ -1,14 +1,17 @@
 from global_func import QueryHandler, S3Handler
-from tornado.options import define, options
-import datetime
 from notification_adapter import NotificationAdapter
 from tornado.log import enable_pretty_logging
+from tornado.options import options
+import ConfigParser
+import facebook
 import time
-import random
+import tornado
 import tornado.ioloop
 import tornado.web
+import random
 import tornado
 import requests
+import os
 from requests.auth import HTTPBasicAuth
 import facebook
 import subprocess
@@ -18,25 +21,27 @@ import ConfigParser
 config = ConfigParser.ConfigParser()
 config.read('config.py')
 
+
 class LocationHandler(tornado.web.RequestHandler):
-	def get(self):
-		response = {}
-		try:
-			user = str(self.get_arguments("user", True)[0])
-			longtitude = float(self.get_arguments("lng", True)[0])
-			latitude = float(self.get_arguments("lat", True)[0])
-			username = str.split(user,"@")[0]
-			query = " UPDATE users SET lat = %s, lng = %s " \
-					" WHERE username = %s; "
-			QueryHandler.execute(query, (latitude, longtitude, username))
-		except Exception, e:
-			response["info"] = " Error %s " % e
-			response["status"] = 500
-		else:
-			response['message'] = "Success"
-			response["status"] = 200
-		finally:
-			self.write(response)
+    def get(self):
+        response = {}
+        try:
+            user = str(self.get_arguments("user", True)[0])
+            longtitude = float(self.get_arguments("lng", True)[0])
+            latitude = float(self.get_arguments("lat", True)[0])
+            username = str.split(user, "@")[0]
+            query = " UPDATE users SET lat = %s, lng = %s " \
+                    " WHERE username = %s; "
+            QueryHandler.execute(query, (latitude, longtitude, username))
+        except Exception, e:
+            response["info"] = " Error %s " % e
+            response["status"] = 500
+        else:
+            response['message'] = "Success"
+            response["status"] = 200
+        finally:
+            self.write(response)
+
 
 class User:
 	def __init__(self, username, password = None):
@@ -62,8 +67,6 @@ class User:
 			if not is_created:
 				print 'if user is not already present'
 				response, status = self.create_new()
-				if status == 200:
-					self.delete_registered()
 				password = self.password
 
 			else:
@@ -73,6 +76,7 @@ class User:
 		else:
 			print 'if token is wrong'
 			response, status, password = " Wrong or Expired Token ", 400, None
+		self.delete_registered()
 		return response, status, password
 
 	def is_token_correct(self, auth_code):
@@ -172,222 +176,279 @@ class User:
 			error = response[2] 
 			return error, 500
 
-
 class FacebookHandler(tornado.web.RequestHandler):
-	def get(self):
-		response = {}
-		try:
-			fb_id = str(self.get_arguments("fb_id")[0])
-			token = str(self.get_arguments("token")[0])
-			user_id = str(self.get_arguments('id')[0])
+    def get(self):
+        response = {}
+        try:
+            fb_id = str(self.get_arguments("fb_id")[0])
+            token = str(self.get_arguments("token")[0])
+            user_id = str(self.get_arguments('id')[0])
 
-			username = str.split(user_id,"@")[0]
+            username = str.split(user_id, "@")[0]
 
-			args = {'fields' : 'id,name,email,friends', }
-			graph = facebook.GraphAPI(token)
-			fb_json = graph.get_object('me', **args)
+            args = {'fields': 'id,name,email,friends', }
+            graph = facebook.GraphAPI(token)
+            fb_json = graph.get_object('me', **args)
 
-			fb_name = fb_json['name']
-			
-			self.set_fb_details(fb_id, username, fb_name)
+            fb_name = fb_json['name']
 
-			friends_details = self.get_friends_id(fb_json['friends']['data'])
-		# TO-DO explicit error messages
-		except Exception, e:
-			response['info'] = " Error : % s " % e 
-			response['status'] = 500
-		else:
-			response['list'] = friends_details
-			response['status'] = 200
-		finally:
-			self.write(response)
+            self.set_fb_details(fb_id, username, fb_name)
 
-	def get_friends_id(self, friends_details):
-		friends_id_name = []
-		for friend_detail in friends_details:
-			friend_id_name = {}
-			query = " SELECT * FROM users WHERE fb_id = %s;"
-			variables = (friend_detail['id'],)
-			results = QueryHandler.get_results(query, variables)
-			if len(results) > 0:
-				friend_id_name['id'] = results['username'] + '@mm.io'
-				friend_id_name['fb_name'] = results['fb_name'] + '@mm.io'
-				friends_id_name.append(friend_id_name)
-		return friends_id_name
+            friends_details = self.get_friends_id(fb_json['friends']['data'])
+        # TO-DO explicit error messages
+        except Exception, e:
+            response['info'] = " Error : % s " % e
+            response['status'] = 500
+        else:
+            response['list'] = friends_details
+            response['status'] = 200
+        finally:
+            self.write(response)
+
+    def get_friends_id(self, friends_details):
+        friends_id_name = []
+        for friend_detail in friends_details:
+            friend_id_name = {}
+            query = " SELECT * FROM users WHERE fb_id = %s;"
+            variables = (friend_detail['id'],)
+            results = QueryHandler.get_results(query, variables)
+            if len(results) > 0:
+                friend_id_name['id'] = results['username'] + '@mm.io'
+                friend_id_name['fb_name'] = results['fb_name'] + '@mm.io'
+                friends_id_name.append(friend_id_name)
+        return friends_id_name
 
 
-	def set_fb_details(self, fb_id, username, fb_name):
-		query = " UPDATE users SET fb_id = %s, fb_name = %s WHERE username = %s ;"
-		variables = (fb_id, fb_name, username)
-		QueryHandler.execute(query, variables)
+    def set_fb_details(self, fb_id, username, fb_name):
+        query = " UPDATE users SET fb_id = %s, fb_name = %s WHERE username = %s ;"
+        variables = (fb_id, fb_name, username)
+        QueryHandler.execute(query, variables)
+
 
 class RegistrationHandler(tornado.web.RequestHandler):
-	def get(self):
-		response = {}
-		try:
-			number = str(self.get_arguments("phone_number")[0])
-			username = str.strip(number) + config.get('xmpp','domain')
-			user = User(username)
-			response['info'], response['status'] = user.handle_registration()
-		except Exception, e:
-			response['info'] = " Error: %s " % e
-			response['status'] = 500
-		finally:
-			self.write(response)
-			
+    def get(self):
+        response = {}
+        try:
+            number = str(self.get_arguments("phone_number")[0])
+            username = str.strip(number) + config.get('xmpp', 'domain')
+            user = User(username)
+            response['info'], response['status'] = user.handle_registration()
+        except Exception, e:
+            response['info'] = " Error: %s " % e
+            response['status'] = 500
+        finally:
+            self.write(response)
+
+
 class CreationHandler(tornado.web.RequestHandler):
-	def get(self):
-		response = {}
-		try:
-			phone_number = str(self.get_arguments("phone_number")[0])
-			username = str.strip(phone_number) + config.get('xmpp','domain')
-			auth_code = str(self.get_arguments("auth_code")[0])
-			password = int(random.random()*1000000)
-			user = User(username, password)
-			print 'auth code:', auth_code, password, username
-			response['info'], response ['status'], response['password'] = user.handle_creation(auth_code)
-		except Exception, e:
-			print 'inside exception'
-			response['info'] = " Error %s " % e
-			response ['status'] = 500
-		finally:
-			print 'inside finally'
-			self.write(response)
+    def get(self):
+        response = {}
+        try:
+            phone_number = str(self.get_arguments("phone_number")[0])
+            username = str.strip(phone_number) + config.get('xmpp', 'domain')
+            auth_code = str(self.get_arguments("auth_code")[0])
+            password = int(random.random() * 1000000)
+            user = User(username, password)
+            response['info'], response['status'], response['password'] = user.handle_creation(auth_code)
+        except Exception, e:
+            response['info'] = " Error %s " % e
+            response['status'] = 500
+        finally:
+            self.write(response)
 
 class ArchiveAcessHandler(tornado.web.RequestHandler):
-	def get(self):
-		from_timestamp = self.get_arguments("from")
-		to_timestamp = self.get_arguments("to")
-		skip = self.get_arguments("skip", True) or [0]
-		limit = self.get_arguments("limit", True) or [100]
-		response = {}
-		response['version'] = 0.1
-		try:
-			response['info'] = QueryHandler.get_results(" SELECT txt, username FROM archive WHERE timestamp > %s " \
-														" AND timestamp < %s OFFSET %s LIMIT %s; " \
-														,(from_timestamp[0], to_timestamp[0], skip[0], limit[0],))
-			response['status'] = 200
-		except Exception, e:
-			print(e)
-			response['info'] = " Error: %s" % e
-			response['status'] = 500
-		self.write(response)
+    def get(self):
+        from_timestamp = self.get_arguments("from")
+        to_timestamp = self.get_arguments("to")
+        skip = self.get_arguments("skip", True) or [0]
+        limit = self.get_arguments("limit", True) or [100]
+        response = {}
+        response['version'] = 0.1
+        try:
+            response['info'] = QueryHandler.get_results(" SELECT txt, username FROM archive WHERE timestamp > %s " \
+                                                        " AND timestamp < %s OFFSET %s LIMIT %s; " \
+                                                        , (from_timestamp[0], to_timestamp[0], skip[0], limit[0],))
+            response['status'] = 200
+        except Exception, e:
+            print(e)
+            response['info'] = " Error: %s" % e
+            response['status'] = 500
+        self.write(response)
+
 
 class GroupsHandler(tornado.web.RequestHandler):
-	def get(self):
-		skip = self.get_arguments("skip", True) or [0]
-		limit = self.get_arguments("limit", True) or [100]
-		response = {}
-		response['version'] = 0.1
-		try:
-			response['info'] = QueryHandler.get_results(" SELECT name FROM muc_room OFFSET %s LIMIT %s; " \
-														,(skip[0], limit[0],))
-			response['status'] = 200
-		except Exception, e:
-			response['info'] = " Error: %s" % e
-			response['status'] = 500
-		self.write(response)
+    def get(self):
+        skip = self.get_arguments("skip", True) or [0]
+        limit = self.get_arguments("limit", True) or [100]
+        response = {}
+        response['version'] = 0.1
+        try:
+            response['info'] = QueryHandler.get_results(" SELECT name FROM muc_room OFFSET %s LIMIT %s; " \
+                                                        , (skip[0], limit[0],))
+            response['status'] = 200
+        except Exception, e:
+            response['info'] = " Error: %s" % e
+            response['status'] = 500
+        self.write(response)
+
 
 class GroupsMessagesHandler(tornado.web.RequestHandler):
-	def get(self):
-		from_timestamp = self.get_arguments("from") 
-		to_timestamp = self.get_arguments("to")
-		skip = self.get_arguments("skip", True) or [0]
-		limit = self.get_arguments("limit", True) or [100]
-		response = {}
-		response['version'] = 0.1
-		try:
-			response['info'] = QueryHandler.get_results(" SELECT txt, username FROM archive WHERE timestamp > %s " \
-														" AND timestamp < %s AND bare_peer LIKE '%%@conference.mm.io' " \
-														" OFFSET %s LIMIT %s; ", \
-														(from_timestamp[0], to_timestamp[0], skip[0], limit[0],))
-			response['status'] = 200
-		except Exception, e:
-			response['info'] = " Error: %s" % e
-			response['status'] = 500
-		self.write(response)
+    def get(self):
+        from_timestamp = self.get_arguments("from")
+        to_timestamp = self.get_arguments("to")
+        skip = self.get_arguments("skip", True) or [0]
+        limit = self.get_arguments("limit", True) or [100]
+        response = {}
+        response['version'] = 0.1
+        try:
+            response['info'] = QueryHandler.get_results(" SELECT txt, username FROM archive WHERE timestamp > %s " \
+                                                        " AND timestamp < %s AND bare_peer LIKE '%%@conference.mm.io' " \
+                                                        " OFFSET %s LIMIT %s; ", \
+                                                        (from_timestamp[0], to_timestamp[0], skip[0], limit[0],))
+            response['status'] = 200
+        except Exception, e:
+            response['info'] = " Error: %s" % e
+            response['status'] = 500
+        self.write(response)
+
 
 class GroupMessagesHandler(tornado.web.RequestHandler):
-	def get(self):
-		from_timestamp = self.get_arguments("from") 
-		to_timestamp = self.get_arguments("to")
-		skip = self.get_arguments("skip", True) or [0]
-		group = self.get_arguments("group", True) or ["test@conference.mm.io"]
-		limit = self.get_arguments("limit", True) or [100]
-		response = {}
-		response['version'] = 0.1
-		try:
-			response['info'] = QueryHandler.get_results(" SELECT txt, username FROM archive WHERE timestamp > %s " \
-														" AND timestamp < %s AND bare_peer LIKE %s OFFSET %s LIMIT %s;" \
-														,(from_timestamp[0], to_timestamp[0], group[0], skip[0], limit[0],))
-			response['status'] = 200
-		except Exception, e:
-			response['info'] = " Error: %s" % e
-			response['status'] = 500
-		self.write(response)
+    def get(self):
+        from_timestamp = self.get_arguments("from")
+        to_timestamp = self.get_arguments("to")
+        skip = self.get_arguments("skip", True) or [0]
+        group = self.get_arguments("group", True) or ["test@conference.mm.io"]
+        limit = self.get_arguments("limit", True) or [100]
+        response = {}
+        response['version'] = 0.1
+        try:
+            response['info'] = QueryHandler.get_results(" SELECT txt, username FROM archive WHERE timestamp > %s " \
+                                                        " AND timestamp < %s AND bare_peer LIKE %s OFFSET %s LIMIT %s;" \
+                                                        , (
+                    from_timestamp[0], to_timestamp[0], group[0], skip[0], limit[0],))
+            response['status'] = 200
+        except Exception, e:
+            response['info'] = " Error: %s" % e
+            response['status'] = 500
+        self.write(response)
+
 
 class UserGroupMessagesHandler(tornado.web.RequestHandler):
-	def get(self):
-		from_timestamp = self.get_arguments("from") 
-		to_timestamp = self.get_arguments("to")
-		skip = self.get_arguments("skip", True) or [0]
-		user = self.get_arguments("user", True) or ['satish@mm.io']
-		limit = self.get_arguments("limit", True) or [100]
-		response = {}
-		response['version'] = 0.1
-		try:
-			response['info'] = QueryHandler.get_results(" SELECT txt, username FROM archive WHERE timestamp > %s " \
-														" AND timestamp < %s AND username LIKE %s AND bare_peer " \
-														" LIKE '%%@conference.mm.io' OFFSET %s LIMIT %s; " \
-														,(from_timestamp[0], to_timestamp[0], user[0], skip[0], limit[0],))
-			response['status'] = 200
-		except Exception, e:
-			response['info'] = " Error: %s" % e
-			response['status'] = 500
-		self.write(response)
+    def get(self):
+        from_timestamp = self.get_arguments("from")
+        to_timestamp = self.get_arguments("to")
+        skip = self.get_arguments("skip", True) or [0]
+        user = self.get_arguments("user", True) or ['satish@mm.io']
+        limit = self.get_arguments("limit", True) or [100]
+        response = {}
+        response['version'] = 0.1
+        try:
+            response['info'] = QueryHandler.get_results(" SELECT txt, username FROM archive WHERE timestamp > %s " \
+                                                        " AND timestamp < %s AND username LIKE %s AND bare_peer " \
+                                                        " LIKE '%%@conference.mm.io' OFFSET %s LIMIT %s; " \
+                                                        , (from_timestamp[0], to_timestamp[0], user[0], skip[0], limit[0],))
+            response['status'] = 200
+        except Exception, e:
+            response['info'] = " Error: %s" % e
+            response['status'] = 500
+        self.write(response)
+
 
 class PubSubEventHandler(tornado.web.RequestHandler):
-	def get(self):
-		response = {}
-		try:
-			name = self.get_arguments("name")[0]
-			 
-		except Exception, e:
-			response['message'] = " Internal Server Error "
-			response['status'] = 500
-		except NameError:
-			response['message'] = " Proper parameters not supplied "
-			response['status'] = 500
-		else:
-			response['message'] = "Success"
-			response['status'] = 200
-		finally:
-			self.write(response)		
+    def get(self):
+        response = {}
+        try:
+            name = self.get_arguments("name")[0]
+
+        except Exception, e:
+            response['message'] = " Internal Server Error "
+            response['status'] = 500
+        except NameError:
+            response['message'] = " Proper parameters not supplied "
+            response['status'] = 500
+        else:
+            response['message'] = "Success"
+            response['status'] = 200
+        finally:
+            self.write(response)
+
 
 class ProfilePicHandler(tornado.web.RequestHandler):
+    def post(self):
+        response = {}
+        try:
+            profile_pic_bucket = config.get('amazon', 'profile_pics_bucket')
+            info = self.request.files['file'][0]
+            file_name = info['filename']
+            image_file = info['body']
+            username = self.get_arguments('username')[0]
+            password = self.get_arguments('password')[0]
+            user = User(username, password)
+            if user.authenticate():
+                s3 = S3Handler(profile_pic_bucket)
+                s3.upload(username, image_file)
+                response['status'] = 200
+                response['info'] = 'Success'
+            else:
+                response['status'] = 400
+                response['info'] = 'Invalid Credentials'
+        except Exception, e:
+            response['status'] = 500
+            response['info'] = 'error is: %s' % e
+        finally:
+            self.write(response)
+
+
+class MediaHandler(tornado.web.RequestHandler):
 	def post(self):
 		response = {}
 		try:
-			profile_pic_bucket = config.get('amazon', 'profile_pics_bucket')
 			info = self.request.files['file'][0]
-			file_name = info['filename']
+			file_name = "media/" + info['filename']
 			image_file = info['body']
-			username = self.get_arguments('username')[0]
-			password = self.get_arguments('password')[0]
-			user = User(username, password)
-			if user.authenticate():
-				s3 = S3Handler(profile_pic_bucket)
-				s3.upload(username, image_file)
-				response['status'] = 200 
-				response['info'] = 'Success' 
-			else:
-				response['status'] = 400
-				response['info'] = 'Invalid Credentials'
+			if not os.path.isfile(file_name): 
+				media_file = open(file_name, 'w')
+				media_file.write(image_file)
+			response['status'] = 200 
+			response['info'] = 'Success' 
 		except Exception, e:
 			response['status'] = 500 
 			response['info'] = 'error is: %s' % e 
 		finally:
 			self.write(response)
+
+	def get(self):
+		response = {}
+		file_name = "media/" + self.get_arguments("filename")[0]
+		try:
+			if os.path.isfile(file_name):
+				f = open(file_name, 'r')
+				self.write(f.read())
+				f.close()
+			else:  
+				response['info'] = 'Not Found' 
+				response['status'] = 400 
+		except Exception, e:
+			response['status'] = 500 
+			response['info'] = 'error is: %s' % e 
+			self.write(response)
+
+
+
+class FootballEvents(tornado.web.RequestHandler):
+    def post(self):
+        response = {}
+        event = tornado.escape.json_decode(self.request.body)
+        if event:
+            NotificationAdapter(event, "Football").notify()
+
+
+class TennisEvents(tornado.web.RequestHandler):
+    def post(self):
+        response = {}
+        event = tornado.escape.json_decode(self.request.body)
+        if event:
+            NotificationAdapter(event, "Tennis").notify()
 
 class FootballEvents(tornado.web.RequestHandler):
 	def post(self):
@@ -421,13 +482,14 @@ def make_app():
 		(r"/profile_pic", ProfilePicHandler),
 		(r"/football_notifications", FootballEvents),
 		(r"/tennis_notifications", TennisEvents),
+		(r"/media", MediaHandler),
 		(r"/cricket_notifications", CricketEvents),
 	], 
 	autoreload = True,
 	)
 
-
 if __name__ == "__main__":
+
 	app = make_app()
 
 	options.log_file_prefix  = "tornado_log"

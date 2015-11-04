@@ -23,7 +23,11 @@ node=princely_musings
 domain=@mm.io
 
 [amazon]
-amazon_access_key=AKIAJQ4YKSYEDJGYH7ZA
-amazon_secret_key=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
+amazon_access_key=AKIAJBDUSAQY2QTMKXIA
+amazon_secret_key=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
 profile_pics_bucket=sports_unity_profile_pics
 acl=public-read
+
+[tests]
+test_facebook_id=145634995501895
+test_phone_number=919560488236
