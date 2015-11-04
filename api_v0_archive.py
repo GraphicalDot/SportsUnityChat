@@ -1,4 +1,6 @@
 from global_func import QueryHandler, S3Handler
+from tornado.options import define, options
+import datetime
 import time
 import random
 import tornado.ioloop
@@ -54,18 +56,23 @@ class User:
 			return False		
 
 	def handle_creation(self, auth_code):
+		print 'inside handle creation'
 		if self.is_token_correct(auth_code):
+			print 'if token correct'
 			is_created, password = self.exists()
 			if not is_created:
+				print 'if user is not already present'
 				response, status = self.create_new()
 				if status == 200:
 					self.delete_registered()
 				password = self.password
 
 			else:
+				print 'uer already present'
 				response, status = " User already created ", 200
 				self.password = password
 		else:
+			print 'if token is wrong'
 			response, status, password = " Wrong or Expired Token ", 400, None
 		return response, status, password
 
@@ -137,8 +144,14 @@ class User:
 			return " Error while sending message : % s" % e, 500
 
 	def send_message(self, random_integer):
+		print 'inside send message'
 		number = str.split(self.username,'@')[0]
 		message = config.get('database','message') + "  " + str(random_integer)
+		print 'present time:', datetime.datetime.now()
+#		print 'after adding 10 seconds:', datetime.datetime.now() + datetime.timedelta(0, 10)
+#		a = datetime.datetime.now() + datetime.timedelta(0, 10)
+#		trunc =  a.strftime("%Y-%m-%d %H:%M:%S")
+#		print 'trunc time:', trunc
 		payload = {
 			'method' : 'SendMessage',
 			'send_to' : str.strip(number),
@@ -150,11 +163,14 @@ class User:
 			'v' : '1.1',
 			'format' : 'text',
 		}
+		print 'payload:', payload
 		response = requests.get(config.get('database','message_gateway'), params=payload)
 		response = str.split(str(response.text),'|')
 		if str.strip(str.lower(response[0])) == "success":
+			print 'if success'
 			return "Success", 200
 		else:
+			print 'if failure'
 			error = response[2] 
 			return error, 500
 
@@ -230,11 +246,14 @@ class CreationHandler(tornado.web.RequestHandler):
 			auth_code = str(self.get_arguments("auth_code")[0])
 			password = int(random.random()*1000000) 
 			user = User(username, password)
+			print 'auth code:', auth_code, password, username
 			response['info'], response ['status'], response['password'] = user.handle_creation(auth_code)
 		except Exception, e:
+			print 'inside exception'
 			response['info'] = " Error %s " % e
 			response ['status'] = 500
 		finally:
+			print 'inside finally'
 			self.write(response)
 
 class ArchiveAcessHandler(tornado.web.RequestHandler):
@@ -407,6 +426,8 @@ def make_app():
 
 if __name__ == "__main__":
 	app = make_app()
-	enable_pretty_logging()
+
+	options.log_file_prefix  = "tornado_log"
+	enable_pretty_logging(options=options)
 	app.listen(3000)
 	tornado.ioloop.IOLoop.current().start()
