@@ -9,11 +9,14 @@ import tornado
 import tornado.ioloop
 import tornado.web
 import random
+import tornado
+import requests
+import os
+from requests.auth import HTTPBasicAuth
+import facebook
+import subprocess
 import register
 import ConfigParser
-from notification_adapter import NotificationAdapter
-import os
-import requests
 
 config = ConfigParser.ConfigParser()
 config.read('config.py')
@@ -57,16 +60,21 @@ class User:
 			return False		
 
 	def handle_creation(self, auth_code):
+		print 'inside handle creation'
 		if self.is_token_correct(auth_code):
+			print 'if token correct'
 			is_created, password = self.exists()
 			if not is_created:
+				print 'if user is not already present'
 				response, status = self.create_new()
 				password = self.password
 
 			else:
+				print 'uer already present'
 				response, status = " User already created ", 200
 				self.password = password
 		else:
+			print 'if token is wrong'
 			response, status, password = " Wrong or Expired Token ", 400, None
 		self.delete_registered()
 		return response, status, password
@@ -138,8 +146,14 @@ class User:
 			return " Error while sending message : % s" % e, 500
 
 	def send_message(self, random_integer):
+		print 'inside send message'
 		number = str.split(self.username,'@')[0]
 		message = config.get('database','message') + "  " + str(random_integer)
+		print 'present time:', datetime.datetime.now()
+#		print 'after adding 10 seconds:', datetime.datetime.now() + datetime.timedelta(0, 10)
+#		a = datetime.datetime.now() + datetime.timedelta(0, 10)
+#		trunc =  a.strftime("%Y-%m-%d %H:%M:%S")
+#		print 'trunc time:', trunc
 		payload = {
 			'method' : 'SendMessage',
 			'send_to' : str.strip(number),
@@ -151,11 +165,14 @@ class User:
 			'v' : '1.1',
 			'format' : 'text',
 		}
+		print 'payload:', payload
 		response = requests.get(config.get('database','message_gateway'), params=payload)
 		response = str.split(str(response.text),'|')
 		if str.strip(str.lower(response[0])) == "success":
+			print 'if success'
 			return "Success", 200
 		else:
+			print 'if failure'
 			error = response[2] 
 			return error, 500
 
@@ -238,7 +255,6 @@ class CreationHandler(tornado.web.RequestHandler):
             response['status'] = 500
         finally:
             self.write(response)
-
 
 class ArchiveAcessHandler(tornado.web.RequestHandler):
     def get(self):
@@ -434,6 +450,23 @@ class TennisEvents(tornado.web.RequestHandler):
         if event:
             NotificationAdapter(event, "Tennis").notify()
 
+class FootballEvents(tornado.web.RequestHandler):
+	def post(self):
+		event = tornado.escape.json_decode(self.request.body)
+		if event:
+			NotificationAdapter(event, "Football").notify()
+
+class TennisEvents(tornado.web.RequestHandler):
+	def post(self):
+		event = tornado.escape.json_decode(self.request.body)
+		if event:
+			NotificationAdapter(event, "Tennis").notify()	
+
+class CricketEvents(tornado.web.RequestHandler):
+	def post(self):
+		event = tornado.escape.json_decode(self.request.body)
+		if event:
+			NotificationAdapter(event, "Cricket").notify()
 
 def make_app():
 	return tornado.web.Application([
@@ -450,13 +483,16 @@ def make_app():
 		(r"/football_notifications", FootballEvents),
 		(r"/tennis_notifications", TennisEvents),
 		(r"/media", MediaHandler),
+		(r"/cricket_notifications", CricketEvents),
 	], 
 	autoreload = True,
 	)
 
 if __name__ == "__main__":
-    app = make_app()
-    options.log_file_prefix = "tornado_log"
-    enable_pretty_logging(options=options)
-    app.listen(3000)
-    tornado.ioloop.IOLoop.current().start()
+
+	app = make_app()
+
+	options.log_file_prefix  = "tornado_log"
+	enable_pretty_logging(options=options)
+	app.listen(3000)
+	tornado.ioloop.IOLoop.current().start()

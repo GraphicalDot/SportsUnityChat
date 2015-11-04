@@ -1,6 +1,7 @@
 from pubsub import PubSubNotificationService
 from football_notifications import FootballNotifications 
 from tennis_notifications import TennisNotifications
+from cricket_notification import CricketNotifications
 
 class NotificationAdapter(object):
 
@@ -10,6 +11,8 @@ class NotificationAdapter(object):
 			sport_notification = FootballNotifications
 		elif sport_name == "Tennis":
 			sport_notification = TennisNotifications
+		elif sport_name == "Cricket":
+			sport_notification = CricketNotifications
 		else:
 			raise NotImplementedError
 		self.sport_notification = sport_notification(event)

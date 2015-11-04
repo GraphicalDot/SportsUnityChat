@@ -14,7 +14,7 @@ class PubSubNotificationClient(ClientXMPP):
 		ClientXMPP.__init__(self,
 			config.get('pubsub','pubsub_jid'), 
 			config.get('pubsub','pubsub_password'))
-		self.add_event_handler('session_start', self.start)
+		self.add_event_handler	('session_start', self.start)
 
 	def start(self, event):
 		iq = self.handle_pubsub_iq()
@@ -22,10 +22,10 @@ class PubSubNotificationClient(ClientXMPP):
 		try:
 			message = iq.send(block=True, now=True)
 			print("Message sent")
-			self.disconnect(reconnect=False, wait=None)
+			self.disconnect()
 		except IqError as e:
 			logging.error("Could not send")
-			self.disconnect(reconnect=False)
+			self.disconnect()
 		except IqTimeout:
 			logging.error("No response from server.")
 
@@ -48,7 +48,7 @@ class PubSubNotificationService():
 			print("Unable to connect.")
 
 if __name__ == '__main__':
-	xmpp = PubSubNotificationClient(node=config.get('pubsub', 'node'), 
+	xmpp = PubSubNotificationClient(node=config.get('pubsub', 'node'),
 		message=config.get('pubsub', 'sample_message'))
 	xmpp.register_plugin('xep_0030') 
 	xmpp.register_plugin('xep_0004') 
