@@ -210,7 +210,6 @@ class MediaTest(AsyncHTTPTestCase):
 
         self.url = "http://localhost:3000/media?name=md5_sample"
         response = requests.get(self.url)
-        embed()
         from IPython import embed
         assert response.content
         assert file_content == response.content
