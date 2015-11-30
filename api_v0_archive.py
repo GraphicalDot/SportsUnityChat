@@ -473,7 +473,7 @@ def make_app():
                                        (r"/media", MediaHandler),
                                        (r"/cricket_notifications", CricketEvents),
                                        ],
-                                   # autoreload = True,
+                                   autoreload = True,
                                    )
 
 if __name__ == "__main__":
