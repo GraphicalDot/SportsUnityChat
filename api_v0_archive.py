@@ -1,4 +1,3 @@
-import base64
 from global_func import QueryHandler, S3Handler
 from notification_adapter import NotificationAdapter
 from tornado.log import enable_pretty_logging
@@ -15,6 +14,7 @@ import json
 import register
 import ConfigParser
 from IPython import embed
+import base64
 
 config = ConfigParser.ConfigParser()
 config.read('config.py')
@@ -387,9 +387,8 @@ class MediaHandler(tornado.web.RequestHandler):
     def post(self):
         response = {}
         try:
-            info = json.loads(self.request.body)
-            file_content = base64.b64decode(info['body'])
-            file_name = info['name']
+            file_content = self.request.body
+            file_name = self.request.headers['Checksum']
             file_name = "media/" + file_name
             if not os.path.isfile(file_name):
                 media_file = open(file_name, 'w')
@@ -409,17 +408,16 @@ class MediaHandler(tornado.web.RequestHandler):
         try:
             if os.path.isfile(file_name):
                 f = open(file_name, 'r')
-                response['file'] = base64.b64encode(f.read())
-                response['status'] = 200
-                response['info'] = 'Success' 
+                self.write(f.read())
                 f.close()
             else:
                 response['info'] = 'Not Found'
                 response['status'] = 400
+                self.write(response)
         except Exception, e:
             response['status'] = 500
             response['info'] = 'error is: %s' % e
-        self.write(response)
+            self.write(response)
 
 
 

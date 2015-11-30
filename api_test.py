@@ -203,16 +203,17 @@ class MediaTest(AsyncHTTPTestCase):
         import base64
         file_content = open(file_name, 'r').read()
         md5 = hashlib.md5(file_content).hexdigest()
-        content = {'name': 'md5_sample', 'body': base64.b64encode(file_content)}
-        response = requests.post(self.url, json=content)
-        print response.content
+        headers = {'Checksum': 'md5_sample'}
+        response = requests.post(self.url, headers=headers, data=file_content)
         assert json.loads(response.content)['status'] == 200
         assert os.path.isfile('media/md5_sample')
 
         self.url = "http://localhost:3000/media?name=md5_sample"
         response = requests.get(self.url)
+        embed()
+        from IPython import embed
         assert response.content
-        assert base64.b64encode(file_content) == json.loads(response.content)['file']
+        assert file_content == response.content
 
     def get_app(self):
         return api_v0_archive.make_app()
