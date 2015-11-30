@@ -1,3 +1,4 @@
+import base64
 from global_func import QueryHandler, S3Handler
 from notification_adapter import NotificationAdapter
 from tornado.log import enable_pretty_logging
@@ -10,8 +11,10 @@ import tornado
 import requests
 import os
 import facebook
+import json
 import register
 import ConfigParser
+from IPython import embed
 
 config = ConfigParser.ConfigParser()
 config.read('config.py')
@@ -384,12 +387,14 @@ class MediaHandler(tornado.web.RequestHandler):
     def post(self):
         response = {}
         try:
-            info = self.request.files['file'][0]
-            file_name = "media/" + info['filename']
-            image_file = info['body']
+            info = json.loads(self.request.body)
+            file_content = base64.b64decode(info['body'])
+            file_name = info['name']
+            file_name = "media/" + file_name
             if not os.path.isfile(file_name):
                 media_file = open(file_name, 'w')
-                media_file.write(image_file)
+                media_file.write(file_content)
+                media_file.flush()
             response['status'] = 200
             response['info'] = 'Success'
         except Exception, e:
@@ -400,11 +405,13 @@ class MediaHandler(tornado.web.RequestHandler):
 
     def get(self):
         response = {}
-        file_name = "media/" + self.get_arguments("filename")[0]
+        file_name = "media/" + self.get_arguments("name")[0]
         try:
             if os.path.isfile(file_name):
                 f = open(file_name, 'r')
-                self.write(f.read())
+                response['file'] = base64.b64encode(f.read())
+                response['status'] = 200
+                response['info'] = 'Success' 
                 f.close()
             else:
                 response['info'] = 'Not Found'
@@ -412,7 +419,7 @@ class MediaHandler(tornado.web.RequestHandler):
         except Exception, e:
             response['status'] = 500
             response['info'] = 'error is: %s' % e
-            self.write(response)
+        self.write(response)
 
 
 
@@ -468,7 +475,7 @@ def make_app():
                                        (r"/media", MediaHandler),
                                        (r"/cricket_notifications", CricketEvents),
                                        ],
-                                   autoreload = True,
+                                   # autoreload = True,
                                    )
 
 if __name__ == "__main__":

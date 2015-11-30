@@ -1,4 +1,6 @@
 from ConfigParser import ConfigParser
+import hashlib
+import os
 import time
 from global_func import QueryHandler, S3Handler
 from tornado.testing import AsyncHTTPTestCase
@@ -187,6 +189,36 @@ class ProfilePicServiceTest(AsyncHTTPTestCase):
         variables = (self.username,)
         QueryHandler.execute(query, variables)
 
+class MediaTest(AsyncHTTPTestCase):
+    def getUp(self):
+        file_storage_name = "media/md5_sample"
+        if os.path.isfile(file_storage_name):
+            os.remove(file_storage_name)
+
+
+    def test_upload_and_download(self):
+        from IPython import embed
+        self.url = "http://localhost:3000/media"
+        file_name = sys.argv[0]
+        import base64
+        file_content = open(file_name, 'r').read()
+        md5 = hashlib.md5(file_content).hexdigest()
+        content = {'name': 'md5_sample', 'body': base64.b64encode(file_content)}
+        response = requests.post(self.url, json=content)
+        print response.content
+        assert json.loads(response.content)['status'] == 200
+        assert os.path.isfile('media/md5_sample')
+
+        self.url = "http://localhost:3000/media?name=md5_sample"
+        response = requests.get(self.url)
+        assert response.content
+        assert base64.b64encode(file_content) == json.loads(response.content)['file']
+
+    def get_app(self):
+        return api_v0_archive.make_app()
+
+    def tearDown(self):
+        pass
 
 if __name__ == '__main__':
     unittest.main()
