@@ -195,10 +195,10 @@ class MediaTest(AsyncHTTPTestCase):
         if os.path.isfile(file_storage_name):
             os.remove(file_storage_name)
 
-
     def test_upload_and_download(self):
         from IPython import embed
         self.url = "http://localhost:3000/media"
+        self.media_presence_url = "http://localhost:3000/media_present?name=md5_sample"
         file_name = sys.argv[0]
         import base64
         file_content = open(file_name, 'r').read()
@@ -210,10 +210,19 @@ class MediaTest(AsyncHTTPTestCase):
 
         self.url = "http://localhost:3000/media?name=md5_sample"
         response = requests.get(self.url)
-        embed()
         from IPython import embed
         assert response.content
         assert file_content == response.content
+
+        response = requests.get(self.media_presence_url)
+        assert json.loads(response.content["status"]) == 200
+    
+        file_storage_name = "media/md5_sample"
+        os.remove(file_storage_name)
+        
+        response = requests.get(self.media_presence_url)
+        assert json.loads(response.content["status"]) == 400
+
 
     def get_app(self):
         return api_v0_archive.make_app()

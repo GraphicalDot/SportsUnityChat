@@ -1,13 +1,13 @@
 [database]
-database=test_database
-host=masterdb
-user=aakarshi
-password=aakarshi
+database=test
+host=localhost
+user=test
+password=test
 message=Welcome to Sports Unity App. Your authorization code is  
 gupshup_id=2000147230
 gupshup_password=6u71LGpxDq
 message_gateway=http://enterprise.smsgupshup.com/GatewayAPI/rest
-facebook_token=CAACEdEose0cBADRXtnHDSZBkQ1f7MHUdKgZAgw2IEbLMVB3JZCKEtkisAZAJsy6scLQalznWmrSz08PCQRLgEBKmDsbKza6M1dZCiKZB7TZAfzY8OZC1HsVFEV5d6rWZB4IBDIp5ZCVLTHj87pB0hrQJJ1qMgZAueWnO8zzJRs91MHDkZAXobvtWL9U0cUx1NyJWnjf0EjFH1T3rjwZDZD
+facebook_token=CAACEdEose0cBAC2VnaZAJelKX0w25MR56iptddX75tZC2Jgo4ryCeIhkipaRr9VXS1LRUABLzzdvLRuEyam4jFQq1sUZCyNb4ZCOXJl8hdwCHAfpxNniNvzbqkaOBWgkfWukWqQEKZAj6aA2dkED9Rftl5w5YCU0WPJ27gyGyvK2v6naErChDIOZC8RKZAZBj5c66grTS5wncQZDZD
 
 [registration]
 expiry_period_sec=1800

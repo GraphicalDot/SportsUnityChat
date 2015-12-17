@@ -11,9 +11,6 @@ Apis:-
 
 To Do :-
 1> Retrieve nearby users 
-2> Publish Football Notifcations 
-3> Publish Tennis Notifcations 
-4> Publish Cricket Notifcations 
 
 Store location:-
 
@@ -61,6 +58,12 @@ Json encoded body having the following parameters :
 		"match_time"
 	] 
 
+
+Check for present media: 
+Format:- GET request to <ip>/media_present?name=<md5 name>
+Response:- JSON {"status": STATUS, "info": INFO}
+STATUS = 200 if present
+INFO = 'Present' if present
 
 ** INSTALLATION STEPS **
 

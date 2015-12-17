@@ -383,6 +383,24 @@ class ProfilePicHandler(tornado.web.RequestHandler):
             self.write(response)
 
 
+class MediaPresentHandler(tornado.web.RequestHandler):
+    def get(self):
+        response = {}
+        file_name = "media/" + self.get_arguments("name")[0]
+        try:
+            if os.path.isfile(file_name):
+                response['info'] = 'Present'
+                response['status'] = 200
+            else:
+                response['info'] = 'Not Found'
+                response['status'] = 400
+        except Exception, e:
+            response['status'] = 500
+            response['info'] = 'error is: %s' % e
+        finally:
+            self.write(response)
+
+
 class MediaHandler(tornado.web.RequestHandler):
     def post(self):
         response = {}
@@ -471,6 +489,7 @@ def make_app():
                                        (r"/football_notifications", FootballEvents),
                                        (r"/tennis_notifications", TennisEvents),
                                        (r"/media", MediaHandler),
+                                       (r"/media_present", MediaPresentHandler),
                                        (r"/cricket_notifications", CricketEvents),
                                        ],
                                    autoreload = True,
