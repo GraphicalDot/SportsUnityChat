@@ -120,3 +120,10 @@ vi) [sudo] make install
 vii) Start ejabberd service using this command: ejabberdctl start
 
 Note: Logs for ejabberd could be seen using: vi /var/logs/ejabberd/ejabberd.log or tail -f /var/logs/ejabberd/ejabberd.log
+
+
+
+
+** TESTING **
+Tests are written in api_test.py and notification_test.py 
+api_test.py requires a large media file to test which should be named as big.mp4

@@ -400,17 +400,20 @@ class MediaPresentHandler(tornado.web.RequestHandler):
         finally:
             self.write(response)
 
-
+@tornado.web.stream_request_body
 class MediaHandler(tornado.web.RequestHandler):
+    
+    def prepare(self):
+        self.file_content = ''
+        
     def post(self):
+        file_name = self.request.headers['Checksum']
         response = {}
+        file_name = "media/" + file_name
         try:
-            file_content = self.request.body
-            file_name = self.request.headers['Checksum']
-            file_name = "media/" + file_name
             if not os.path.isfile(file_name):
                 media_file = open(file_name, 'w')
-                media_file.write(file_content)
+                media_file.write(self.file_content)
                 media_file.flush()
             response['status'] = 200
             response['info'] = 'Success'
@@ -437,6 +440,8 @@ class MediaHandler(tornado.web.RequestHandler):
             response['info'] = 'error is: %s' % e
             self.write(response)
 
+    def data_received(self, data):
+        self.file_content += data
 
 
 class FootballEvents(tornado.web.RequestHandler):

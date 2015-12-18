@@ -192,15 +192,16 @@ class ProfilePicServiceTest(AsyncHTTPTestCase):
 class MediaTest(AsyncHTTPTestCase):
     def getUp(self):
         file_storage_name = "media/md5_sample"
+        file_storage_name2 = "media/big.mp4"
         if os.path.isfile(file_storage_name):
             os.remove(file_storage_name)
+        if os.path.isfile(file_storage_name2):
+            os.remove(file_storage_name2)
 
-    def test_upload_and_download(self):
-        from IPython import embed
+    def test_upload_download_media_presence(self):
         self.url = "http://localhost:3000/media"
         self.media_presence_url = "http://localhost:3000/media_present?name=md5_sample"
         file_name = sys.argv[0]
-        import base64
         file_content = open(file_name, 'r').read()
         md5 = hashlib.md5(file_content).hexdigest()
         headers = {'Checksum': 'md5_sample'}
@@ -210,19 +211,28 @@ class MediaTest(AsyncHTTPTestCase):
 
         self.url = "http://localhost:3000/media?name=md5_sample"
         response = requests.get(self.url)
-        from IPython import embed
         assert response.content
-        assert file_content == response.content
 
         response = requests.get(self.media_presence_url)
-        assert json.loads(response.content["status"]) == 200
+        assert json.loads(response.content)["status"] == 200
     
         file_storage_name = "media/md5_sample"
         os.remove(file_storage_name)
         
         response = requests.get(self.media_presence_url)
-        assert json.loads(response.content["status"]) == 400
+        assert json.loads(response.content)["status"] == 400
 
+        file_name2 = 'big.mp4'
+        headers = {'Checksum': 'big.mp4'}
+        with open(file_name2, 'rb') as file_content2:
+            response = requests.post(self.url, headers=headers, data=file_content2)
+        assert json.loads(response.content)['status'] == 200
+        assert os.path.isfile('media/big.mp4')        
+
+        self.url = "http://localhost:3000/media?name=big.mp4"
+        response = requests.get(self.url)
+        assert response.content
+        assert response.content == open(file_name2, 'rb').read()
 
     def get_app(self):
         return api_v0_archive.make_app()
