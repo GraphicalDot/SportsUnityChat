@@ -21,6 +21,22 @@ config.read('config.py')
 
 
 class LocationHandler(tornado.web.RequestHandler):
+    """
+    This class handles the storage of locations of a user in the server
+    For web interfacing it implements two methods i.e get and post, which 
+    corresponds to the tornado framework requirements. 
+    Methods : 
+        get :
+            :params 
+                user username  
+                lng  longtitude
+                lat  latitude
+            :response 
+                :success => {'status': 200, 'info': 'Success'}
+                :failure => {'status': 500, 'info': 'Error [Error message]'}
+
+    """
+
     def get(self):
         response = {}
         try:
@@ -42,11 +58,33 @@ class LocationHandler(tornado.web.RequestHandler):
 
 
 class User:
+    """
+    This class defines the user object which can be used for successive operations
+    to be done on the user object.
+    Attributes to be passed on the initialization:
+        username -- username of the user most typically the full jid of the user 
+        password [optional] -- optionally if the user has been created.
+    Methods: 
+        authenticate -- authenticates the user
+        handle_creation -- handles the creation of user
+        _is_token_correct -- checks whether the otp token given by the user is correct/expired
+        _exists -- checks whether the user exists or not   
+        _create_new -- creates a new user after verifying the authenticity of the user
+        handle_registration -- starts the registration process for the user
+        _delete_registered -- deletes the registered user so that new otp can be sent to the user
+        _register -- registers the user
+        _send_message -- send the otp token to the users phone number
+    """
     def __init__(self, username, password = None):
         self.username = username
         self.password = str(password)
 
     def authenticate(self):
+        """
+        In case of already created user, this functions authicates the user. 
+        return true if authenticated
+        return false if not authenticated
+        """
         query = " SELECT * FROM users WHERE username = %s AND password = %s; "
         variables = (self.username, self.password,)
 
@@ -58,20 +96,40 @@ class User:
             return False
 
     def handle_creation(self, auth_code):
-        if self.is_token_correct(auth_code):
-            is_created, password = self.exists()
+        """
+        Handles the creation aspect of the User class
+        Parameters:- 
+            auth_code - The otp token sent to the users cellphone
+        Response :-
+            If token correct:
+                "Success", 200, [password]
+            If user already created
+                " User already created", 200, [password]
+            If wrong or expired auth token
+                " Wrong or Expired Token ", 400, None
+        """
+        if self._is_token_correct(auth_code):
+            is_created, password = self._exists()
             if not is_created:
-                response, status = self.create_new()
+                response, status = self._create_new()
                 password = self.password
             else:
                 response, status = " User already created ", 200
                 self.password = password
         else:
             response, status, password = " Wrong or Expired Token ", 400, None
-        self.delete_registered()
+        self._delete_registered()
         return response, status, password
 
-    def is_token_correct(self, auth_code):
+    def _is_token_correct(self, auth_code):
+        """
+        Authenticates the otp token sent to the user
+        Parameters :-
+            auth_code -- The otp token sent to the user
+        Response :-
+            True if correct
+            False if wrong token
+        """
         query = " SELECT * FROM registered_users WHERE username = %s AND authorization_code = %s ;"
         variables = (self.username, auth_code,)
 
@@ -82,7 +140,15 @@ class User:
             is_token_correct = False
         return is_token_correct
 
-    def exists(self):
+    def _exists(self):
+        """
+        Checks for the existence of the user on the basis of username and the password
+        passed to the user class during initialization, also returns the password if 
+        user already created.
+        Response :-
+            True , [password] if user exists
+            False, None if user does not exists
+        """
         query = " SELECT * FROM users WHERE username = %s;"
         variables = (str.split(self.username, '@')[0],)
         user_info = QueryHandler.get_results(query, variables)
@@ -94,7 +160,10 @@ class User:
             registered = True
         return registered, password
 
-    def create_new(self):
+    def _create_new(self):
+        """
+        Creates a new user in the xmpp directory using the sleek xmpp plugin.
+        """
         try:
             registration = register.Register(self.username, self.password)
             registration.register_plugin('xep_0030')
@@ -114,17 +183,27 @@ class User:
             return response, status
 
     def handle_registration(self):
-        self.delete_registered()
-        response, status = self.register()
+        """
+        Handles the registration of the user in the database
+        """
+        self._delete_registered()
+        response, status = self._register()
         return response, status
 
-    def delete_registered(self):
+    def _delete_registered(self):
+        """
+        Deletes the registered users in the database, which have been created or 
+        when new otp token has to be sent.
+        """
         print "deleting registered user"
         query = " DELETE FROM registered_users WHERE username = %s ;"
         variables = (self.username,)
         QueryHandler.execute(query, variables)
 
-    def register(self):
+    def _register(self):
+        """
+        Registers the users in the database
+        """
         random_integer = random.randint(1000,9999)
         expiration_time = int(time.time()) + int(config.get('registration', 'expiry_period_sec'))
 
@@ -132,11 +211,14 @@ class User:
         variables = (self.username, random_integer, expiration_time)
         try:
             QueryHandler.execute(query, variables)
-            return self.send_message(random_integer)
+            return self._send_message(random_integer)
         except Exception, e:
             return " Error while sending message : % s" % e, 500
 
-    def send_message(self, random_integer):
+    def _send_message(self, random_integer):
+        """
+        Sends the otp token to the user
+        """
         number = str.split(self.username,'@')[0]
         message = config.get('database','message') + "  " + str(random_integer)
         payload = {
@@ -160,6 +242,23 @@ class User:
 
 
 class FacebookHandler(tornado.web.RequestHandler):
+    """
+    Stores the facebook id of the user and finds his friends from the stored ids
+    Methods:
+        get - Implements the http get method for tornado frameowrk and also sets the user
+            facebook details in the database
+            Parameters:
+                fb_id -- fb_id of the user
+                token -- fb token of the user
+                user_id -- xmpp user_id 
+            Response: 
+                {'info' : 'Error [Error]', 'status': 500}
+                {'info' : [{'id': [friend_id], 'fb_name': [friend name]} .. ], 'status': 500}
+        _get_friends_id - 
+            Gets friends facebook id. 
+        _set_fb_details - 
+            sets the users fb details in the database
+    """
     def get(self):
         response = {}
         try:
@@ -175,9 +274,9 @@ class FacebookHandler(tornado.web.RequestHandler):
 
             fb_name = fb_json['name']
 
-            self.set_fb_details(fb_id, username, fb_name)
+            self._set_fb_details(fb_id, username, fb_name)
 
-            friends_details = self.get_friends_id(fb_json['friends']['data'])
+            friends_details = self._get_friends_id(fb_json['friends']['data'])
         # TO-DO explicit error messages
         except Exception, e:
             response['info'] = " Error : % s " % e
@@ -188,7 +287,7 @@ class FacebookHandler(tornado.web.RequestHandler):
         finally:
             self.write(response)
 
-    def get_friends_id(self, friends_details):
+    def _get_friends_id(self, friends_details):
         friends_id_name = []
         for friend_detail in friends_details:
             friend_id_name = {}
@@ -202,13 +301,21 @@ class FacebookHandler(tornado.web.RequestHandler):
         return friends_id_name
 
 
-    def set_fb_details(self, fb_id, username, fb_name):
+    def _set_fb_details(self, fb_id, username, fb_name):
         query = " UPDATE users SET fb_id = %s, fb_name = %s WHERE username = %s ;"
         variables = (fb_id, fb_name, username)
         QueryHandler.execute(query, variables)
 
 
 class RegistrationHandler(tornado.web.RequestHandler):
+    """
+    Handles the registration of the user.
+    Parameters:- 
+        phone_number -- phone number of the user to be registered
+    Response:-
+        {'info': 'Success', 'status': 200} if successfully registered 
+        {'info': 'Error [Error]', 'status': 500} if not successfully registered 
+    """
     def get(self):
         response = {}
         try:
@@ -428,9 +535,13 @@ class MediaHandler(tornado.web.RequestHandler):
         file_name = "media/" + self.get_arguments("name")[0]
         try:
             if os.path.isfile(file_name):
-                f = open(file_name, 'r')
-                self.write(f.read())
-                f.close()
+                with open(file_name, 'r') as file_content:
+                    while 1:
+                        data = file_content.read(16384) # or some other nice-sized chunk
+                        if not data: break
+                        self.write(data)
+                    file_content.close()
+                    self.finish()
             else:
                 response['info'] = 'Not Found'
                 response['status'] = 400

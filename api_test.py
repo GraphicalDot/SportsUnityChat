@@ -222,6 +222,7 @@ class MediaTest(AsyncHTTPTestCase):
         response = requests.get(self.media_presence_url)
         assert json.loads(response.content)["status"] == 400
 
+        self.url = "http://localhost:3000/media"
         file_name2 = 'big.mp4'
         headers = {'Checksum': 'big.mp4'}
         with open(file_name2, 'rb') as file_content2:
