@@ -1,8 +1,8 @@
 [database]
-database=test
-host=localhost
-user=test
-password=test
+database=test_database
+host=masterdb
+user=aakarshi
+password=aakarshi
 message=Welcome to Sports Unity App. Your authorization code is  
 gupshup_id=2000147230
 gupshup_password=6u71LGpxDq
