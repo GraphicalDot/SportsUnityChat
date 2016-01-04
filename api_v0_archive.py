@@ -20,7 +20,7 @@ config = ConfigParser.ConfigParser()
 config.read('config.py')
 
 
-class LocationHandler(tornado.web.RequestHandler):
+class SetLocationHandler(tornado.web.RequestHandler):
     """
     This class handles the storage of locations of a user in the server
     For web interfacing it implements two methods i.e get and post, which 
@@ -599,7 +599,7 @@ def make_app():
                                        (r"/user_group", UserGroupMessagesHandler),
                                        (r"/register", RegistrationHandler),
                                        (r"/create", CreationHandler),
-                                       (r"/location", LocationHandler),
+                                       (r"/set_location", SetLocationHandler),
                                        (r"/fb_friends", FacebookHandler),
                                        (r"/profile_pic", ProfilePicHandler),
                                        (r"/football_notifications", FootballEvents),

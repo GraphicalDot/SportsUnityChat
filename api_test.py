@@ -17,6 +17,7 @@ config.read('config.py')
 
 
 class UserTest(unittest.TestCase):
+
     def test_user_authentication(self):
         username = "test"
         password = "password"
@@ -40,19 +41,28 @@ class UserTest(unittest.TestCase):
         assert not user_not_exists
 
 
-class RegistrationTest(AsyncHTTPTestCase):
+class CreationTest(AsyncHTTPTestCase):
     _phone_number = config.get('tests', 'test_phone_number')
     _auth_code = 'ASDFG'
     _registration_url = "/register?phone_number=" + str(_phone_number)
     _creation_url = "/create?phone_number=" + str(_phone_number) \
                     + "&auth_code=" + str(_auth_code)
 
+    def getUp(self):
+        try:
+            self.username = config.get('tests', 'test_phone_number')
+            query = "DELETE FROM users WHERE username = %s;"
+            variables = (self.username,)
+            QueryHandler.execute(query, variables)
+        except psycopg2.IntegrityError:
+            pass
+
     def get_app(self):
         return api_v0_archive.make_app()
 
     def test_user_registration(self):
         self.http_client.fetch(self.get_url(self._registration_url), self.stop)
-        response = self.wait(timeout = 20)
+        response = self.wait(timeout=20)
         username = self._phone_number + config.get('xmpp', 'domain')
         query = " SELECT * FROM registered_users WHERE username = %s "
         variables = (username,)
@@ -61,7 +71,7 @@ class RegistrationTest(AsyncHTTPTestCase):
         self.assertEqual(200, json.loads(response.body)['status'])
 
     def test_wrong_auth_code_failure(self):
-        username = self._phone_number + config.get('xmpp','domain')
+        username = self._phone_number + config.get('xmpp', 'domain')
         query = " UPDATE registered_users SET authorization_code = '12345'" \
                 " WHERE username = %s; "
         variables = (username,)
@@ -84,7 +94,8 @@ class RegistrationTest(AsyncHTTPTestCase):
         variables = (self._phone_number,)
         QueryHandler.execute(query, variables)
 
-        expiration_time = int(time.time()) + int(config.get('registration', 'expiry_period_sec'))
+        expiration_time = int(
+            time.time()) + int(config.get('registration', 'expiry_period_sec'))
         query = " INSERT INTO registered_users (username, authorization_code, expiration_time) VALUES ( %s, %s, %s); "
         variables = (username, self._auth_code, expiration_time)
         QueryHandler.execute(query, variables)
@@ -96,8 +107,10 @@ class RegistrationTest(AsyncHTTPTestCase):
         variables = (self._phone_number, )
         record = QueryHandler.get_results(query, variables)
         self.assertEqual(json.loads(response.body)['status'], 200)
-        self.assertEqual(str(username), record[0]['username']+config.get('xmpp','domain'))
-        self.assertEqual(json.loads(response.body)['password'], record[0]['password'])
+        self.assertEqual(
+            str(username), record[0]['username']+config.get('xmpp', 'domain'))
+        self.assertEqual(
+            json.loads(response.body)['password'], record[0]['password'])
 
         query = " SELECT * FROM registered_users WHERE username = %s; "
         variables = (username,)
@@ -109,13 +122,15 @@ class FacebookFriendServiceTest(AsyncHTTPTestCase):
 
     _facebook_id = config.get('tests', 'test_facebook_id')
     _id = config.get('tests', 'test_phone_number') + '@mm.io'
-    _token = config.get('database','facebook_token')
+    _token = config.get('database', 'facebook_token')
     _get_facebook_friends = '/fb_friends?fb_id=' + str(_facebook_id) + '&token=' + str(_token) + \
-                            '&id=' + config.get('tests', 'test_phone_number') + '@mm.io'
+                            '&id=' + \
+        config.get('tests', 'test_phone_number') + '@mm.io'
 
     def test_fb_graph_api(self):
-        self.http_client.fetch(self.get_url(self._get_facebook_friends), self.stop)
-        response = self.wait(timeout = 20)
+        self.http_client.fetch(
+            self.get_url(self._get_facebook_friends), self.stop)
+        response = self.wait(timeout=20)
         self.assertEqual(200, json.loads(response.body)['status'])
 
     def test_fb_id_storage(self):
@@ -131,11 +146,12 @@ class FacebookFriendServiceTest(AsyncHTTPTestCase):
         except psycopg2.IntegrityError:
             pass
 
-        self.http_client.fetch(self.get_url(self._get_facebook_friends), self.stop)
-        self.wait(timeout = 20)
+        self.http_client.fetch(
+            self.get_url(self._get_facebook_friends), self.stop)
+        self.wait(timeout=20)
         query = " SELECT * FROM users WHERE fb_id = %s ;"
         results = QueryHandler.get_results(query, (self._facebook_id, ))
-        self.assertEqual(results[0]['username'], str.split(self._id,'@')[0])
+        self.assertEqual(results[0]['username'], str.split(self._id, '@')[0])
 
     def get_app(self):
         return api_v0_archive.make_app()
@@ -148,7 +164,8 @@ class ProfilePicServiceTest(AsyncHTTPTestCase):
             self.username = 'test'
             self.password = 'password'
             query = "INSERT INTO users (username, password, fb_id) VALUES (%s, %s, %s);"
-            variables = (self.username, self.password, config.get('tests', 'test_facebook_id'))
+            variables = (
+                self.username, self.password, config.get('tests', 'test_facebook_id'))
             QueryHandler.execute(query, variables)
         except psycopg2.IntegrityError:
             pass
@@ -161,25 +178,28 @@ class ProfilePicServiceTest(AsyncHTTPTestCase):
 
         file_data = {'file': open(file_name, 'rb')}
         data = {
-        'username': self.username,
-        'password': self.password
+            'username': self.username,
+            'password': self.password
         }
-        response = requests.post(config.get('tests', 'profile_pic_url'), data=data, files=file_data)
+        response = requests.post(
+            config.get('tests', 'profile_pic_url'), data=data, files=file_data)
         self.assertEqual(json.loads(response.text)['status'], 200)
 
         file_data = {'file': open(file_name, 'rb')}
         data = {
-        'username': self.username,
-        'password': 'password1'
+            'username': self.username,
+            'password': 'password1'
         }
-        response = requests.post(config.get('tests', 'profile_pic_url'), data=data, files=file_data)
+        response = requests.post(
+            config.get('tests', 'profile_pic_url'), data=data, files=file_data)
         self.assertNotEqual(json.loads(response.text)['status'], 200)
 
         profile_pic_bucket = config.get('amazon', 'profile_pics_bucket')
         S3Handler(profile_pic_bucket)
 
         file_name = self.username
-        s3_file_url = "https://%s.s3.amazonaws.com/%s" % (profile_pic_bucket, file_name)
+        s3_file_url = "https://%s.s3.amazonaws.com/%s" % (
+            profile_pic_bucket, file_name)
         s3_file_response = requests.get(s3_file_url)
 
         self.assertEqual(200, s3_file_response.status_code)
@@ -189,7 +209,9 @@ class ProfilePicServiceTest(AsyncHTTPTestCase):
         variables = (self.username,)
         QueryHandler.execute(query, variables)
 
+
 class MediaTest(AsyncHTTPTestCase):
+
     def getUp(self):
         file_storage_name = "media/md5_sample"
         file_storage_name2 = "media/big.mp4"
@@ -215,10 +237,10 @@ class MediaTest(AsyncHTTPTestCase):
 
         response = requests.get(self.media_presence_url)
         assert json.loads(response.content)["status"] == 200
-    
+
         file_storage_name = "media/md5_sample"
         os.remove(file_storage_name)
-        
+
         response = requests.get(self.media_presence_url)
         assert json.loads(response.content)["status"] == 400
 
@@ -226,9 +248,10 @@ class MediaTest(AsyncHTTPTestCase):
         file_name2 = 'big.mp4'
         headers = {'Checksum': 'big.mp4'}
         with open(file_name2, 'rb') as file_content2:
-            response = requests.post(self.url, headers=headers, data=file_content2)
+            response = requests.post(
+                self.url, headers=headers, data=file_content2)
         assert json.loads(response.content)['status'] == 200
-        assert os.path.isfile('media/big.mp4')        
+        assert os.path.isfile('media/big.mp4')
 
         self.url = "http://localhost:3000/media?name=big.mp4"
         response = requests.get(self.url)
@@ -237,6 +260,50 @@ class MediaTest(AsyncHTTPTestCase):
 
     def get_app(self):
         return api_v0_archive.make_app()
+
+    def tearDown(self):
+        pass
+
+
+class LocationTest(AsyncHTTPTestCase):
+
+    def get_app(self):
+        return api_v0_archive.make_app()
+
+    def tearDown(self):
+        pass
+
+    def getUp(self):
+        try:
+            self.username = config.get('tests', 'test_phone_number')
+            query = "DELETE FROM users WHERE username = %s;"
+            variables = (self.username,)
+            QueryHandler.execute(query, variables)
+            self.password = 'password'
+            query = "INSERT INTO users (username, password) VALUES (%s, %s);"
+            variables = (self.username, self.password,)
+            QueryHandler.execute(query, variables)
+        except psycopg2.IntegrityError:
+            pass
+
+    def test_storage(self):
+        self.username = config.get('tests', 'test_phone_number')
+        lat = "0.0"
+        lng = "0.0"
+        self.set_location_storage_url = "/set_location?"\
+            + "lat=" + lat \
+            + "&lng=" + lng \
+            + "&user=" + self.username
+        self.http_client.fetch(
+            self.get_url(self.set_location_storage_url), self.stop)
+        response = self.wait(timeout=20)
+        assert json.loads(response.body)['status'] == 200
+
+        query = " SELECT lat, lng FROM users WHERE username = %s;"
+        variables = (self.username,)
+        result = QueryHandler.get_results(query, variables)
+        assert str(result[0]['lat']) == lat
+        assert str(result[0]['lng']) == lng
 
     def tearDown(self):
         pass
