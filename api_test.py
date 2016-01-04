@@ -305,6 +305,51 @@ class LocationTest(AsyncHTTPTestCase):
         assert str(result[0]['lat']) == lat
         assert str(result[0]['lng']) == lng
 
+    def test_retrieval(self):
+        lat = "0.0"
+        lng = "0.0"
+        radius = "5"
+        self.username = config.get('tests', 'test_phone_number')
+        self.test_storage()
+
+        nearby_user = "a"
+        nearby_user_password = "password"
+
+        try:
+            query = "INSERT INTO users (username, password) VALUES (%s, %s);"
+            variables = (nearby_user, nearby_user_password,)
+            QueryHandler.execute(query, variables)
+        except psycopg2.IntegrityError:
+            pass
+        
+        nearby_user_lat = "0.0000009"
+        nearby_user_lng = "0.0000009"
+        self.set_location_storage_url = "/set_location?"\
+            + "lat=" + nearby_user_lat \
+            + "&lng=" + nearby_user_lng \
+            + "&user=" + nearby_user
+
+        self.http_client.fetch(
+            self.get_url(self.set_location_storage_url), self.stop)
+        response = self.wait(timeout=20)
+
+
+        retrirval_url = "/retrieve_nearby_users?"\
+            + "lat=" +  lat\
+            + "&lng=" + lng\
+            + "&radius=" + radius
+
+        self.http_client.fetch(
+            self.get_url(retrirval_url), self.stop)
+        response = self.wait(timeout=20)
+        print response.body
+        assert response
+        assert json.loads(response.body)['status'] == 200
+        assert json.loads(response.body)['users'] 
+        assert type(json.loads(response.body)['users']) == list
+        assert json.loads(response.body)['users'][0]['username'] 
+        assert type(json.loads(response.body)['users'][0]['distance']) == float 
+
     def tearDown(self):
         pass
 

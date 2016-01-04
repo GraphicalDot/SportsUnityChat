@@ -554,6 +554,32 @@ class MediaHandler(tornado.web.RequestHandler):
     def data_received(self, data):
         self.file_content += data
 
+class GetNearbyUsers(tornado.web.RequestHandler):
+    def get(self):
+        response = {}
+        try:
+            self.radius = self.get_arguments('radius')[0]
+            self.lat = self.get_arguments('lat')[0]
+            self.lng = self.get_arguments('lng')[0]
+            users = self.get_nearby_users()
+            response['status'] = 200
+            response['info'] = 'Success'
+            response['users'] = users
+        except Exception, e:
+            response['status'] = 500
+            response['info'] = 'Error: %s' % e
+        finally:
+            self.write(response)    
+
+
+    def get_nearby_users(self):
+        query = "SELECT users.username, earth_distance(ll_to_earth(%s, %s),"\
+            + " ll_to_earth(users.lat, users.lng)) as distance FROM users "\
+            + "WHERE earth_box(ll_to_earth(%s, %s),  %s) "\
+            + " @> ll_to_earth(users.lat, users.lng) ORDER BY distance ASC;"
+        variables = (self.lat, self.lng, self.lat, self.lng, self.radius)
+        records = QueryHandler.get_results(query, variables)
+        return records
 
 class FootballEvents(tornado.web.RequestHandler):
     def post(self):
@@ -600,6 +626,7 @@ def make_app():
                                        (r"/register", RegistrationHandler),
                                        (r"/create", CreationHandler),
                                        (r"/set_location", SetLocationHandler),
+                                       (r"/retrieve_nearby_users", GetNearbyUsers),
                                        (r"/fb_friends", FacebookHandler),
                                        (r"/profile_pic", ProfilePicHandler),
                                        (r"/football_notifications", FootballEvents),
