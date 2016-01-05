@@ -48,7 +48,8 @@ class CreationTest(AsyncHTTPTestCase):
     _creation_url = "/create?phone_number=" + str(_phone_number) \
                     + "&auth_code=" + str(_auth_code)
 
-    def getUp(self):
+    def setUp(self):
+        super(CreationTest, self).setUp()
         try:
             self.username = config.get('tests', 'test_phone_number')
             query = "DELETE FROM users WHERE username = %s;"
@@ -93,6 +94,11 @@ class CreationTest(AsyncHTTPTestCase):
         query = " DELETE FROM users WHERE username = %s;"
         variables = (self._phone_number,)
         QueryHandler.execute(query, variables)
+
+        query = " DELETE FROM registered_users WHERE username = %s; "
+        variables = (username,)
+        QueryHandler.execute(query, variables)
+
 
         expiration_time = int(
             time.time()) + int(config.get('registration', 'expiry_period_sec'))
@@ -160,6 +166,7 @@ class FacebookFriendServiceTest(AsyncHTTPTestCase):
 class ProfilePicServiceTest(AsyncHTTPTestCase):
 
     def setUp(self):
+        super(ProfilePicServiceTest, self).setUp()
         try:
             self.username = 'test'
             self.password = 'password'
@@ -212,7 +219,8 @@ class ProfilePicServiceTest(AsyncHTTPTestCase):
 
 class MediaTest(AsyncHTTPTestCase):
 
-    def getUp(self):
+    def setUp(self):
+        super(MediaTest, self).setUp()
         file_storage_name = "media/md5_sample"
         file_storage_name2 = "media/big.mp4"
         if os.path.isfile(file_storage_name):
@@ -267,13 +275,8 @@ class MediaTest(AsyncHTTPTestCase):
 
 class LocationTest(AsyncHTTPTestCase):
 
-    def get_app(self):
-        return api_v0_archive.make_app()
-
-    def tearDown(self):
-        pass
-
-    def getUp(self):
+    def setUp(self):
+        super(LocationTest, self).setUp()
         try:
             self.username = config.get('tests', 'test_phone_number')
             query = "DELETE FROM users WHERE username = %s;"
@@ -286,6 +289,32 @@ class LocationTest(AsyncHTTPTestCase):
         except psycopg2.IntegrityError:
             pass
 
+        try:
+            interests = ['interest_one', 'interest_two']
+            query = " DELETE FROM interest WHERE "\
+            + " OR ".join(map( lambda interest: "interest_name = '" + interest + "'" , interests))\
+            + " ;"
+            QueryHandler.execute(query, ())
+
+            query = "INSERT INTO interest (interest_name) VALUES ('interest_one'), ('interest_two');"
+            QueryHandler.execute(query, ())
+        except psycopg2.IntegrityError, e:
+            pass
+        
+        query = "INSERT INTO users_interest (interest_id, username) "\
+        + " (SELECT interest_id, %s FROM interest WHERE "\
+        + " OR ".join(map( lambda interest: "interest_name = '" + interest + "'" , interests))\
+        + ");"         
+
+        variables = (self.username, )
+        try:
+            QueryHandler.execute(query, variables)
+        except psycopg2.IntegrityError, e:
+            pass
+
+    def get_app(self):
+        return api_v0_archive.make_app()
+    
     def test_storage(self):
         self.username = config.get('tests', 'test_phone_number')
         lat = "0.0"
@@ -349,7 +378,71 @@ class LocationTest(AsyncHTTPTestCase):
         assert type(json.loads(response.body)['users']) == list
         assert json.loads(response.body)['users'][0]['username'] 
         assert type(json.loads(response.body)['users'][0]['distance']) == float 
+        assert type(json.loads(response.body)['users'][0]['lat']) == float 
+        assert type(json.loads(response.body)['users'][0]['lng']) == float 
+        assert json.loads(response.body)['users'][0]['interests']
 
+    def tearDown(self):
+        pass
+
+class InterestTest(AsyncHTTPTestCase):
+    
+    def get_app(self):
+        return api_v0_archive.make_app()
+
+    def setUp(self):
+        try:
+            self.username = config.get('tests', 'test_phone_number')
+            query = "DELETE FROM users WHERE username = %s;"
+            variables = (self.username,)
+            QueryHandler.execute(query, variables)
+            self.password = 'password'
+            query = "INSERT INTO users (username, password) VALUES (%s, %s);"
+            variables = (self.username, self.password,)
+            QueryHandler.execute(query, variables)
+
+            query = " DELETE FROM users_interest WHERE username = %s;"
+            variables = (self.username,)
+            QueryHandler.execute(query, variables)
+        except psycopg2.IntegrityError:
+            pass
+        
+        try:
+            interests = ['interest_one', 'interest_two']
+            query = " DELETE FROM interest WHERE "\
+            + " OR ".join(map( lambda interest: "interest_name = '" + interest + "'" , interests))\
+            + " ;"
+            QueryHandler.execute(query, ())
+
+            query = "INSERT INTO interest (interest_name) VALUES ('interest_one'), ('interest_two');"
+            QueryHandler.execute(query, ())
+        except psycopg2.IntegrityError, e:
+            pass
+
+
+    def test_storage(self):
+        self.username = config.get('tests', 'test_phone_number')
+        interests = ['interest_one', 'interest_two']
+        query = "INSERT INTO users_interest (interest_id, username) "\
+            " (SELECT interest_id, %s FROM interest WHERE "\
+            + " OR ".join(map( lambda interest: "interest_name = '" + interest + "'" , interests))\
+            + ");"         
+        variables = (self.username, )
+        try:
+            QueryHandler.execute(query, variables)
+        except psycopg2.IntegrityError, e:
+            pass
+
+        query = "select users.username, string_agg(interest.interest_name, ' ,') as interests from users "\
+            + " left outer join users_interest on (users.username = users_interest.username) "\
+            + " left outer join interest on (users_interest.interest_id = interest.interest_id)"\
+            + " WHERE users.username = %s group by users.username;"
+        variables = (self.username,)
+        record = QueryHandler.get_results(query, variables)
+        assert record
+        assert record[0]['username']
+        assert record[0]['interests']
+    
     def tearDown(self):
         pass
 
