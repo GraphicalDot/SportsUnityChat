@@ -383,7 +383,7 @@ class LocationTest(AsyncHTTPTestCase):
         assert json.loads(response.body)['users'][0]['interests']
 
     def tearDown(self):
-        password
+        pass
 
 class InterestTest(AsyncHTTPTestCase):
     
@@ -441,9 +441,6 @@ class InterestTest(AsyncHTTPTestCase):
             + " WHERE users.username = %s group by users.username;"
         variables = (self.username,)
         record = QueryHandler.get_results(query, variables)
-
-        from IPython import embed
-        embed()
 
         assert record
         assert record[0]['username']

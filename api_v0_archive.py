@@ -604,6 +604,7 @@ class UserInterestHandler(tornado.web.RequestHandler):
         try:
             username = self.get_arguments('username')[0]
             interests = self.request.arguments['interests']
+            interest = map(lambda interest: interest.lower(), interests)
             query = "INSERT INTO users_interest (interest_id, username) "\
                 " (SELECT interest_id, %s FROM interest WHERE "\
                 + " OR ".join(map( lambda interest: "interest_name = '" + interest + "'" , interests))\
