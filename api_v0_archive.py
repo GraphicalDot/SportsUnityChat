@@ -585,6 +585,39 @@ class GetNearbyUsers(tornado.web.RequestHandler):
         records = QueryHandler.get_results(query, variables)
         return records
 
+class UserInterestHandler(tornado.web.RequestHandler):
+    """
+    This class creates a link between users and interests. The interests have to
+    stored beforehand.
+
+    Methods : 
+        get :
+            :params 
+                username => username 
+                interests => list of interests like interests=football&interests=cricket 
+            :response 
+                :success => {'status': 200, 'info': 'Success'}
+                :failure => {'status': 500, 'info': 'Error [Error message]'}     
+    """
+    def get(self):
+        response = {}
+        try:
+            username = self.get_arguments('username')[0]
+            interests = self.request.arguments['interests']
+            query = "INSERT INTO users_interest (interest_id, username) "\
+                " (SELECT interest_id, %s FROM interest WHERE "\
+                + " OR ".join(map( lambda interest: "interest_name = '" + interest + "'" , interests))\
+                + ");"         
+            variables = (username, )
+            QueryHandler.execute(query, variables)
+            response['status'] = 200
+            response['info'] = "Success"
+        except Exception, e:
+            response['status'] = 500
+            response['info'] = "Error: %s " % e
+        finally:
+            self.write(response)
+                     
 class FootballEvents(tornado.web.RequestHandler):
     def post(self):
         response = {}
@@ -638,6 +671,7 @@ def make_app():
                                        (r"/media", MediaHandler),
                                        (r"/media_present", MediaPresentHandler),
                                        (r"/cricket_notifications", CricketEvents),
+                                       (r"/set_user_interests", UserInterestHandler),
                                        ],
                                    autoreload = True,
                                    )

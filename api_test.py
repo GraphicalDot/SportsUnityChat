@@ -383,7 +383,7 @@ class LocationTest(AsyncHTTPTestCase):
         assert json.loads(response.body)['users'][0]['interests']
 
     def tearDown(self):
-        pass
+        password
 
 class InterestTest(AsyncHTTPTestCase):
     
@@ -391,6 +391,7 @@ class InterestTest(AsyncHTTPTestCase):
         return api_v0_archive.make_app()
 
     def setUp(self):
+        super(InterestTest, self).setUp()
         try:
             self.username = config.get('tests', 'test_phone_number')
             query = "DELETE FROM users WHERE username = %s;"
@@ -409,11 +410,6 @@ class InterestTest(AsyncHTTPTestCase):
         
         try:
             interests = ['interest_one', 'interest_two']
-            query = " DELETE FROM interest WHERE "\
-            + " OR ".join(map( lambda interest: "interest_name = '" + interest + "'" , interests))\
-            + " ;"
-            QueryHandler.execute(query, ())
-
             query = "INSERT INTO interest (interest_name) VALUES ('interest_one'), ('interest_two');"
             QueryHandler.execute(query, ())
         except psycopg2.IntegrityError, e:
@@ -423,22 +419,32 @@ class InterestTest(AsyncHTTPTestCase):
     def test_storage(self):
         self.username = config.get('tests', 'test_phone_number')
         interests = ['interest_one', 'interest_two']
-        query = "INSERT INTO users_interest (interest_id, username) "\
-            " (SELECT interest_id, %s FROM interest WHERE "\
-            + " OR ".join(map( lambda interest: "interest_name = '" + interest + "'" , interests))\
-            + ");"         
-        variables = (self.username, )
-        try:
-            QueryHandler.execute(query, variables)
-        except psycopg2.IntegrityError, e:
-            pass
 
+        test_storage_url = "/set_user_interests?username=" + self.username\
+            + "".join(map(lambda interest: "&interests=" + interest, interests))
+
+        query = " DELETE FROM interest WHERE interest_name = %s;"
+        variables = (interests[0],)
+        QueryHandler.execute(query, variables)
+        
+        self.http_client.fetch(
+            self.get_url(test_storage_url), self.stop)
+        response = self.wait(timeout=20)
+
+
+        assert response
+        assert json.loads(response.body)['status'] == 200
+        
         query = "select users.username, string_agg(interest.interest_name, ' ,') as interests from users "\
             + " left outer join users_interest on (users.username = users_interest.username) "\
             + " left outer join interest on (users_interest.interest_id = interest.interest_id)"\
             + " WHERE users.username = %s group by users.username;"
         variables = (self.username,)
         record = QueryHandler.get_results(query, variables)
+
+        from IPython import embed
+        embed()
+
         assert record
         assert record[0]['username']
         assert record[0]['interests']
