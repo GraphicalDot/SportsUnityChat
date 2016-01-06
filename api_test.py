@@ -410,6 +410,12 @@ class InterestTest(AsyncHTTPTestCase):
         
         try:
             interests = ['interest_one', 'interest_two']
+            query = " DELETE FROM interest WHERE "\
+                " interest_name = 'interest_one' OR interest_name = 'interest_two';"
+            variables = ()
+            QueryHandler.execute(query, variables)
+            
+            interests = ['interest_one', 'interest_two']
             query = "INSERT INTO interest (interest_name) VALUES ('interest_one'), ('interest_two');"
             QueryHandler.execute(query, ())
         except psycopg2.IntegrityError, e:
@@ -423,14 +429,9 @@ class InterestTest(AsyncHTTPTestCase):
         test_storage_url = "/set_user_interests?username=" + self.username\
             + "".join(map(lambda interest: "&interests=" + interest, interests))
 
-        query = " DELETE FROM interest WHERE interest_name = %s;"
-        variables = (interests[0],)
-        QueryHandler.execute(query, variables)
-        
         self.http_client.fetch(
             self.get_url(test_storage_url), self.stop)
         response = self.wait(timeout=20)
-
 
         assert response
         assert json.loads(response.body)['status'] == 200
@@ -444,7 +445,29 @@ class InterestTest(AsyncHTTPTestCase):
 
         assert record
         assert record[0]['username']
-        assert record[0]['interests']
+        assert record[0]['interests'] == "interest_one ,interest_two"
+
+        interests = ['interest_one']
+        test_storage_url = "/set_user_interests?username=" + self.username\
+            + "".join(map(lambda interest: "&interests=" + interest, interests))
+
+        self.http_client.fetch(
+            self.get_url(test_storage_url), self.stop)
+        response = self.wait(timeout=20)
+
+        assert response
+        assert json.loads(response.body)['status'] == 200
+        
+        query = "select users.username, string_agg(interest.interest_name, ' ,') as interests from users "\
+            + " left outer join users_interest on (users.username = users_interest.username) "\
+            + " left outer join interest on (users_interest.interest_id = interest.interest_id)"\
+            + " WHERE users.username = %s group by users.username;"
+        variables = (self.username,)
+        record = QueryHandler.get_results(query, variables)
+
+        assert record
+        assert record[0]['username']
+        assert record[0]['interests'] == "interest_one"
     
     def tearDown(self):
         pass
