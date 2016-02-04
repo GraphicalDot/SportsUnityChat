@@ -1,0 +1,35 @@
+[I 151104 11:57:23 web:1908] 200 POST /profile_pic (127.0.0.1) 45.76ms
+[I 151104 11:58:11 web:1908] 200 POST /profile_pic (127.0.0.1) 58.06ms
+[I 151104 11:59:37 autoreload:204] api_v0_archive.py modified; restarting server
+[I 151203 13:22:34 web:1908] 200 POST /media (127.0.0.1) 0.65ms
+[I 151203 13:22:34 web:1908] 200 GET /media?name=md5_sample (127.0.0.1) 0.52ms
+[W 151203 13:22:34 web:1908] 404 GET /media_present?name=md5_sample (127.0.0.1) 0.40ms
+[I 151203 13:22:38 web:1908] 200 POST /profile_pic (127.0.0.1) 3296.59ms
+[I 151203 13:22:38 web:1908] 200 POST /profile_pic (127.0.0.1) 10.88ms
+[I 151203 13:25:47 web:1908] 200 POST /media (127.0.0.1) 0.32ms
+[I 151203 13:25:47 web:1908] 200 GET /media?name=md5_sample (127.0.0.1) 0.35ms
+[W 151203 13:25:47 web:1908] 404 GET /media_present?name=md5_sample (127.0.0.1) 0.27ms
+[I 151203 13:25:51 web:1908] 200 POST /profile_pic (127.0.0.1) 3293.16ms
+[I 151203 13:25:51 web:1908] 200 POST /profile_pic (127.0.0.1) 8.76ms
+[I 151203 13:57:00 web:1908] 200 POST /media (127.0.0.1) 0.34ms
+[I 151203 13:57:00 web:1908] 200 GET /media?name=md5_sample (127.0.0.1) 0.36ms
+[W 151203 13:57:00 web:1908] 404 GET /media_present?name=md5_sample (127.0.0.1) 0.28ms
+[I 151203 13:57:03 web:1908] 200 POST /profile_pic (127.0.0.1) 2489.98ms
+[I 151203 13:57:03 web:1908] 200 POST /profile_pic (127.0.0.1) 8.65ms
+[I 151203 16:38:43 web:1908] 200 POST /media (127.0.0.1) 0.32ms
+[I 151203 16:38:43 web:1908] 200 GET /media?name=md5_sample (127.0.0.1) 0.34ms
+[W 151203 16:38:43 web:1908] 404 GET /media_present?name=md5_sample (127.0.0.1) 0.27ms
+[I 151203 16:38:49 web:1908] 200 POST /profile_pic (127.0.0.1) 5356.27ms
+[I 151203 16:38:49 web:1908] 200 POST /profile_pic (127.0.0.1) 9.71ms
+[I 151204 16:48:55 web:1908] 200 POST /media (127.0.0.1) 0.51ms
+[I 151204 16:48:55 web:1908] 200 GET /media?name=md5_sample (127.0.0.1) 0.57ms
+[W 151204 16:48:55 web:1908] 404 GET /media_present?name=md5_sample (127.0.0.1) 0.29ms
+[I 151204 16:48:57 web:1908] 200 POST /profile_pic (127.0.0.1) 2625.33ms
+[I 151204 16:48:57 web:1908] 200 POST /profile_pic (127.0.0.1) 8.99ms
+[I 151204 16:51:36 autoreload:204] api_v0_archive.py modified; restarting server
+[I 151204 16:51:43 autoreload:204] api_v0_archive.py modified; restarting server
+[I 151204 17:02:06 web:1908] 200 POST /media (127.0.0.1) 0.56ms
+[I 151204 17:02:06 web:1908] 200 GET /media?name=md5_sample (127.0.0.1) 0.55ms
+[I 151204 17:02:06 web:1908] 200 GET /media_present?name=md5_sample (127.0.0.1) 0.33ms
+[I 151204 17:02:08 web:1908] 200 POST /profile_pic (127.0.0.1) 2117.59ms
+[I 151204 17:02:08 web:1908] 200 POST /profile_pic (127.0.0.1) 21.44ms
