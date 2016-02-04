@@ -1,8 +1,11 @@
-from ConfigParser import ConfigParser
 import hashlib
+import magic
 import os
+import requests
 import time
+from ConfigParser import ConfigParser
 from global_func import QueryHandler, S3Handler
+from requests_toolbelt.multipart.encoder import MultipartEncoder
 from tornado.testing import AsyncHTTPTestCase
 import json
 import psycopg2
@@ -10,6 +13,7 @@ import psycopg2.extras
 import unittest
 import requests
 import sys
+from requests_toolbelt import MultipartEncoder
 
 import api_v0_archive
 config = ConfigParser()
@@ -217,6 +221,206 @@ class ProfilePicServiceTest(AsyncHTTPTestCase):
         QueryHandler.execute(query, variables)
 
 
+class LocationTest(AsyncHTTPTestCase):
+
+    def setUp(self):
+        super(LocationTest, self).setUp()
+        try:
+            self.username = config.get('tests', 'test_phone_number')
+            query = "DELETE FROM users WHERE username = %s;"
+            variables = (self.username,)
+            QueryHandler.execute(query, variables)
+            self.password = 'password'
+            query = "INSERT INTO users (username, password) VALUES (%s, %s);"
+            variables = (self.username, self.password,)
+            QueryHandler.execute(query, variables)
+        except psycopg2.IntegrityError:
+            pass
+
+        try:
+            interests = ['interest_one', 'interest_two']
+            query = " DELETE FROM interest WHERE "\
+            + " OR ".join(map( lambda interest: "interest_name = '" + interest + "'" , interests))\
+            + " ;"
+            QueryHandler.execute(query, ())
+
+            query = "INSERT INTO interest (interest_name) VALUES ('interest_one'), ('interest_two');"
+            QueryHandler.execute(query, ())
+        except psycopg2.IntegrityError, e:
+            pass
+
+        query = "INSERT INTO users_interest (interest_id, username) "\
+        + " (SELECT interest_id, %s FROM interest WHERE "\
+        + " OR ".join(map( lambda interest: "interest_name = '" + interest + "'" , interests))\
+        + ");"
+
+        variables = (self.username, )
+        try:
+            QueryHandler.execute(query, variables)
+        except psycopg2.IntegrityError, e:
+            pass
+
+    def get_app(self):
+        return api_v0_archive.make_app()
+
+    def test_storage(self):
+        self.username = config.get('tests', 'test_phone_number')
+        lat = "0.0"
+        lng = "0.0"
+        self.set_location_storage_url = "/set_location?"\
+            + "lat=" + lat \
+            + "&lng=" + lng \
+            + "&user=" + self.username
+        self.http_client.fetch(
+            self.get_url(self.set_location_storage_url), self.stop)
+        response = self.wait(timeout=20)
+        assert json.loads(response.body)['status'] == 200
+
+        query = " SELECT lat, lng FROM users WHERE username = %s;"
+        variables = (self.username,)
+        result = QueryHandler.get_results(query, variables)
+        assert str(result[0]['lat']) == lat
+        assert str(result[0]['lng']) == lng
+
+    def test_retrieval(self):
+        lat = "0.0"
+        lng = "0.0"
+        radius = "5"
+        self.username = config.get('tests', 'test_phone_number')
+        self.test_storage()
+
+        nearby_user = "a"
+        nearby_user_password = "password"
+
+        try:
+            query = "INSERT INTO users (username, password) VALUES (%s, %s);"
+            variables = (nearby_user, nearby_user_password,)
+            QueryHandler.execute(query, variables)
+        except psycopg2.IntegrityError:
+            pass
+
+        nearby_user_lat = "0.0000009"
+        nearby_user_lng = "0.0000009"
+        self.set_location_storage_url = "/set_location?"\
+            + "lat=" + nearby_user_lat \
+            + "&lng=" + nearby_user_lng \
+            + "&user=" + nearby_user
+
+        self.http_client.fetch(
+            self.get_url(self.set_location_storage_url), self.stop)
+        response = self.wait(timeout=20)
+
+
+        retrirval_url = "/retrieve_nearby_users?"\
+            + "lat=" +  lat\
+            + "&lng=" + lng\
+            + "&radius=" + radius
+
+        self.http_client.fetch(
+            self.get_url(retrirval_url), self.stop)
+        response = self.wait(timeout=20)
+        print response.body
+        assert response
+        assert json.loads(response.body)['status'] == 200
+        assert json.loads(response.body)['users']
+        assert type(json.loads(response.body)['users']) == list
+        assert json.loads(response.body)['users'][0]['username']
+        assert type(json.loads(response.body)['users'][0]['distance']) == float
+        assert type(json.loads(response.body)['users'][0]['lat']) == float
+        assert type(json.loads(response.body)['users'][0]['lng']) == float
+        assert json.loads(response.body)['users'][0]['interests']
+
+    def tearDown(self):
+        pass
+
+class InterestTest(AsyncHTTPTestCase):
+
+    def get_app(self):
+        return api_v0_archive.make_app()
+
+    def setUp(self):
+        super(InterestTest, self).setUp()
+        try:
+            self.username = config.get('tests', 'test_phone_number')
+            query = "DELETE FROM users WHERE username = %s;"
+            variables = (self.username,)
+            QueryHandler.execute(query, variables)
+            self.password = 'password'
+            query = "INSERT INTO users (username, password) VALUES (%s, %s);"
+            variables = (self.username, self.password,)
+            QueryHandler.execute(query, variables)
+
+            query = " DELETE FROM users_interest WHERE username = %s;"
+            variables = (self.username,)
+            QueryHandler.execute(query, variables)
+        except psycopg2.IntegrityError:
+            pass
+
+        try:
+            interests = ['interest_one', 'interest_two']
+            query = " DELETE FROM interest WHERE "\
+                " interest_name = 'interest_one' OR interest_name = 'interest_two';"
+            variables = ()
+            QueryHandler.execute(query, variables)
+
+            interests = ['interest_one', 'interest_two']
+            query = "INSERT INTO interest (interest_name) VALUES ('interest_one'), ('interest_two');"
+            QueryHandler.execute(query, ())
+        except psycopg2.IntegrityError, e:
+            pass
+
+
+    def test_storage(self):
+        self.username = config.get('tests', 'test_phone_number')
+        interests = ['interest_one', 'interest_two']
+
+        test_storage_url = "/set_user_interests?username=" + self.username\
+            + "".join(map(lambda interest: "&interests=" + interest, interests))
+
+        self.http_client.fetch(
+            self.get_url(test_storage_url), self.stop)
+        response = self.wait(timeout=20)
+
+        assert response
+        assert json.loads(response.body)['status'] == 200
+
+        query = "select users.username, string_agg(interest.interest_name, ' ,') as interests from users "\
+            + " left outer join users_interest on (users.username = users_interest.username) "\
+            + " left outer join interest on (users_interest.interest_id = interest.interest_id)"\
+            + " WHERE users.username = %s group by users.username;"
+        variables = (self.username,)
+        record = QueryHandler.get_results(query, variables)
+
+        assert record
+        assert record[0]['username']
+        assert record[0]['interests'] == "interest_one ,interest_two"
+
+        interests = ['interest_one']
+        test_storage_url = "/set_user_interests?username=" + self.username\
+            + "".join(map(lambda interest: "&interests=" + interest, interests))
+
+        self.http_client.fetch(
+            self.get_url(test_storage_url), self.stop)
+        response = self.wait(timeout=20)
+
+        assert response
+        assert json.loads(response.body)['status'] == 200
+
+        query = "select users.username, string_agg(interest.interest_name, ' ,') as interests from users "\
+            + " left outer join users_interest on (users.username = users_interest.username) "\
+            + " left outer join interest on (users_interest.interest_id = interest.interest_id)"\
+            + " WHERE users.username = %s group by users.username;"
+        variables = (self.username,)
+        record = QueryHandler.get_results(query, variables)
+
+        assert record
+        assert record[0]['username']
+        assert record[0]['interests'] == "interest_one"
+
+    def tearDown(self):
+        pass
+
+
 class MediaTest(AsyncHTTPTestCase):
 
     def setUp(self):
@@ -273,204 +477,62 @@ class MediaTest(AsyncHTTPTestCase):
         pass
 
 
-class LocationTest(AsyncHTTPTestCase):
+class IOSMediaHandlerTests(unittest.TestCase):
+    url = None
+    filename = None
 
     def setUp(self):
-        super(LocationTest, self).setUp()
-        try:
-            self.username = config.get('tests', 'test_phone_number')
-            query = "DELETE FROM users WHERE username = %s;"
-            variables = (self.username,)
-            QueryHandler.execute(query, variables)
-            self.password = 'password'
-            query = "INSERT INTO users (username, password) VALUES (%s, %s);"
-            variables = (self.username, self.password,)
-            QueryHandler.execute(query, variables)
-        except psycopg2.IntegrityError:
-            pass
+        self.url = 'http://localhost:3000/media_multipart'
+        self.test_files = ['test_image.jpg', 'test_image.png', 'test_pdf.pdf', 'test_rar.rar', 'test_audio.mp3', 'test_video.mp4']
 
-        try:
-            interests = ['interest_one', 'interest_two']
-            query = " DELETE FROM interest WHERE "\
-            + " OR ".join(map( lambda interest: "interest_name = '" + interest + "'" , interests))\
-            + " ;"
-            QueryHandler.execute(query, ())
+    def test_validations(self):
+        self.filename = self.test_files[0]
+        mime = magic.Magic(mime=True)
+        mime_type = mime.from_file(self.filename)
+        encoder = MultipartEncoder(
+            fields={'name': 'image', 'filename': self.filename, 'Content-Disposition': 'form-data',
+                    'Content-Type': mime_type, 'file': (self.filename, open(self.filename, 'rb'), mime_type)}
+        )
 
-            query = "INSERT INTO interest (interest_name) VALUES ('interest_one'), ('interest_two');"
-            QueryHandler.execute(query, ())
-        except psycopg2.IntegrityError, e:
-            pass
-        
-        query = "INSERT INTO users_interest (interest_id, username) "\
-        + " (SELECT interest_id, %s FROM interest WHERE "\
-        + " OR ".join(map( lambda interest: "interest_name = '" + interest + "'" , interests))\
-        + ");"         
+        # 'Content-type' not provided
+        response = requests.post(self.url, data=encoder.to_string(), headers={'Checksum': 'test_image'})
+        res = json.loads(response.content)
+        assert response.status_code == 200
+        assert res['info'] == " Bad Request: 'Content-Type' field not present in the Header!"
+        assert res['status'] == 400
 
-        variables = (self.username, )
-        try:
-            QueryHandler.execute(query, variables)
-        except psycopg2.IntegrityError, e:
-            pass
+        # 'Checksum' not provided
+        response = requests.post(self.url, data=encoder.to_string(), headers={'Content-Type': encoder.content_type})
+        res = json.loads(response.content)
+        assert response.status_code == 200
+        assert res['info'] == " Bad Request: 'Checksum' field not present in the Header!"
+        assert res['status'] == 400
 
-    def get_app(self):
-        return api_v0_archive.make_app()
-    
-    def test_storage(self):
-        self.username = config.get('tests', 'test_phone_number')
-        lat = "0.0"
-        lng = "0.0"
-        self.set_location_storage_url = "/set_location?"\
-            + "lat=" + lat \
-            + "&lng=" + lng \
-            + "&user=" + self.username
-        self.http_client.fetch(
-            self.get_url(self.set_location_storage_url), self.stop)
-        response = self.wait(timeout=20)
-        assert json.loads(response.body)['status'] == 200
+        # Request body not provided
+        response = requests.post(self.url, headers={'Checksum': 'test_image', 'Content-Type': encoder.content_type})
+        res = json.loads(response.content)
+        assert response.status_code == 200
+        assert res['info'] == " Bad request: Request body not present!"
+        assert res['status'] == 400
 
-        query = " SELECT lat, lng FROM users WHERE username = %s;"
-        variables = (self.username,)
-        result = QueryHandler.get_results(query, variables)
-        assert str(result[0]['lat']) == lat
-        assert str(result[0]['lng']) == lng
+    def test_upload_media(self):
 
-    def test_retrieval(self):
-        lat = "0.0"
-        lng = "0.0"
-        radius = "5"
-        self.username = config.get('tests', 'test_phone_number')
-        self.test_storage()
+        # test on different media files
+        for file in self.test_files:
+            self.filename = file
+            mime = magic.Magic(mime=True)
+            mime_type = mime.from_file(self.filename)
+            encoder = MultipartEncoder(
+                fields={'name': 'image', 'filename': self.filename, 'Content-Disposition': 'form-data',
+                        'Content-Type': mime_type, 'file': (self.filename, open(self.filename, 'rb'), mime_type)}
+                )
+            response = requests.post(self.url, data=encoder.to_string(),
+                                     headers={'Content-Type': encoder.content_type, 'Checksum': file})
+            res = json.loads(response.content)
+            assert response.status_code == 200
+            assert res['info'] == 'Success'
+            assert res['status'] == 200
 
-        nearby_user = "a"
-        nearby_user_password = "password"
-
-        try:
-            query = "INSERT INTO users (username, password) VALUES (%s, %s);"
-            variables = (nearby_user, nearby_user_password,)
-            QueryHandler.execute(query, variables)
-        except psycopg2.IntegrityError:
-            pass
-        
-        nearby_user_lat = "0.0000009"
-        nearby_user_lng = "0.0000009"
-        self.set_location_storage_url = "/set_location?"\
-            + "lat=" + nearby_user_lat \
-            + "&lng=" + nearby_user_lng \
-            + "&user=" + nearby_user
-
-        self.http_client.fetch(
-            self.get_url(self.set_location_storage_url), self.stop)
-        response = self.wait(timeout=20)
-
-
-        retrirval_url = "/retrieve_nearby_users?"\
-            + "lat=" +  lat\
-            + "&lng=" + lng\
-            + "&radius=" + radius
-
-        self.http_client.fetch(
-            self.get_url(retrirval_url), self.stop)
-        response = self.wait(timeout=20)
-        print response.body
-        assert response
-        assert json.loads(response.body)['status'] == 200
-        assert json.loads(response.body)['users'] 
-        assert type(json.loads(response.body)['users']) == list
-        assert json.loads(response.body)['users'][0]['username'] 
-        assert type(json.loads(response.body)['users'][0]['distance']) == float 
-        assert type(json.loads(response.body)['users'][0]['lat']) == float 
-        assert type(json.loads(response.body)['users'][0]['lng']) == float 
-        assert json.loads(response.body)['users'][0]['interests']
-
-    def tearDown(self):
-        pass
-
-class InterestTest(AsyncHTTPTestCase):
-    
-    def get_app(self):
-        return api_v0_archive.make_app()
-
-    def setUp(self):
-        super(InterestTest, self).setUp()
-        try:
-            self.username = config.get('tests', 'test_phone_number')
-            query = "DELETE FROM users WHERE username = %s;"
-            variables = (self.username,)
-            QueryHandler.execute(query, variables)
-            self.password = 'password'
-            query = "INSERT INTO users (username, password) VALUES (%s, %s);"
-            variables = (self.username, self.password,)
-            QueryHandler.execute(query, variables)
-
-            query = " DELETE FROM users_interest WHERE username = %s;"
-            variables = (self.username,)
-            QueryHandler.execute(query, variables)
-        except psycopg2.IntegrityError:
-            pass
-        
-        try:
-            interests = ['interest_one', 'interest_two']
-            query = " DELETE FROM interest WHERE "\
-                " interest_name = 'interest_one' OR interest_name = 'interest_two';"
-            variables = ()
-            QueryHandler.execute(query, variables)
-            
-            interests = ['interest_one', 'interest_two']
-            query = "INSERT INTO interest (interest_name) VALUES ('interest_one'), ('interest_two');"
-            QueryHandler.execute(query, ())
-        except psycopg2.IntegrityError, e:
-            pass
-
-
-    def test_storage(self):
-        self.username = config.get('tests', 'test_phone_number')
-        interests = ['interest_one', 'interest_two']
-
-        test_storage_url = "/set_user_interests?username=" + self.username\
-            + "".join(map(lambda interest: "&interests=" + interest, interests))
-
-        self.http_client.fetch(
-            self.get_url(test_storage_url), self.stop)
-        response = self.wait(timeout=20)
-
-        assert response
-        assert json.loads(response.body)['status'] == 200
-        
-        query = "select users.username, string_agg(interest.interest_name, ' ,') as interests from users "\
-            + " left outer join users_interest on (users.username = users_interest.username) "\
-            + " left outer join interest on (users_interest.interest_id = interest.interest_id)"\
-            + " WHERE users.username = %s group by users.username;"
-        variables = (self.username,)
-        record = QueryHandler.get_results(query, variables)
-
-        assert record
-        assert record[0]['username']
-        assert record[0]['interests'] == "interest_one ,interest_two"
-
-        interests = ['interest_one']
-        test_storage_url = "/set_user_interests?username=" + self.username\
-            + "".join(map(lambda interest: "&interests=" + interest, interests))
-
-        self.http_client.fetch(
-            self.get_url(test_storage_url), self.stop)
-        response = self.wait(timeout=20)
-
-        assert response
-        assert json.loads(response.body)['status'] == 200
-        
-        query = "select users.username, string_agg(interest.interest_name, ' ,') as interests from users "\
-            + " left outer join users_interest on (users.username = users_interest.username) "\
-            + " left outer join interest on (users_interest.interest_id = interest.interest_id)"\
-            + " WHERE users.username = %s group by users.username;"
-        variables = (self.username,)
-        record = QueryHandler.get_results(query, variables)
-
-        assert record
-        assert record[0]['username']
-        assert record[0]['interests'] == "interest_one"
-    
-    def tearDown(self):
-        pass
 
 if __name__ == '__main__':
     unittest.main()

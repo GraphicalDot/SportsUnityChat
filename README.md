@@ -88,6 +88,8 @@ b. Install local packages:
 >> Install Postgres following steps as described on : https://www.digitalocean.com/community/tutorials/how-to-install-and-use-postgresql-on-ubuntu-14-04
 >> Install Tornado as described in : http://www.tornadoweb.org/en/stable/#installation
 >> pip install requests
+>> pip install requests-toolbelt
+>> pip install python-magic
 
 Install 'ejabberd' (version: 15.06) in following steps:
 i) git clone https://github.com/processone/ejabberd.git

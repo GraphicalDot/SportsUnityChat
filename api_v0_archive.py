@@ -15,6 +15,7 @@ import register
 import ConfigParser
 from IPython import embed
 import base64
+from requests_toolbelt import MultipartDecoder
 
 config = ConfigParser.ConfigParser()
 config.read('config.py')
@@ -554,6 +555,58 @@ class MediaHandler(tornado.web.RequestHandler):
     def data_received(self, data):
         self.file_content += data
 
+
+class IOSMediaHandler(tornado.web.RequestHandler):
+
+    def data_validation(self, headers, body):
+        response = {'info': '', 'status': 0}
+
+        # 'Content-Type' not present in the header
+        if not headers.get('Content-Type'):
+            response['info'] = " Bad Request: 'Content-Type' field not present in the Header!"
+            response['status'] = 400
+            return response
+
+        # 'Checksum' not present in the header
+        if response['status'] == 0 and not headers.get('Checksum'):
+            response['info'] = " Bad Request: 'Checksum' field not present in the Header!"
+            response['status'] = 400
+            return response
+
+        # body not present
+        if response['status'] == 0 and not body:
+            response['info'] = " Bad request: Request body not present!"
+            response['status'] = 400
+        return response
+
+    def post(self):
+        response = {}
+        try:
+            headers = self.request.headers
+            body = self.request.body
+
+            # data validation
+            response = self.data_validation(headers, body)
+
+            if response['status'] != 400:
+                decoder = MultipartDecoder(body, content_type=headers.get('Content-Type'))
+                file_content = decoder.parts[0].content
+                file_ext = decoder.parts[0].headers.get('Content-Type').split('/')[1]
+                file_name = "media/" + headers.get('Checksum') + '.' + file_ext
+                if not os.path.isfile(file_name):
+                    media_file = open(file_name, 'w')
+                    media_file.write(file_content)
+                    media_file.flush()
+                response['status'] = 200
+                response['info'] = 'Success'
+
+        except Exception as e:
+            response['status'] = 500
+            response['info'] = " Error is: %s" % e
+        finally:
+            self.write(response)
+
+
 class GetNearbyUsers(tornado.web.RequestHandler):
     def get(self):
         response = {}
@@ -676,6 +729,7 @@ def make_app():
                                        (r"/tennis_notifications", TennisEvents),
                                        (r"/media", MediaHandler),
                                        (r"/media_present", MediaPresentHandler),
+                                       (r"/media_multipart", IOSMediaHandler),
                                        (r"/cricket_notifications", CricketEvents),
                                        (r"/set_user_interests", UserInterestHandler),
                                        ],
