@@ -579,7 +579,8 @@ class GetNearbyUsers(tornado.web.RequestHandler):
             + " FROM users  "\
             + " left outer join users_interest on (users.username = users_interest.username) "\
             + " left outer join interest on (users_interest.interest_id = interest.interest_id)"\
-            + " WHERE earth_box(ll_to_earth(%s, %s),  %s) @> ll_to_earth(users.lat, users.lng)  "\
+            + " WHERE earth_box(ll_to_earth(%s, %s),  %s) @> ll_to_earth(users.lat, users.lng) AND  "\
+            + " is_available = True "\
             + " GROUP BY users.username ORDER BY distance ASC;"
         variables = (self.lat, self.lng, self.lat, self.lng, self.radius)
         records = QueryHandler.get_results(query, variables)
