@@ -515,10 +515,10 @@ class MediaHandler(tornado.web.RequestHandler):
         self.file_content = ''
         
     def post(self):
-        file_name = self.request.headers['Checksum']
-        response = {}
-        file_name = "media/" + file_name
         try:
+            file_name = self.request.headers['Checksum']
+            response = {}
+            file_name = "media/" + file_name
             if not os.path.isfile(file_name):
                 media_file = open(file_name, 'w')
                 media_file.write(self.file_content)
@@ -533,8 +533,8 @@ class MediaHandler(tornado.web.RequestHandler):
 
     def get(self):
         response = {}
-        file_name = "media/" + self.get_arguments("name")[0]
         try:
+            file_name = "media/" + self.get_arguments("name")[0]
             if os.path.isfile(file_name):
                 with open(file_name, 'r') as file_content:
                     while 1:
@@ -591,8 +591,7 @@ class IOSMediaHandler(tornado.web.RequestHandler):
             if response['status'] != 400:
                 decoder = MultipartDecoder(body, content_type=headers.get('Content-Type'))
                 file_content = decoder.parts[0].content
-                file_ext = decoder.parts[0].headers.get('Content-Type').split('/')[1]
-                file_name = "media/" + headers.get('Checksum') + '.' + file_ext
+                file_name = "media/" + headers.get('Checksum')
                 if not os.path.isfile(file_name):
                     media_file = open(file_name, 'w')
                     media_file.write(file_content)
@@ -605,7 +604,6 @@ class IOSMediaHandler(tornado.web.RequestHandler):
             response['info'] = " Error is: %s" % e
         finally:
             self.write(response)
-
 
 class GetNearbyUsers(tornado.web.RequestHandler):
     def get(self):
