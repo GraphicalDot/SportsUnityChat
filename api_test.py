@@ -4,6 +4,9 @@ import os
 import requests
 import time
 from ConfigParser import ConfigParser
+
+from nose.tools import assert_equal
+
 from global_func import QueryHandler, S3Handler
 from requests_toolbelt.multipart.encoder import MultipartEncoder
 from tornado.testing import AsyncHTTPTestCase
@@ -483,7 +486,7 @@ class IOSMediaHandlerTests(unittest.TestCase):
 
     def setUp(self):
         self.url = 'http://localhost:3000/media_multipart'
-        self.test_files = ['test_image.jpg', 'test_image.png', 'test_pdf.pdf', 'test_rar.rar', 'test_audio.mp3', 'test_video.mp4']
+        self.test_files = ['test_image.jpeg', 'test_image.png', 'test_pdf.pdf', 'test_rar.rar', 'test_audio.mp3', 'test_video.mp4']
 
     def test_validations(self):
         self.filename = self.test_files[0]
@@ -532,6 +535,55 @@ class IOSMediaHandlerTests(unittest.TestCase):
             assert response.status_code == 200
             assert res['info'] == 'Success'
             assert res['status'] == 200
+
+
+class IOSSetUserDeviceIdTests(unittest.TestCase):
+    url = None
+    user = None
+    data = None
+
+    def assert_status_info(self, response, expected_info, expected_status):
+        res = json.loads(response.content)
+        assert_equal(response.status_code, 200)
+        assert_equal(res['info'], expected_info)
+        assert_equal(res['status'], expected_status)
+
+    def create_user(self, user):
+        query = " INSERT INTO users(username, password) VALUES (%s, '');"
+        variables = (user + config.get('xmpp', 'domain'),)
+        QueryHandler.execute(query, variables)
+
+    def delete_user(self, user):
+        query = "DELETE FROM users WHERE username=%s;"
+        variables = (user + config.get('xmpp', 'domain'),)
+        QueryHandler.execute(query, variables)
+
+    def setUp(self):
+        self.url = 'http://localhost:3000/set_udid'
+        self.user = '914444444444'
+        self.delete_user(self.user)
+        self.create_user(self.user)
+
+    def test_validations(self):
+        # user not provided
+        self.data = {'token': 'AAAAAAAA'}
+        response = requests.post(self.url, data=self.data)
+        self.assert_status_info(response, "Bad Request: Username not provided!", 400)
+
+        # udid token not provided
+        self.data = {'user': self.user}
+        response = requests.post(self.url, data=self.data)
+        self.assert_status_info(response, "Bad Request: UDID not provided!", 400)
+
+        # user is not registered
+        self.data = {'user': '910000000000', 'token': 'AAAAAA'}
+        response = requests.post(self.url, data=self.data)
+        self.assert_status_info(response, "Error: User not registered!", 404)
+
+    def test_post(self):
+        self.data = {'user': self.user, 'token': 'AAAAAA'}
+        response = requests.post(self.url, data=self.data)
+        self.assert_status_info(response, "Success", 200)
 
 
 if __name__ == '__main__':
