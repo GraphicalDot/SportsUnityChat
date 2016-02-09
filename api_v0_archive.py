@@ -675,7 +675,57 @@ class UserInterestHandler(tornado.web.RequestHandler):
             response['info'] = "Error: %s " % e
         finally:
             self.write(response)
-                     
+
+
+class IOSSetUserDeviceId(tornado.web.RequestHandler):
+
+    def data_validations(self, username, udid):
+        response = {'info': '', 'status': 0}
+
+        if not username:
+            response['info'] = "Bad Request: Username not provided!"
+            response['status'] = 400
+            return response
+
+        if not udid:
+            response['info'] = "Bad Request: UDID not provided!"
+            response['status'] = 400
+            return response
+
+        query = "SELECT * FROM users WHERE username=%s;"
+        variables = (username + config.get('xmpp', 'domain'), )
+        try:
+            result = QueryHandler.get_results(query, variables)
+            if len(result) < 1:
+                response['info'] = "Error: User not registered!"
+                response['status'] = 404
+            return response
+        except Exception as e:
+            raise e
+
+    def post(self):
+        response = {}
+        try:
+            username = str(self.get_argument('user', ''))
+            udid = str(self.get_argument('token', ''))
+
+            # data validation
+            response = self.data_validations(username, udid)
+            if response['status'] not in [400, 404, 500]:
+                # add udid in users table
+                query = "UPDATE users SET apple_udid=%s WHERE username=%s;"
+                variables = (udid, username + config.get('xmpp', 'domain'))
+                QueryHandler.execute(query, variables)
+
+                response['info'] = "Success"
+                response['status'] = 200
+        except Exception as e:
+            response['info'] = "Error: %s" % e
+            response['status'] = 500
+        finally:
+            self.write(response)
+
+
 class FootballEvents(tornado.web.RequestHandler):
     def post(self):
         response = {}
@@ -731,6 +781,7 @@ def make_app():
                                        (r"/media_multipart", IOSMediaHandler),
                                        (r"/cricket_notifications", CricketEvents),
                                        (r"/set_user_interests", UserInterestHandler),
+                                       (r"/set_udid", IOSSetUserDeviceId),
                                        ],
                                    autoreload = True,
                                    )
