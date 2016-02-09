@@ -550,12 +550,12 @@ class IOSSetUserDeviceIdTests(unittest.TestCase):
 
     def create_user(self, user):
         query = " INSERT INTO users(username, password) VALUES (%s, '');"
-        variables = (user + config.get('xmpp', 'domain'),)
+        variables = (user,)
         QueryHandler.execute(query, variables)
 
     def delete_user(self, user):
         query = "DELETE FROM users WHERE username=%s;"
-        variables = (user + config.get('xmpp', 'domain'),)
+        variables = (user,)
         QueryHandler.execute(query, variables)
 
     def setUp(self):

@@ -693,7 +693,7 @@ class IOSSetUserDeviceId(tornado.web.RequestHandler):
             return response
 
         query = "SELECT * FROM users WHERE username=%s;"
-        variables = (username + config.get('xmpp', 'domain'), )
+        variables = (username, )
         try:
             result = QueryHandler.get_results(query, variables)
             if len(result) < 1:
@@ -714,7 +714,7 @@ class IOSSetUserDeviceId(tornado.web.RequestHandler):
             if response['status'] not in [400, 404, 500]:
                 # add udid in users table
                 query = "UPDATE users SET apple_udid=%s WHERE username=%s;"
-                variables = (udid, username + config.get('xmpp', 'domain'))
+                variables = (udid, username)
                 QueryHandler.execute(query, variables)
 
                 response['info'] = "Success"
