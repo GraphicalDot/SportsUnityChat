@@ -86,8 +86,8 @@ class CreationTest(AsyncHTTPTestCase):
         self.http_client.fetch(self.get_url(self._creation_url), self.stop)
         response = self.wait(timeout=20)
 
+        assert not json.loads(response.body)['password']
         self.assertNotEqual(json.loads(response.body)['status'], 200)
-        self.assertEqual(json.loads(response.body)['password'], None)
 
         query = " SELECT * FROM users WHERE username = %s; "
         variables = (self._phone_number,)
@@ -101,15 +101,15 @@ class CreationTest(AsyncHTTPTestCase):
         variables = (self._username,)
         QueryHandler.execute(query, variables)
 
-        query = " DELETE FROM registered_users WHERE username = %s; "
-        variables = (self._username,)
+        query = " DELETE FROM registered_users WHERE phone_number = %s; "
+        variables = (self._phone_number,)
         QueryHandler.execute(query, variables)
 
 
         expiration_time = int(
             time.time()) + int(config.get('registration', 'expiry_period_sec'))
-        query = " INSERT INTO registered_users (username, authorization_code, expiration_time, phone_number) VALUES ( %s, %s, %s); "
-        variables = (self._username, self._auth_code, expiration_time, self._phone_number)
+        query = " INSERT INTO registered_users (authorization_code, expiration_time, phone_number) VALUES ( %s, %s, %s); "
+        variables = (self._auth_code, expiration_time, self._phone_number)
         QueryHandler.execute(query, variables)
 
         self.http_client.fetch(self.get_url(self._creation_url), self.stop)

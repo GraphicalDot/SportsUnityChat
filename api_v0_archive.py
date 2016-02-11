@@ -3,6 +3,7 @@ from notification_adapter import NotificationAdapter
 from tornado.log import enable_pretty_logging
 from tornado.options import options
 import time
+import uuid
 import tornado.ioloop
 import tornado.web
 import random
@@ -69,16 +70,16 @@ class User:
         authenticate -- authenticates the user
         handle_creation -- handles the creation of user
         _is_token_correct -- checks whether the otp token given by the user is correct/expired
-        _exists -- checks whether the user exists or not   
         _create_new -- creates a new user after verifying the authenticity of the user
         handle_registration -- starts the registration process for the user
         _delete_registered -- deletes the registered user so that new otp can be sent to the user
         _register -- registers the user
         _send_message -- send the otp token to the users phone number
     """
-    def __init__(self, username, password = None):
+    def __init__(self, phone_number, password = None, username = None):
         self.username = username
         self.password = str(password)
+        self.phone_number = phone_number
 
     def authenticate(self):
         """
@@ -109,18 +110,56 @@ class User:
             If wrong or expired auth token
                 " Wrong or Expired Token ", 400, None
         """
-        if self._is_token_correct(auth_code):
-            is_created, password = self._exists()
-            if not is_created:
-                response, status = self._create_new()
-                password = self.password
+        try:
+            self._delete_registered()
+            if self._is_token_correct(auth_code):
+                
+                query = " SELECT * FROM users WHERE phone_number = %s ;"
+                variables = (self.phone_number, )
+                record = QueryHandler.get_results(query, variables)
+                
+                if record:
+                    self.username = record[0]['username']
+                    response, status = self._reset_password()
+                else:
+                    response, status = self._create_new()
             else:
-                response, status = " User already created ", 200
-                self.password = password
-        else:
-            response, status, password = " Wrong or Expired Token ", 400, None
-        self._delete_registered()
-        return response, status, password
+                response, status, password = " Wrong or Expired Token ", 400, None
+            pass
+        except Exception, e:
+            response, status = " Error %e " % e, 500
+        finally:
+            return response, status, password
+
+    def _generate_username(self):
+        self.username = self._generate_random()
+    
+    def _generate_password(self):
+        self.password = self._generate_random()
+
+    def _generate_random(n = 10):
+        return uuid.uuid4().hex[:n]
+
+    def _reset_password(self):
+        """
+            This functions resets the password of a user
+            Response:-
+                If successfully
+                    Response, Status = "Success", 200
+                Else
+                    Response, Status = "Error [Error]", 500
+        """
+        try: 
+            self._generate_password()
+            query = " UPDATE users SET password = %s ; " 
+            variables = (self.password, )
+            QueryHandler.execute(query, variables)
+            response, status = "Success", 200
+        except Exception, e:
+            response, status = " Error %e " % e, 500
+        finally:
+            return response, status
+
 
     def _is_token_correct(self, auth_code):
         """
@@ -131,8 +170,8 @@ class User:
             True if correct
             False if wrong token
         """
-        query = " SELECT * FROM registered_users WHERE username = %s AND authorization_code = %s ;"
-        variables = (self.username, auth_code,)
+        query = " SELECT * FROM registered_users WHERE phone_number = %s AND authorization_code = %s ;"
+        variables = (self.phone_number, auth_code,)
 
         record = QueryHandler.get_results(query, variables)
         if record and (record[0]['expiration_time'] > int(time.time())):
@@ -141,46 +180,30 @@ class User:
             is_token_correct = False
         return is_token_correct
 
-    def _exists(self):
-        """
-        Checks for the existence of the user on the basis of username and the password
-        passed to the user class during initialization, also returns the password if 
-        user already created.
-        Response :-
-            True , [password] if user exists
-            False, None if user does not exists
-        """
-        query = " SELECT * FROM users WHERE username = %s;"
-        variables = (str.split(self.username, '@')[0],)
-        user_info = QueryHandler.get_results(query, variables)
-        if len(user_info) == 0:
-            registered = False
-            password = None
-        else:
-            password = user_info[0]['password']
-            registered = True
-        return registered, password
 
     def _create_new(self):
         """
-        Creates a new user in the xmpp directory using the sleek xmpp plugin.
+        Creates a new user in the database.
         """
         try:
-            registration = register.Register(self.username, self.password)
-            registration.register_plugin('xep_0030')
-            registration.register_plugin('xep_0004')
-            registration.register_plugin('xep_0066')
-            registration.register_plugin('xep_0077')
-            registration['xep_0077'].force_registration = True
-            if registration.connect(('localhost', 5222)):
-                registration.process(block=True)
-                response, status = "Success", 200
-            else:
-                response, status = "Failed registration", 500
+            while True:
+                self.username = self._generate_username()
+                self.password = self._generate_password()
+
+                query = " SELECT * FROM users WHERE username = %s;"
+                variables = (self.username,)
+                record = QueryHandler.get_results(query, variables)
+
+                if not record:
+                    query = " INSERT INTO users (username, phone_number, password) VALUES "\
+                    + "(%s, %s, %s);"
+                    variables = (self.username, self.phone_number, self.password)
+                    QueryHandler.execute(query, variables)
+                    break
+            response, status = "Success", 200
         except Exception, e:
             response, status = " %s " % e, 500
         finally:
-            print " Response in registering users %s " % response
             return response, status
 
     def handle_registration(self):
@@ -197,8 +220,8 @@ class User:
         when new otp token has to be sent.
         """
         print "deleting registered user"
-        query = " DELETE FROM registered_users WHERE username = %s ;"
-        variables = (self.username,)
+        query = " DELETE FROM registered_users WHERE phone_number = %s ;"
+        variables = (self.phone_number,)
         QueryHandler.execute(query, variables)
 
     def _register(self):
@@ -208,8 +231,8 @@ class User:
         random_integer = random.randint(1000,9999)
         expiration_time = int(time.time()) + int(config.get('registration', 'expiry_period_sec'))
 
-        query = " INSERT INTO registered_users (username, authorization_code, expiration_time) VALUES ( %s, %s, %s); "
-        variables = (self.username, random_integer, expiration_time)
+        query = " INSERT INTO registered_users (phone_number, authorization_code, expiration_time) VALUES ( %s, %s, %s); "
+        variables = (self.phone_number, random_integer, expiration_time)
         try:
             QueryHandler.execute(query, variables)
             return self._send_message(random_integer)
@@ -336,11 +359,10 @@ class CreationHandler(tornado.web.RequestHandler):
         response = {}
         try:
             phone_number = str(self.get_arguments("phone_number")[0])
-            username = str.strip(phone_number) + config.get('xmpp', 'domain')
             auth_code = str(self.get_arguments("auth_code")[0])
-            password = int(random.random() * 1000000)
-            user = User(username, password)
-            response['info'], response['status'], response['password'] = user.handle_creation(auth_code)
+            user = User(phone_number)
+            response['info'], response['status'], response['password'], response['username']\
+                = user.handle_creation(auth_code)
         except Exception, e:
             response['info'] = " Error %s " % e
             response['status'] = 500
