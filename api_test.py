@@ -17,6 +17,7 @@ import unittest
 import requests
 import sys
 from requests_toolbelt import MultipartEncoder
+from custom_error import BadAuthentication
 
 import api_v0_archive
 config = ConfigParser()
@@ -54,98 +55,101 @@ class UserTest(unittest.TestCase):
         create_user(username, password, phone_number)
 
         user = api_v0_archive.User(username = username, password = password)
-        user_exists = user.authenticate()
 
         fraud_password = 'test'
         fraud_user = api_v0_archive.User(username, fraud_password)
-        user_not_exists = fraud_user.authenticate()
-
-        assert user_exists
-        assert not user_not_exists
-
-
-# class CreationTest(AsyncHTTPTestCase):
-#     _phone_number = config.get('tests', 'test_phone_number')
-#     _username = 'test'
-#     _auth_code = 'ASDFG'
-#     _registration_url = "/register?phone_number=" + str(_phone_number)
-#     _creation_url = "/create?phone_number=" + str(_phone_number) \
-#                     + "&auth_code=" + str(_auth_code)
-
-#     def setUp(self):
-#         super(CreationTest, self).setUp()
-#         delete_user(username = self._username)
-
-#     def get_app(self):
-#         return api_v0_archive.make_app()
-
-#     def test_user_registration(self):
-#         self.http_client.fetch(self.get_url(self._registration_url), self.stop)
-#         response = self.wait(timeout=20)
-#         query = " SELECT * FROM registered_users WHERE phone_number = %s "
-#         variables = (self._phone_number,)
-#         record = QueryHandler.get_results(query, variables)
-#         assert record
-#         self.assertEqual(200, json.loads(response.body)['status'])
-
-#     def test_wrong_auth_code_failure(self):
-#         query = " UPDATE registered_users SET authorization_code = '12345' " \
-#                 " WHERE phone_number = %s; "
-#         variables = (self._phone_number,)
-#         QueryHandler.execute(query, variables)
-
-#         self.http_client.fetch(self.get_url(self._creation_url), self.stop)
-#         response = self.wait(timeout=20)
-
-#         assert json.loads(response.body).get('password' ,None) == None
-#         self.assertNotEqual(json.loads(response.body)['status'], 200)
-
-#         assert not select_user(self._phone_number)
+        try:
+            user.authenticate()
+            fraud_user.authenticate() 
+        except BadAuthentication:
+            pass
+        except Exception, e:
+            raise AssertionError
 
 
-#     def test_user_creation(self):
 
-#         delete_user(username = self._username)
+class CreationTest(AsyncHTTPTestCase):
+    _phone_number = config.get('tests', 'test_phone_number')
+    _username = 'test'
+    _auth_code = 'ASDFG'
+    _registration_url = "/register?phone_number=" + str(_phone_number)
+    _creation_url = "/create?phone_number=" + str(_phone_number) \
+                    + "&auth_code=" + str(_auth_code)
 
-#         query = " DELETE FROM registered_users WHERE phone_number = %s; "
-#         variables = (self._phone_number,)
-#         QueryHandler.execute(query, variables)
+    def setUp(self):
+        super(CreationTest, self).setUp()
+        delete_user(username = self._username)
+
+    def get_app(self):
+        return api_v0_archive.make_app()
+
+    # def test_user_registration(self):
+    #     self.http_client.fetch(self.get_url(self._registration_url), self.stop)
+    #     response = self.wait(timeout=20)
+    #     query = " SELECT * FROM registered_users WHERE phone_number = %s "
+    #     variables = (self._phone_number,)
+    #     record = QueryHandler.get_results(query, variables)
+    #     assert record
+    #     self.assertEqual(200, json.loads(response.body)['status'])
+
+    def test_wrong_auth_code_failure(self):
+        query = " UPDATE registered_users SET authorization_code = '12345' " \
+                " WHERE phone_number = %s; "
+        variables = (self._phone_number,)
+        QueryHandler.execute(query, variables)
+
+        self.http_client.fetch(self.get_url(self._creation_url), self.stop)
+        response = self.wait(timeout=20)
+
+        assert json.loads(response.body).get('password' ,None) == None
+        self.assertNotEqual(json.loads(response.body)['status'], 200)
+
+        assert not select_user(self._phone_number)
 
 
-#         expiration_time = int(time.time()) + int(config.get('registration', 'expiry_period_sec'))
-#         query = " INSERT INTO registered_users (authorization_code, expiration_time, phone_number) VALUES ( %s, %s, %s); "
-#         variables = (self._auth_code, expiration_time, self._phone_number)
-#         QueryHandler.execute(query, variables)
+    def test_user_creation(self):
 
-#         self.http_client.fetch(self.get_url(self._creation_url), self.stop)
-#         response = self.wait(timeout=20)
+        delete_user(username = self._username)
 
-#         record = select_user(phone_number = self._phone_number)
+        query = " DELETE FROM registered_users WHERE phone_number = %s; "
+        variables = (self._phone_number,)
+        QueryHandler.execute(query, variables)
+
+
+        expiration_time = int(time.time()) + int(config.get('registration', 'expiry_period_sec'))
+        query = " INSERT INTO registered_users (authorization_code, expiration_time, phone_number) VALUES ( %s, %s, %s); "
+        variables = (self._auth_code, expiration_time, self._phone_number)
+        QueryHandler.execute(query, variables)
+
+        self.http_client.fetch(self.get_url(self._creation_url), self.stop)
+        response = self.wait(timeout=20)
+
+        record = select_user(phone_number = self._phone_number)
         
-#         self.assertEqual(json.loads(response.body)['status'], 200)
-#         assert record[0]['username']
-#         self.assertEqual(
-#             json.loads(response.body)['username'], record[0]['username'])
-#         old_username = record[0]['username']
+        self.assertEqual(json.loads(response.body)['status'], 200)
+        assert record[0]['username']
+        self.assertEqual(
+            json.loads(response.body)['username'], record[0]['username'])
+        old_username = record[0]['username']
         
-#         self.assertEqual(
-#             json.loads(response.body)['password'], record[0]['password'])
+        self.assertEqual(
+            json.loads(response.body)['password'], record[0]['password'])
 
-#         expiration_time = int(time.time()) + int(config.get('registration', 'expiry_period_sec'))
-#         query = " INSERT INTO registered_users (authorization_code, expiration_time, phone_number) VALUES ( %s, %s, %s); "
-#         variables = (self._auth_code, expiration_time, self._phone_number)
-#         QueryHandler.execute(query, variables)        
+        expiration_time = int(time.time()) + int(config.get('registration', 'expiry_period_sec'))
+        query = " INSERT INTO registered_users (authorization_code, expiration_time, phone_number) VALUES ( %s, %s, %s); "
+        variables = (self._auth_code, expiration_time, self._phone_number)
+        QueryHandler.execute(query, variables)        
 
-#         self.http_client.fetch(self.get_url(self._creation_url), self.stop)
-#         response = self.wait(timeout=20)
+        self.http_client.fetch(self.get_url(self._creation_url), self.stop)
+        response = self.wait(timeout=20)
 
-#         self.assertEqual(
-#             json.loads(response.body)['username'], old_username)
+        self.assertEqual(
+            json.loads(response.body)['username'], old_username)
 
-#         query = " SELECT * FROM registered_users WHERE phone_number = %s; "
-#         variables = (self._phone_number,)
-#         record = QueryHandler.get_results(query, variables)
-#         assert not record
+        query = " SELECT * FROM registered_users WHERE phone_number = %s; "
+        variables = (self._phone_number,)
+        record = QueryHandler.get_results(query, variables)
+        assert not record
 
 
 # class FacebookFriendServiceTest(AsyncHTTPTestCase):
@@ -292,7 +296,11 @@ class LocationTest(AsyncHTTPTestCase):
         self.http_client.fetch(
             self.get_url(self.set_location_storage_url), self.stop)
         response = self.wait(timeout=20)
+
         assert json.loads(response.body)['status'] == 200
+
+
+
 
         query = " SELECT lat, lng FROM users WHERE username = %s;"
         variables = (self._username,)
@@ -318,6 +326,13 @@ class LocationTest(AsyncHTTPTestCase):
             QueryHandler.execute(query, variables)
         except psycopg2.IntegrityError:
             pass
+
+        interests = ['interest_one', 'interest_two']
+        test_storage_url = "/set_user_interests?username=" + nearby_user\
+            + "".join(map(lambda interest: "&interests=" + interest, interests))
+        self.http_client.fetch(
+            self.get_url(test_storage_url), self.stop)
+        response = self.wait(timeout=20)
 
         nearby_user_lat = "0.0000009"
         nearby_user_lng = "0.0000009"
@@ -352,13 +367,13 @@ class LocationTest(AsyncHTTPTestCase):
         assert type(json.loads(response.body)['users'][0]['distance']) == float
         assert type(json.loads(response.body)['users'][0]['lat']) == float
         assert type(json.loads(response.body)['users'][0]['lng']) == float
-        # assert json.loads(response.body)['users'][0]['interests']
+        assert json.loads(response.body)['users'][0]['interests']
 
     def tearDown(self):
         pass
 
 class InterestTest(AsyncHTTPTestCase):
-    _username = 'tests'
+    _username = 'test'
     _password = 'password'
     _phone_number = config.get('tests', 'test_phone_number')
 
@@ -392,10 +407,9 @@ class InterestTest(AsyncHTTPTestCase):
 
 
     def test_storage(self):
-        self.username = config.get('tests', 'test_phone_number')
         interests = ['interest_one', 'interest_two']
 
-        test_storage_url = "/set_user_interests?username=" + self.username\
+        test_storage_url = "/set_user_interests?username=" + self._username\
             + "".join(map(lambda interest: "&interests=" + interest, interests))
 
         self.http_client.fetch(
@@ -405,11 +419,12 @@ class InterestTest(AsyncHTTPTestCase):
         assert response
         assert json.loads(response.body)['status'] == 200
 
+
         query = "select users.username, string_agg(interest.interest_name, ' ,') as interests from users "\
             + " left outer join users_interest on (users.username = users_interest.username) "\
             + " left outer join interest on (users_interest.interest_id = interest.interest_id)"\
             + " WHERE users.username = %s group by users.username;"
-        variables = (self.username,)
+        variables = (self._username,)
         record = QueryHandler.get_results(query, variables)
 
         assert record
@@ -417,7 +432,7 @@ class InterestTest(AsyncHTTPTestCase):
         assert record[0]['interests'] == "interest_one ,interest_two"
 
         interests = ['interest_one']
-        test_storage_url = "/set_user_interests?username=" + self.username\
+        test_storage_url = "/set_user_interests?username=" + self._username\
             + "".join(map(lambda interest: "&interests=" + interest, interests))
 
         self.http_client.fetch(
@@ -431,7 +446,7 @@ class InterestTest(AsyncHTTPTestCase):
             + " left outer join users_interest on (users.username = users_interest.username) "\
             + " left outer join interest on (users_interest.interest_id = interest.interest_id)"\
             + " WHERE users.username = %s group by users.username;"
-        variables = (self.username,)
+        variables = (self._username,)
         record = QueryHandler.get_results(query, variables)
 
         assert record
@@ -560,41 +575,37 @@ class IOSSetUserDeviceIdTests(unittest.TestCase):
     _username = 'test'
     _password = 'password'
     _phone_number = config.get('tests', 'test_phone_number')
-    url = None
-    data = None
 
-    def assert_status_info(self, response, expected_info, expected_status):
+    def assert_status_info(self, response, expected_status):
         res = json.loads(response.content)
         assert_equal(response.status_code, 200)
-        assert_equal(res['info'], expected_info)
-        assert_equal(res['status'], expected_status)
+        assert_equal(json.loads(response.content)['status'], expected_status)
 
     def setUp(self):
         self.url = 'http://localhost:3000/set_udid'
-        self._username = '914444444444'
         delete_user(username = self._username)
-        create_user(username = self._username, password = self._phone_number, phone_number = self._phone_number)
+        create_user(username = self._username, password = self._password, phone_number = self._phone_number)
 
     def test_validations(self):
         # self._username not provided
         self.data = {'token': 'AAAAAAAA'}
         response = requests.post(self.url, data=self.data)
-        self.assert_status_info(response, "Bad Request: Username not provided!", 400)
+        self.assert_status_info(response, 400)
 
         # udid token not provided
         self.data = {'user': self._username}
         response = requests.post(self.url, data=self.data)
-        self.assert_status_info(response, "Bad Request: UDID not provided!", 400)
+        self.assert_status_info(response, 400)
 
         # self._username is not registered
         self.data = {'user': '910000000000', 'token': 'AAAAAA'}
         response = requests.post(self.url, data=self.data)
-        self.assert_status_info(response, "Error: User not registered!", 404)
+        self.assert_status_info(response, 400)
 
     def test_post(self):
-        self.data = {'user': self._username, 'token': 'AAAAAA'}
+        self.data = {'user': self._username, 'token': 'AAAAAA', 'password': self._password}
         response = requests.post(self.url, data=self.data)
-        self.assert_status_info(response, "Success", 200)
+        self.assert_status_info(response, 200)
 
 
 if __name__ == '__main__':

@@ -2,6 +2,7 @@ from global_func import QueryHandler, S3Handler
 from notification_adapter import NotificationAdapter
 from tornado.log import enable_pretty_logging
 from tornado.options import options
+from tornado.web import MissingArgumentError
 import time
 import uuid
 import tornado.ioloop
@@ -12,12 +13,11 @@ import requests
 import os
 import facebook
 import json
-import register
 import ConfigParser
 from IPython import embed
 import base64
 from requests_toolbelt import MultipartDecoder
-
+from custom_error import BadAuthentication
 config = ConfigParser.ConfigParser()
 config.read('config.py')
 
@@ -42,13 +42,15 @@ class SetLocationHandler(tornado.web.RequestHandler):
     def get(self):
         response = {}
         try:
-            user = str(self.get_arguments("user", True)[0])
-            longtitude = float(self.get_arguments("lng", True)[0])
-            latitude = float(self.get_arguments("lat", True)[0])
-            username = str.split(user, "@")[0]
+            username = self.get_query_argument("user")
+            longtitude = self.get_query_argument("lng")
+            latitude = self.get_query_argument("lat")
             query = " UPDATE users SET lat = %s, lng = %s " \
                     " WHERE username = %s; "
             QueryHandler.execute(query, (latitude, longtitude, username))
+        except MissingArgumentError, status:
+            response["info"] = status.log_message 
+            response["status"] = 400
         except Exception, e:
             response["info"] = " Error %s " % e
             response["status"] = 500
@@ -92,10 +94,8 @@ class User:
 
         record = QueryHandler.get_results(query, variables)
 
-        if record:
-            return True
-        else:
-            return False
+        if not record:
+            raise BadAuthentication
 
     def handle_creation(self, auth_code):
         """
@@ -289,9 +289,9 @@ class FacebookHandler(tornado.web.RequestHandler):
     def get(self):
         response = {}
         try:
-            fb_id = str(self.get_arguments("fb_id")[0])
-            token = str(self.get_arguments("token")[0])
-            user_id = str(self.get_arguments('id')[0])
+            fb_id = str(self.get_query_argument("fb_id"))
+            token = str(self.get_query_argument("token"))
+            user_id = str(self.get_query_argument('id'))
 
             username = str.split(user_id, "@")[0]
 
@@ -305,6 +305,9 @@ class FacebookHandler(tornado.web.RequestHandler):
 
             friends_details = self._get_friends_id(fb_json['friends']['data'])
         # TO-DO explicit error messages
+        except MissingArgumentError, status:
+            response["info"] = status.log_message 
+            response["status"] = 400
         except Exception, e:
             response['info'] = " Error : % s " % e
             response['status'] = 500
@@ -346,9 +349,12 @@ class RegistrationHandler(tornado.web.RequestHandler):
     def get(self):
         response = {}
         try:
-            phone_number = str(self.get_arguments("phone_number")[0])
+            phone_number = str(self.get_query_argument("phone_number"))
             user = User(phone_number)
             response['info'], response['status'] = user.handle_registration()
+        except MissingArgumentError, status:
+            response["info"] = status.log_message 
+            response["status"] = 400   
         except Exception, e:
             response['info'] = " Error: %s " % e
             response['status'] = 500
@@ -360,11 +366,14 @@ class CreationHandler(tornado.web.RequestHandler):
     def get(self):
         response = {}
         try:
-            phone_number = str(self.get_arguments("phone_number")[0])
-            auth_code = str(self.get_arguments("auth_code")[0])
+            phone_number = str(self.get_query_argument("phone_number"))
+            auth_code = str(self.get_query_argument("auth_code"))
             user = User(phone_number)
             response['info'], response['status'], response['password'], response['username']\
                 = user.handle_creation(auth_code)
+        except MissingArgumentError, status:
+            response["info"] = status.log_message 
+            response["status"] = 400
         except Exception, e:
             response['info'] = " Error %s " % e
             response['status'] = 500
@@ -374,10 +383,10 @@ class CreationHandler(tornado.web.RequestHandler):
 
 class ArchiveAcessHandler(tornado.web.RequestHandler):
     def get(self):
-        from_timestamp = self.get_arguments("from")
-        to_timestamp = self.get_arguments("to")
-        skip = self.get_arguments("skip", True) or [0]
-        limit = self.get_arguments("limit", True) or [100]
+        from_timestamp = self.get_query_argument("from")
+        to_timestamp = self.get_query_argument("to")
+        skip = self.get_query_argument("skip") or [0]
+        limit = self.get_query_argument("limit") or [100]
         response = {}
         response['version'] = 0.1
         try:
@@ -385,6 +394,9 @@ class ArchiveAcessHandler(tornado.web.RequestHandler):
                                                         " AND timestamp < %s OFFSET %s LIMIT %s; " \
                                                         , (from_timestamp[0], to_timestamp[0], skip[0], limit[0],))
             response['status'] = 200
+        except MissingArgumentError, status:
+            response["info"] = status.log_message 
+            response["status"] = 400
         except Exception, e:
             print(e)
             response['info'] = " Error: %s" % e
@@ -394,8 +406,8 @@ class ArchiveAcessHandler(tornado.web.RequestHandler):
 
 class GroupsHandler(tornado.web.RequestHandler):
     def get(self):
-        skip = self.get_arguments("skip", True) or [0]
-        limit = self.get_arguments("limit", True) or [100]
+        skip = self.get_query_argument("skip", True) or [0]
+        limit = self.get_query_argument("limit", True) or [100]
         response = {}
         response['version'] = 0.1
         try:
@@ -410,10 +422,10 @@ class GroupsHandler(tornado.web.RequestHandler):
 
 class GroupsMessagesHandler(tornado.web.RequestHandler):
     def get(self):
-        from_timestamp = self.get_arguments("from")
-        to_timestamp = self.get_arguments("to")
-        skip = self.get_arguments("skip", True) or [0]
-        limit = self.get_arguments("limit", True) or [100]
+        from_timestamp = self.get_query_argument("from")
+        to_timestamp = self.get_query_argument("to")
+        skip = self.get_query_argument("skip", True) or [0]
+        limit = self.get_query_argument("limit", True) or [100]
         response = {}
         response['version'] = 0.1
         try:
@@ -430,11 +442,11 @@ class GroupsMessagesHandler(tornado.web.RequestHandler):
 
 class GroupMessagesHandler(tornado.web.RequestHandler):
     def get(self):
-        from_timestamp = self.get_arguments("from")
-        to_timestamp = self.get_arguments("to")
-        skip = self.get_arguments("skip", True) or [0]
-        group = self.get_arguments("group", True) or ["test@conference.mm.io"]
-        limit = self.get_arguments("limit", True) or [100]
+        from_timestamp = self.get_query_argument("from")
+        to_timestamp = self.get_query_argument("to")
+        skip = self.get_query_argument("skip", True) or [0]
+        group = self.get_query_argument("group", True) or ["test@conference.mm.io"]
+        limit = self.get_query_argument("limit", True) or [100]
         response = {}
         response['version'] = 0.1
         try:
@@ -451,11 +463,11 @@ class GroupMessagesHandler(tornado.web.RequestHandler):
 
 class UserGroupMessagesHandler(tornado.web.RequestHandler):
     def get(self):
-        from_timestamp = self.get_arguments("from")
-        to_timestamp = self.get_arguments("to")
-        skip = self.get_arguments("skip", True) or [0]
-        user = self.get_arguments("user", True) or ['satish@mm.io']
-        limit = self.get_arguments("limit", True) or [100]
+        from_timestamp = self.get_query_argument("from")
+        to_timestamp = self.get_query_argument("to")
+        skip = self.get_query_argument("skip", True) or [0]
+        user = self.get_query_argument("user", True) or ['satish@mm.io']
+        limit = self.get_query_argument("limit", True) or [100]
         response = {}
         response['version'] = 0.1
         try:
@@ -474,13 +486,13 @@ class PubSubEventHandler(tornado.web.RequestHandler):
     def get(self):
         response = {}
         try:
-            name = self.get_arguments("name")[0]
+            name = self.get_query_argument("name")
 
-        except Exception, e:
-            response['message'] = " Internal Server Error "
-            response['status'] = 500
         except NameError:
             response['message'] = " Proper parameters not supplied "
+            response['status'] = 500
+        except Exception, e:
+            response['message'] = " Internal Server Error "
             response['status'] = 500
         else:
             response['message'] = "Success"
@@ -489,43 +501,46 @@ class PubSubEventHandler(tornado.web.RequestHandler):
             self.write(response)
 
 
-class ProfilePicHandler(tornado.web.RequestHandler):
-    def post(self):
-        response = {}
-        try:
-            profile_pic_bucket = config.get('amazon', 'profile_pics_bucket')
-            info = self.request.files['file'][0]
-            file_name = info['filename']
-            image_file = info['body']
-            username = self.get_arguments('username')[0]
-            password = self.get_arguments('password')[0]
-            user = User(username, password)
-            if user.authenticate():
-                s3 = S3Handler(profile_pic_bucket)
-                s3.upload(username, image_file)
-                response['status'] = 200
-                response['info'] = 'Success'
-            else:
-                response['status'] = 400
-                response['info'] = 'Invalid Credentials'
-        except Exception, e:
-            response['status'] = 500
-            response['info'] = 'error is: %s' % e
-        finally:
-            self.write(response)
+# class ProfilePicHandler(tornado.web.RequestHandler):
+#     def post(self):
+#         response = {}
+#         try:
+#             profile_pic_bucket = config.get('amazon', 'profile_pics_bucket')
+#             info = self.request.files['file'][0]
+#             file_name = info['filename']
+#             image_file = info['body']
+#             username = self.get_query_argument('username')
+#             password = self.get_query_argument('password')
+#             user = User(username, password)
+#             if user.authenticate():
+#                 s3 = S3Handler(profile_pic_bucket)
+#                 s3.upload(username, image_file)
+#                 response['status'] = 200
+#                 response['info'] = 'Success'
+#             else:
+#                 response['status'] = 400
+#                 response['info'] = 'Invalid Credentials'
+#         except Exception, e:
+#             response['status'] = 500
+#             response['info'] = 'error is: %s' % e
+#         finally:
+#             self.write(response)
 
 
 class MediaPresentHandler(tornado.web.RequestHandler):
     def get(self):
         response = {}
-        file_name = "media/" + self.get_arguments("name")[0]
         try:
+            file_name = "media/" + self.get_query_argument("name")
             if os.path.isfile(file_name):
                 response['info'] = 'Present'
                 response['status'] = 200
             else:
                 response['info'] = 'Not Found'
                 response['status'] = 400
+        except MissingArgumentError, status:
+            response["info"] = status.log_message 
+            response["status"] = 400
         except Exception, e:
             response['status'] = 500
             response['info'] = 'error is: %s' % e
@@ -549,6 +564,9 @@ class MediaHandler(tornado.web.RequestHandler):
                 media_file.flush()
             response['status'] = 200
             response['info'] = 'Success'
+        except MissingArgumentError, status:
+            response["info"] = status.log_message 
+            response["status"] = 400
         except Exception, e:
             response['status'] = 500
             response['info'] = 'error is: %s' % e
@@ -558,7 +576,7 @@ class MediaHandler(tornado.web.RequestHandler):
     def get(self):
         response = {}
         try:
-            file_name = "media/" + self.get_arguments("name")[0]
+            file_name = "media/" + self.get_query_argument("name")
             if os.path.isfile(file_name):
                 with open(file_name, 'r') as file_content:
                     while 1:
@@ -571,6 +589,9 @@ class MediaHandler(tornado.web.RequestHandler):
                 response['info'] = 'Not Found'
                 response['status'] = 400
                 self.write(response)
+        except MissingArgumentError, status:
+            response["info"] = status.log_message 
+            response["status"] = 400
         except Exception, e:
             response['status'] = 500
             response['info'] = 'error is: %s' % e
@@ -622,7 +643,9 @@ class IOSMediaHandler(tornado.web.RequestHandler):
                     media_file.flush()
                 response['status'] = 200
                 response['info'] = 'Success'
-
+        except MissingArgumentError, status:
+            response["info"] = status.log_message 
+            response["status"] = 400
         except Exception as e:
             response['status'] = 500
             response['info'] = " Error is: %s" % e
@@ -633,13 +656,16 @@ class GetNearbyUsers(tornado.web.RequestHandler):
     def get(self):
         response = {}
         try:
-            self.radius = self.get_arguments('radius')[0]
-            self.lat = self.get_arguments('lat')[0]
-            self.lng = self.get_arguments('lng')[0]
+            self.radius = self.get_query_argument('radius')
+            self.lat = self.get_query_argument('lat')
+            self.lng = self.get_query_argument('lng')
             users = self.get_nearby_users()
             response['status'] = 200
             response['info'] = 'Success'
             response['users'] = users
+        except MissingArgumentError, status:
+            response["info"] = status.log_message 
+            response["status"] = 400
         except Exception, e:
             response['status'] = 500
             response['info'] = 'Error: %s' % e
@@ -678,7 +704,7 @@ class UserInterestHandler(tornado.web.RequestHandler):
     def get(self):
         response = {}
         try:
-            username = self.get_arguments('username')[0]
+            username = self.get_query_argument('username')
             interests = self.request.arguments['interests']
             interests = map(lambda interest: interest.lower(), interests)
 
@@ -694,6 +720,9 @@ class UserInterestHandler(tornado.web.RequestHandler):
             QueryHandler.execute(query, variables)
             response['status'] = 200
             response['info'] = "Success"
+        except MissingArgumentError, status:
+            response["info"] = status.log_message 
+            response["status"] = 400
         except Exception, e:
             response['status'] = 500
             response['info'] = "Error: %s " % e
@@ -703,46 +732,27 @@ class UserInterestHandler(tornado.web.RequestHandler):
 
 class IOSSetUserDeviceId(tornado.web.RequestHandler):
 
-    def data_validations(self, username, udid):
-        response = {'info': '', 'status': 0}
-
-        if not username:
-            response['info'] = "Bad Request: Username not provided!"
-            response['status'] = 400
-            return response
-
-        if not udid:
-            response['info'] = "Bad Request: UDID not provided!"
-            response['status'] = 400
-            return response
-
-        query = "SELECT * FROM users WHERE username=%s;"
-        variables = (username, )
-        try:
-            result = QueryHandler.get_results(query, variables)
-            if len(result) < 1:
-                response['info'] = "Error: User not registered!"
-                response['status'] = 404
-            return response
-        except Exception as e:
-            raise e
-
     def post(self):
         response = {}
         try:
-            username = str(self.get_argument('user', ''))
-            udid = str(self.get_argument('token', ''))
+            username = str(self.get_body_argument('user'))
+            password = str(self.get_body_argument('password'))
+            udid = str(self.get_body_argument('token'))
 
-            # data validation
-            response = self.data_validations(username, udid)
-            if response['status'] not in [400, 404, 500]:
-                # add udid in users table
-                query = "UPDATE users SET apple_udid=%s WHERE username=%s;"
-                variables = (udid, username)
-                QueryHandler.execute(query, variables)
+            user = User(password = password, username = username)
+            user.authenticate()
+            query = "UPDATE users SET apple_udid=%s WHERE username=%s;"
+            variables = (udid, username)
+            QueryHandler.execute(query, variables)
 
-                response['info'] = "Success"
-                response['status'] = 200
+            response['info'] = "Success"
+            response['status'] = 200
+        except BadAuthentication, status:
+            response["info"] = status.log_message 
+            response["status"] = 400
+        except MissingArgumentError, status:
+            response["info"] = status.log_message 
+            response["status"] = 400
         except Exception as e:
             response['info'] = "Error: %s" % e
             response['status'] = 500
@@ -797,7 +807,6 @@ def make_app():
                                        (r"/set_location", SetLocationHandler),
                                        (r"/retrieve_nearby_users", GetNearbyUsers),
                                        (r"/fb_friends", FacebookHandler),
-                                       (r"/profile_pic", ProfilePicHandler),
                                        (r"/football_notifications", FootballEvents),
                                        (r"/tennis_notifications", TennisEvents),
                                        (r"/media", MediaHandler),
