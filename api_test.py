@@ -72,7 +72,7 @@ class CreationTest(AsyncHTTPTestCase):
     _phone_number = config.get('tests', 'test_phone_number')
     _username = 'test'
     _auth_code = 'ASDFG'
-    _registration_url = "/register?phone_number=" + str(_phone_number)
+    _registration_url = "http://localhost:3000/register?phone_number=" + str(_phone_number)
     _creation_url = "/create?phone_number=" + str(_phone_number) \
                     + "&auth_code=" + str(_auth_code)
 
@@ -83,14 +83,13 @@ class CreationTest(AsyncHTTPTestCase):
     def get_app(self):
         return api_v0_archive.make_app()
 
-    # def test_user_registration(self):
-    #     self.http_client.fetch(self.get_url(self._registration_url), self.stop)
-    #     response = self.wait(timeout=20)
-    #     query = " SELECT * FROM registered_users WHERE phone_number = %s "
-    #     variables = (self._phone_number,)
-    #     record = QueryHandler.get_results(query, variables)
-    #     assert record
-    #     self.assertEqual(200, json.loads(response.body)['status'])
+    def test_user_registration(self):
+        response = requests.get(self._registration_url)
+        query = " SELECT * FROM registered_users WHERE phone_number = %s "
+        variables = (self._phone_number,)
+        record = QueryHandler.get_results(query, variables)
+        assert record
+        self.assertEqual(200, json.loads(response.body)['status'])
 
     def test_wrong_auth_code_failure(self):
         query = " UPDATE registered_users SET authorization_code = '12345' " \
@@ -109,7 +108,7 @@ class CreationTest(AsyncHTTPTestCase):
 
     def test_user_creation(self):
 
-        delete_user(username = self._username)
+        delete_user(phone_number = self._phone_number)
 
         query = " DELETE FROM registered_users WHERE phone_number = %s; "
         variables = (self._phone_number,)
