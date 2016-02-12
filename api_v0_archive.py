@@ -76,9 +76,9 @@ class User:
         _register -- registers the user
         _send_message -- send the otp token to the users phone number
     """
-    def __init__(self, phone_number, password = None, username = None):
+    def __init__(self, phone_number = None, password = None, username = None):
         self.username = username
-        self.password = str(password)
+        self.password = password
         self.phone_number = phone_number
 
     def authenticate(self):
@@ -111,7 +111,6 @@ class User:
                 " Wrong or Expired Token ", 400, None
         """
         try:
-            self._delete_registered()
             if self._is_token_correct(auth_code):
                 
                 query = " SELECT * FROM users WHERE phone_number = %s ;"
@@ -124,12 +123,13 @@ class User:
                 else:
                     response, status = self._create_new()
             else:
-                response, status, password = " Wrong or Expired Token ", 400, None
+                response, status = " Wrong or Expired Token ", 400
             pass
         except Exception, e:
             response, status = " Error %e " % e, 500
         finally:
-            return response, status, password
+            self._delete_registered()
+            return response, status, self.password, self.username
 
     def _generate_username(self):
         self.username = self._generate_random()
@@ -137,8 +137,8 @@ class User:
     def _generate_password(self):
         self.password = self._generate_random()
 
-    def _generate_random(n = 10):
-        return uuid.uuid4().hex[:n]
+    def _generate_random(self, n = 10):
+        return (uuid.uuid4().hex)[:n]
 
     def _reset_password(self):
         """
@@ -174,12 +174,15 @@ class User:
         variables = (self.phone_number, auth_code,)
 
         record = QueryHandler.get_results(query, variables)
-        if record and (record[0]['expiration_time'] > int(time.time())):
-            is_token_correct = True
-        else:
+        try:
+            if record and (record[0]['expiration_time'] > int(time.time())):
+                is_token_correct = True
+            else:
+                is_token_correct = False
+        except:
             is_token_correct = False
-        return is_token_correct
-
+        finally:
+            return is_token_correct
 
     def _create_new(self):
         """
@@ -187,8 +190,8 @@ class User:
         """
         try:
             while True:
-                self.username = self._generate_username()
-                self.password = self._generate_password()
+                self._generate_username()
+                self._generate_password()
 
                 query = " SELECT * FROM users WHERE username = %s;"
                 variables = (self.username,)
@@ -243,7 +246,7 @@ class User:
         """
         Sends the otp token to the user
         """
-        number = str.split(self.username,'@')[0]
+        number = self.phone_number
         message = config.get('database','message') + "  " + str(random_integer)
         payload = {
             'method': 'SendMessage',
@@ -343,9 +346,8 @@ class RegistrationHandler(tornado.web.RequestHandler):
     def get(self):
         response = {}
         try:
-            number = str(self.get_arguments("phone_number")[0])
-            username = str.strip(number) + config.get('xmpp', 'domain')
-            user = User(username)
+            phone_number = str(self.get_arguments("phone_number")[0])
+            user = User(phone_number)
             response['info'], response['status'] = user.handle_registration()
         except Exception, e:
             response['info'] = " Error: %s " % e
