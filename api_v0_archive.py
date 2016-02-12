@@ -2,6 +2,7 @@ from global_func import QueryHandler, S3Handler
 from notification_adapter import NotificationAdapter
 from tornado.log import enable_pretty_logging
 from tornado.options import options
+import magic
 import settings
 import time
 import tornado.ioloop
@@ -16,7 +17,7 @@ import register
 import ConfigParser
 #from IPython import embed
 import base64
-from requests_toolbelt import MultipartDecoder
+from requests_toolbelt import MultipartDecoder, MultipartEncoder
 
 config = ConfigParser.ConfigParser()
 config.read('config.py')
@@ -548,10 +549,15 @@ class MediaHandler(tornado.web.RequestHandler):
                 file_name = "media/" + self.get_arguments("name")[0]
                 if os.path.isfile(file_name):
                     with open(file_name, 'r') as file_content:
+                        file_size = 0
                         while 1:
                             data = file_content.read(16384) # or some other nice-sized chunk
-                            if not data: break
+                            if not data:
+                                break
+                            file_size += len(data)
                             self.write(data)
+                        self.request.headers['Content-Length', file_size]
+                        self.add_header('Content-Length', file_size)
                         file_content.close()
                         self.finish()
                 else:

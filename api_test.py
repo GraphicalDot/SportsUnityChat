@@ -15,6 +15,7 @@ from nose.tools import assert_equal, assert_not_equal
 from requests_toolbelt.multipart.encoder import MultipartEncoder
 from tornado.testing import AsyncHTTPTestCase
 from requests_toolbelt import MultipartEncoder
+from shutil import copyfile
 import api_v0_archive
 import settings
 
