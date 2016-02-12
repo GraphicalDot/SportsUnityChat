@@ -541,6 +541,25 @@ class IOSMediaHandlerTests(unittest.TestCase):
             self.assertEqual(res['info'], 'Success')
             self.assertEqual(res['status'], settings.STATUS_200)
 
+        # if file already exists
+        self.filename = self.test_files[0]
+        mime = magic.Magic(mime=True)
+        mime_type = mime.from_file(self.filename)
+        encoder = MultipartEncoder(
+            fields={'name': 'image', 'filename': self.filename, 'Content-Disposition': 'form-data',
+                    'Content-Type': mime_type, 'file': (self.filename, open(self.filename, 'rb'), mime_type)}
+        )
+        response = requests.post(self.url, data=encoder.to_string(),
+                                 headers={'Content-Type': encoder.content_type, 'Checksum': file})
+        res = json.loads(response.content)
+        self.assertEqual(response.status_code, settings.STATUS_200)
+        self.assertEqual(res['info'], "Error: File with same name already exists!")
+        self.assertEqual(res['status'], settings.STATUS_422)
+
+        # delete all test files from media folder
+        for file in self.test_files:
+            os.remove('media/' + file)
+
 
 class IOSSetUserDeviceIdTests(unittest.TestCase):
     url = None

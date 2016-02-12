@@ -603,12 +603,15 @@ class IOSMediaHandler(RequestsBaseHandler):
                     decoder = MultipartDecoder(body, content_type=headers.get('Content-Type'))
                     file_content = decoder.parts[0].content
                     file_name = "media/" + headers.get('Checksum')
-                    if not os.path.isfile(file_name):
+                    if os.path.isfile(file_name):
+                        self.response['status'] = settings.STATUS_422
+                        self.response['info'] = "Error: File with same name already exists!"
+                    else:
                         media_file = open(file_name, 'w')
                         media_file.write(file_content)
                         media_file.flush()
-                    self.response['status'] = settings.STATUS_200
-                    self.response['info'] = settings.SUCCESS_RESPONSE
+                        self.response['status'] = settings.STATUS_200
+                        self.response['info'] = settings.SUCCESS_RESPONSE
 
         except Exception as e:
             self.response['status'] = settings.STATUS_500
