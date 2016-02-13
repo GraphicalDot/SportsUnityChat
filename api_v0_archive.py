@@ -13,7 +13,6 @@ import facebook
 import json
 import register
 import ConfigParser
-from IPython import embed
 import base64
 from requests_toolbelt import MultipartDecoder
 
