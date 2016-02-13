@@ -89,7 +89,7 @@ b. Install local packages:
 >> Install Tornado as described in : http://www.tornadoweb.org/en/stable/#installation
 >> pip install requests
 >> pip install requests-toolbelt
->> pip install python-magic
+>> pip install python-magic 
 
 Install 'ejabberd' (version: 15.06) in following steps:
 i) git clone https://github.com/processone/ejabberd.git

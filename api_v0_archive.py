@@ -2,7 +2,9 @@ from global_func import QueryHandler, S3Handler
 from notification_adapter import NotificationAdapter
 from tornado.log import enable_pretty_logging
 from tornado.options import options
+from tornado.web import MissingArgumentError
 import time
+import uuid
 import tornado.ioloop
 import tornado.web
 import random
@@ -11,11 +13,10 @@ import requests
 import os
 import facebook
 import json
-import register
 import ConfigParser
 import base64
 from requests_toolbelt import MultipartDecoder
-
+from custom_error import BadAuthentication
 config = ConfigParser.ConfigParser()
 config.read('config.py')
 
@@ -40,13 +41,15 @@ class SetLocationHandler(tornado.web.RequestHandler):
     def get(self):
         response = {}
         try:
-            user = str(self.get_arguments("user", True)[0])
-            longtitude = float(self.get_arguments("lng", True)[0])
-            latitude = float(self.get_arguments("lat", True)[0])
-            username = str.split(user, "@")[0]
+            username = self.get_query_argument("user")
+            longtitude = self.get_query_argument("lng")
+            latitude = self.get_query_argument("lat")
             query = " UPDATE users SET lat = %s, lng = %s " \
                     " WHERE username = %s; "
             QueryHandler.execute(query, (latitude, longtitude, username))
+        except MissingArgumentError, status:
+            response["info"] = status.log_message 
+            response["status"] = 400
         except Exception, e:
             response["info"] = " Error %s " % e
             response["status"] = 500
@@ -68,16 +71,16 @@ class User:
         authenticate -- authenticates the user
         handle_creation -- handles the creation of user
         _is_token_correct -- checks whether the otp token given by the user is correct/expired
-        _exists -- checks whether the user exists or not   
         _create_new -- creates a new user after verifying the authenticity of the user
         handle_registration -- starts the registration process for the user
         _delete_registered -- deletes the registered user so that new otp can be sent to the user
         _register -- registers the user
         _send_message -- send the otp token to the users phone number
     """
-    def __init__(self, username, password = None):
+    def __init__(self, phone_number = None, password = None, username = None):
         self.username = username
-        self.password = str(password)
+        self.password = password
+        self.phone_number = phone_number
 
     def authenticate(self):
         """
@@ -90,10 +93,8 @@ class User:
 
         record = QueryHandler.get_results(query, variables)
 
-        if record:
-            return True
-        else:
-            return False
+        if not record:
+            raise BadAuthentication
 
     def handle_creation(self, auth_code):
         """
@@ -108,18 +109,56 @@ class User:
             If wrong or expired auth token
                 " Wrong or Expired Token ", 400, None
         """
-        if self._is_token_correct(auth_code):
-            is_created, password = self._exists()
-            if not is_created:
-                response, status = self._create_new()
-                password = self.password
+        try:
+            if self._is_token_correct(auth_code):
+                
+                query = " SELECT * FROM users WHERE phone_number = %s ;"
+                variables = (self.phone_number, )
+                record = QueryHandler.get_results(query, variables)
+                
+                if record:
+                    self.username = record[0]['username']
+                    response, status = self._reset_password()
+                else:
+                    response, status = self._create_new()
             else:
-                response, status = " User already created ", 200
-                self.password = password
-        else:
-            response, status, password = " Wrong or Expired Token ", 400, None
-        self._delete_registered()
-        return response, status, password
+                response, status = " Wrong or Expired Token ", 400
+            pass
+        except Exception, e:
+            response, status = " Error %e " % e, 500
+        finally:
+            self._delete_registered()
+            return response, status, self.password, self.username
+
+    def _generate_username(self):
+        self.username = self._generate_random()
+    
+    def _generate_password(self):
+        self.password = self._generate_random()
+
+    def _generate_random(self, n = 10):
+        return (uuid.uuid4().hex)[:n]
+
+    def _reset_password(self):
+        """
+            This functions resets the password of a user
+            Response:-
+                If successfully
+                    Response, Status = "Success", 200
+                Else
+                    Response, Status = "Error [Error]", 500
+        """
+        try: 
+            self._generate_password()
+            query = " UPDATE users SET password = %s ; " 
+            variables = (self.password, )
+            QueryHandler.execute(query, variables)
+            response, status = "Success", 200
+        except Exception, e:
+            response, status = " Error %e " % e, 500
+        finally:
+            return response, status
+
 
     def _is_token_correct(self, auth_code):
         """
@@ -130,56 +169,43 @@ class User:
             True if correct
             False if wrong token
         """
-        query = " SELECT * FROM registered_users WHERE username = %s AND authorization_code = %s ;"
-        variables = (self.username, auth_code,)
+        query = " SELECT * FROM registered_users WHERE phone_number = %s AND authorization_code = %s ;"
+        variables = (self.phone_number, auth_code,)
 
         record = QueryHandler.get_results(query, variables)
-        if record and (record[0]['expiration_time'] > int(time.time())):
-            is_token_correct = True
-        else:
+        try:
+            if record and (record[0]['expiration_time'] > int(time.time())):
+                is_token_correct = True
+            else:
+                is_token_correct = False
+        except:
             is_token_correct = False
-        return is_token_correct
-
-    def _exists(self):
-        """
-        Checks for the existence of the user on the basis of username and the password
-        passed to the user class during initialization, also returns the password if 
-        user already created.
-        Response :-
-            True , [password] if user exists
-            False, None if user does not exists
-        """
-        query = " SELECT * FROM users WHERE username = %s;"
-        variables = (str.split(self.username, '@')[0],)
-        user_info = QueryHandler.get_results(query, variables)
-        if len(user_info) == 0:
-            registered = False
-            password = None
-        else:
-            password = user_info[0]['password']
-            registered = True
-        return registered, password
+        finally:
+            return is_token_correct
 
     def _create_new(self):
         """
-        Creates a new user in the xmpp directory using the sleek xmpp plugin.
+        Creates a new user in the database.
         """
         try:
-            registration = register.Register(self.username, self.password)
-            registration.register_plugin('xep_0030')
-            registration.register_plugin('xep_0004')
-            registration.register_plugin('xep_0066')
-            registration.register_plugin('xep_0077')
-            registration['xep_0077'].force_registration = True
-            if registration.connect(('localhost', 5222)):
-                registration.process(block=True)
-                response, status = "Success", 200
-            else:
-                response, status = "Failed registration", 500
+            while True:
+                self._generate_username()
+                self._generate_password()
+
+                query = " SELECT * FROM users WHERE username = %s;"
+                variables = (self.username,)
+                record = QueryHandler.get_results(query, variables)
+
+                if not record:
+                    query = " INSERT INTO users (username, phone_number, password) VALUES "\
+                    + "(%s, %s, %s);"
+                    variables = (self.username, self.phone_number, self.password)
+                    QueryHandler.execute(query, variables)
+                    break
+            response, status = "Success", 200
         except Exception, e:
             response, status = " %s " % e, 500
         finally:
-            print " Response in registering users %s " % response
             return response, status
 
     def handle_registration(self):
@@ -196,8 +222,8 @@ class User:
         when new otp token has to be sent.
         """
         print "deleting registered user"
-        query = " DELETE FROM registered_users WHERE username = %s ;"
-        variables = (self.username,)
+        query = " DELETE FROM registered_users WHERE phone_number = %s ;"
+        variables = (self.phone_number,)
         QueryHandler.execute(query, variables)
 
     def _register(self):
@@ -207,8 +233,8 @@ class User:
         random_integer = random.randint(1000,9999)
         expiration_time = int(time.time()) + int(config.get('registration', 'expiry_period_sec'))
 
-        query = " INSERT INTO registered_users (username, authorization_code, expiration_time) VALUES ( %s, %s, %s); "
-        variables = (self.username, random_integer, expiration_time)
+        query = " INSERT INTO registered_users (phone_number, authorization_code, expiration_time) VALUES ( %s, %s, %s); "
+        variables = (self.phone_number, random_integer, expiration_time)
         try:
             QueryHandler.execute(query, variables)
             return self._send_message(random_integer)
@@ -219,7 +245,7 @@ class User:
         """
         Sends the otp token to the user
         """
-        number = str.split(self.username,'@')[0]
+        number = self.phone_number
         message = config.get('database','message') + "  " + str(random_integer)
         payload = {
             'method': 'SendMessage',
@@ -262,9 +288,9 @@ class FacebookHandler(tornado.web.RequestHandler):
     def get(self):
         response = {}
         try:
-            fb_id = str(self.get_arguments("fb_id")[0])
-            token = str(self.get_arguments("token")[0])
-            user_id = str(self.get_arguments('id')[0])
+            fb_id = str(self.get_query_argument("fb_id"))
+            token = str(self.get_query_argument("token"))
+            user_id = str(self.get_query_argument('id'))
 
             username = str.split(user_id, "@")[0]
 
@@ -278,6 +304,9 @@ class FacebookHandler(tornado.web.RequestHandler):
 
             friends_details = self._get_friends_id(fb_json['friends']['data'])
         # TO-DO explicit error messages
+        except MissingArgumentError, status:
+            response["info"] = status.log_message 
+            response["status"] = 400
         except Exception, e:
             response['info'] = " Error : % s " % e
             response['status'] = 500
@@ -319,10 +348,12 @@ class RegistrationHandler(tornado.web.RequestHandler):
     def get(self):
         response = {}
         try:
-            number = str(self.get_arguments("phone_number")[0])
-            username = str.strip(number) + config.get('xmpp', 'domain')
-            user = User(username)
+            phone_number = str(self.get_query_argument("phone_number"))
+            user = User(phone_number)
             response['info'], response['status'] = user.handle_registration()
+        except MissingArgumentError, status:
+            response["info"] = status.log_message 
+            response["status"] = 400   
         except Exception, e:
             response['info'] = " Error: %s " % e
             response['status'] = 500
@@ -334,12 +365,14 @@ class CreationHandler(tornado.web.RequestHandler):
     def get(self):
         response = {}
         try:
-            phone_number = str(self.get_arguments("phone_number")[0])
-            username = str.strip(phone_number) + config.get('xmpp', 'domain')
-            auth_code = str(self.get_arguments("auth_code")[0])
-            password = int(random.random() * 1000000)
-            user = User(username, password)
-            response['info'], response['status'], response['password'] = user.handle_creation(auth_code)
+            phone_number = str(self.get_query_argument("phone_number"))
+            auth_code = str(self.get_query_argument("auth_code"))
+            user = User(phone_number)
+            response['info'], response['status'], response['password'], response['username']\
+                = user.handle_creation(auth_code)
+        except MissingArgumentError, status:
+            response["info"] = status.log_message 
+            response["status"] = 400
         except Exception, e:
             response['info'] = " Error %s " % e
             response['status'] = 500
@@ -349,10 +382,10 @@ class CreationHandler(tornado.web.RequestHandler):
 
 class ArchiveAcessHandler(tornado.web.RequestHandler):
     def get(self):
-        from_timestamp = self.get_arguments("from")
-        to_timestamp = self.get_arguments("to")
-        skip = self.get_arguments("skip", True) or [0]
-        limit = self.get_arguments("limit", True) or [100]
+        from_timestamp = self.get_query_argument("from")
+        to_timestamp = self.get_query_argument("to")
+        skip = self.get_query_argument("skip") or [0]
+        limit = self.get_query_argument("limit") or [100]
         response = {}
         response['version'] = 0.1
         try:
@@ -360,6 +393,9 @@ class ArchiveAcessHandler(tornado.web.RequestHandler):
                                                         " AND timestamp < %s OFFSET %s LIMIT %s; " \
                                                         , (from_timestamp[0], to_timestamp[0], skip[0], limit[0],))
             response['status'] = 200
+        except MissingArgumentError, status:
+            response["info"] = status.log_message 
+            response["status"] = 400
         except Exception, e:
             print(e)
             response['info'] = " Error: %s" % e
@@ -369,8 +405,8 @@ class ArchiveAcessHandler(tornado.web.RequestHandler):
 
 class GroupsHandler(tornado.web.RequestHandler):
     def get(self):
-        skip = self.get_arguments("skip", True) or [0]
-        limit = self.get_arguments("limit", True) or [100]
+        skip = self.get_query_argument("skip", True) or [0]
+        limit = self.get_query_argument("limit", True) or [100]
         response = {}
         response['version'] = 0.1
         try:
@@ -385,10 +421,10 @@ class GroupsHandler(tornado.web.RequestHandler):
 
 class GroupsMessagesHandler(tornado.web.RequestHandler):
     def get(self):
-        from_timestamp = self.get_arguments("from")
-        to_timestamp = self.get_arguments("to")
-        skip = self.get_arguments("skip", True) or [0]
-        limit = self.get_arguments("limit", True) or [100]
+        from_timestamp = self.get_query_argument("from")
+        to_timestamp = self.get_query_argument("to")
+        skip = self.get_query_argument("skip", True) or [0]
+        limit = self.get_query_argument("limit", True) or [100]
         response = {}
         response['version'] = 0.1
         try:
@@ -405,11 +441,11 @@ class GroupsMessagesHandler(tornado.web.RequestHandler):
 
 class GroupMessagesHandler(tornado.web.RequestHandler):
     def get(self):
-        from_timestamp = self.get_arguments("from")
-        to_timestamp = self.get_arguments("to")
-        skip = self.get_arguments("skip", True) or [0]
-        group = self.get_arguments("group", True) or ["test@conference.mm.io"]
-        limit = self.get_arguments("limit", True) or [100]
+        from_timestamp = self.get_query_argument("from")
+        to_timestamp = self.get_query_argument("to")
+        skip = self.get_query_argument("skip", True) or [0]
+        group = self.get_query_argument("group", True) or ["test@conference.mm.io"]
+        limit = self.get_query_argument("limit", True) or [100]
         response = {}
         response['version'] = 0.1
         try:
@@ -426,11 +462,11 @@ class GroupMessagesHandler(tornado.web.RequestHandler):
 
 class UserGroupMessagesHandler(tornado.web.RequestHandler):
     def get(self):
-        from_timestamp = self.get_arguments("from")
-        to_timestamp = self.get_arguments("to")
-        skip = self.get_arguments("skip", True) or [0]
-        user = self.get_arguments("user", True) or ['satish@mm.io']
-        limit = self.get_arguments("limit", True) or [100]
+        from_timestamp = self.get_query_argument("from")
+        to_timestamp = self.get_query_argument("to")
+        skip = self.get_query_argument("skip", True) or [0]
+        user = self.get_query_argument("user", True) or ['satish@mm.io']
+        limit = self.get_query_argument("limit", True) or [100]
         response = {}
         response['version'] = 0.1
         try:
@@ -449,13 +485,13 @@ class PubSubEventHandler(tornado.web.RequestHandler):
     def get(self):
         response = {}
         try:
-            name = self.get_arguments("name")[0]
+            name = self.get_query_argument("name")
 
-        except Exception, e:
-            response['message'] = " Internal Server Error "
-            response['status'] = 500
         except NameError:
             response['message'] = " Proper parameters not supplied "
+            response['status'] = 500
+        except Exception, e:
+            response['message'] = " Internal Server Error "
             response['status'] = 500
         else:
             response['message'] = "Success"
@@ -464,43 +500,46 @@ class PubSubEventHandler(tornado.web.RequestHandler):
             self.write(response)
 
 
-class ProfilePicHandler(tornado.web.RequestHandler):
-    def post(self):
-        response = {}
-        try:
-            profile_pic_bucket = config.get('amazon', 'profile_pics_bucket')
-            info = self.request.files['file'][0]
-            file_name = info['filename']
-            image_file = info['body']
-            username = self.get_arguments('username')[0]
-            password = self.get_arguments('password')[0]
-            user = User(username, password)
-            if user.authenticate():
-                s3 = S3Handler(profile_pic_bucket)
-                s3.upload(username, image_file)
-                response['status'] = 200
-                response['info'] = 'Success'
-            else:
-                response['status'] = 400
-                response['info'] = 'Invalid Credentials'
-        except Exception, e:
-            response['status'] = 500
-            response['info'] = 'error is: %s' % e
-        finally:
-            self.write(response)
+# class ProfilePicHandler(tornado.web.RequestHandler):
+#     def post(self):
+#         response = {}
+#         try:
+#             profile_pic_bucket = config.get('amazon', 'profile_pics_bucket')
+#             info = self.request.files['file'][0]
+#             file_name = info['filename']
+#             image_file = info['body']
+#             username = self.get_query_argument('username')
+#             password = self.get_query_argument('password')
+#             user = User(username, password)
+#             if user.authenticate():
+#                 s3 = S3Handler(profile_pic_bucket)
+#                 s3.upload(username, image_file)
+#                 response['status'] = 200
+#                 response['info'] = 'Success'
+#             else:
+#                 response['status'] = 400
+#                 response['info'] = 'Invalid Credentials'
+#         except Exception, e:
+#             response['status'] = 500
+#             response['info'] = 'error is: %s' % e
+#         finally:
+#             self.write(response)
 
 
 class MediaPresentHandler(tornado.web.RequestHandler):
     def get(self):
         response = {}
-        file_name = "media/" + self.get_arguments("name")[0]
         try:
+            file_name = "media/" + self.get_query_argument("name")
             if os.path.isfile(file_name):
                 response['info'] = 'Present'
                 response['status'] = 200
             else:
                 response['info'] = 'Not Found'
                 response['status'] = 400
+        except MissingArgumentError, status:
+            response["info"] = status.log_message 
+            response["status"] = 400
         except Exception, e:
             response['status'] = 500
             response['info'] = 'error is: %s' % e
@@ -524,6 +563,9 @@ class MediaHandler(tornado.web.RequestHandler):
                 media_file.flush()
             response['status'] = 200
             response['info'] = 'Success'
+        except MissingArgumentError, status:
+            response["info"] = status.log_message 
+            response["status"] = 400
         except Exception, e:
             response['status'] = 500
             response['info'] = 'error is: %s' % e
@@ -533,7 +575,7 @@ class MediaHandler(tornado.web.RequestHandler):
     def get(self):
         response = {}
         try:
-            file_name = "media/" + self.get_arguments("name")[0]
+            file_name = "media/" + self.get_query_argument("name")
             if os.path.isfile(file_name):
                 with open(file_name, 'r') as file_content:
                     while 1:
@@ -546,6 +588,9 @@ class MediaHandler(tornado.web.RequestHandler):
                 response['info'] = 'Not Found'
                 response['status'] = 400
                 self.write(response)
+        except MissingArgumentError, status:
+            response["info"] = status.log_message 
+            response["status"] = 400
         except Exception, e:
             response['status'] = 500
             response['info'] = 'error is: %s' % e
@@ -597,7 +642,9 @@ class IOSMediaHandler(tornado.web.RequestHandler):
                     media_file.flush()
                 response['status'] = 200
                 response['info'] = 'Success'
-
+        except MissingArgumentError, status:
+            response["info"] = status.log_message 
+            response["status"] = 400
         except Exception as e:
             response['status'] = 500
             response['info'] = " Error is: %s" % e
@@ -608,13 +655,16 @@ class GetNearbyUsers(tornado.web.RequestHandler):
     def get(self):
         response = {}
         try:
-            self.radius = self.get_arguments('radius')[0]
-            self.lat = self.get_arguments('lat')[0]
-            self.lng = self.get_arguments('lng')[0]
+            self.radius = self.get_query_argument('radius')
+            self.lat = self.get_query_argument('lat')
+            self.lng = self.get_query_argument('lng')
             users = self.get_nearby_users()
             response['status'] = 200
             response['info'] = 'Success'
             response['users'] = users
+        except MissingArgumentError, status:
+            response["info"] = status.log_message 
+            response["status"] = 400
         except Exception, e:
             response['status'] = 500
             response['info'] = 'Error: %s' % e
@@ -653,7 +703,7 @@ class UserInterestHandler(tornado.web.RequestHandler):
     def get(self):
         response = {}
         try:
-            username = self.get_arguments('username')[0]
+            username = self.get_query_argument('username')
             interests = self.request.arguments['interests']
             interests = map(lambda interest: interest.lower(), interests)
 
@@ -669,6 +719,9 @@ class UserInterestHandler(tornado.web.RequestHandler):
             QueryHandler.execute(query, variables)
             response['status'] = 200
             response['info'] = "Success"
+        except MissingArgumentError, status:
+            response["info"] = status.log_message 
+            response["status"] = 400
         except Exception, e:
             response['status'] = 500
             response['info'] = "Error: %s " % e
@@ -678,46 +731,27 @@ class UserInterestHandler(tornado.web.RequestHandler):
 
 class IOSSetUserDeviceId(tornado.web.RequestHandler):
 
-    def data_validations(self, username, udid):
-        response = {'info': '', 'status': 0}
-
-        if not username:
-            response['info'] = "Bad Request: Username not provided!"
-            response['status'] = 400
-            return response
-
-        if not udid:
-            response['info'] = "Bad Request: UDID not provided!"
-            response['status'] = 400
-            return response
-
-        query = "SELECT * FROM users WHERE username=%s;"
-        variables = (username, )
-        try:
-            result = QueryHandler.get_results(query, variables)
-            if len(result) < 1:
-                response['info'] = "Error: User not registered!"
-                response['status'] = 404
-            return response
-        except Exception as e:
-            raise e
-
     def post(self):
         response = {}
         try:
-            username = str(self.get_argument('user', ''))
-            udid = str(self.get_argument('token', ''))
+            username = str(self.get_body_argument('user'))
+            password = str(self.get_body_argument('password'))
+            udid = str(self.get_body_argument('token'))
 
-            # data validation
-            response = self.data_validations(username, udid)
-            if response['status'] not in [400, 404, 500]:
-                # add udid in users table
-                query = "UPDATE users SET apple_udid=%s WHERE username=%s;"
-                variables = (udid, username)
-                QueryHandler.execute(query, variables)
+            user = User(password = password, username = username)
+            user.authenticate()
+            query = "UPDATE users SET apple_udid=%s WHERE username=%s;"
+            variables = (udid, username)
+            QueryHandler.execute(query, variables)
 
-                response['info'] = "Success"
-                response['status'] = 200
+            response['info'] = "Success"
+            response['status'] = 200
+        except BadAuthentication, status:
+            response["info"] = status.log_message 
+            response["status"] = 400
+        except MissingArgumentError, status:
+            response["info"] = status.log_message 
+            response["status"] = 400
         except Exception as e:
             response['info'] = "Error: %s" % e
             response['status'] = 500
@@ -772,7 +806,6 @@ def make_app():
                                        (r"/set_location", SetLocationHandler),
                                        (r"/retrieve_nearby_users", GetNearbyUsers),
                                        (r"/fb_friends", FacebookHandler),
-                                       (r"/profile_pic", ProfilePicHandler),
                                        (r"/football_notifications", FootballEvents),
                                        (r"/tennis_notifications", TennisEvents),
                                        (r"/media", MediaHandler),
