@@ -25,17 +25,12 @@ config = ConfigParser.ConfigParser()
 config.read('config.py')
 
 
-class RequestsBaseHandler(tornado.web.RequestHandler):
-    response = None
-
-    def prepare(self):
-        self.response = {}
-        if not self.get_argument('apk_version', '') or not self.get_argument('udid', ''):
-            self.response['info'] = settings.MISSING_APK_AND_UDID_ERROR
-            self.response['status'] = settings.STATUS_400
+def check_udid_and_apk_version(request_handler_object):
+    request_handler_object.get_query_argument('apk_version') 
+    request_handler_object.get_query_argument('udid')
 
 
-class SetLocationHandler(RequestsBaseHandler):
+class SetLocationHandler(tornado.web.RequestHandler):
     """
     This class handles the storage of locations of a user in the server
     For web interfacing it implements two methods i.e get and post, which 
@@ -55,6 +50,7 @@ class SetLocationHandler(RequestsBaseHandler):
     def get(self):
         try:
             response = {}
+            check_udid_and_apk_version(self)
             username = self.get_query_argument("user")
             longtitude = self.get_query_argument("lng")
             latitude = self.get_query_argument("lat")
@@ -65,13 +61,13 @@ class SetLocationHandler(RequestsBaseHandler):
             response["info"] = status.log_message 
             response["status"] = settings.STATUS_400
         except Exception, e:
-            self.response["info"] = " Error %s " % e
-            self.response["status"] = settings.STATUS_500
+            response["info"] = " Error %s " % e
+            response["status"] = settings.STATUS_500
         else:
-            self.response['message'] = settings.SUCCESS_RESPONSE
-            self.response["status"] = settings.STATUS_200
+            response['message'] = settings.SUCCESS_RESPONSE
+            response["status"] = settings.STATUS_200
         finally:
-            self.write(self.response)
+            self.write(response)
 
 
 class User:
@@ -280,7 +276,7 @@ class User:
             return error, 500
 
 
-class FacebookHandler(RequestsBaseHandler):
+class FacebookHandler(tornado.web.RequestHandler):
     """
     Stores the facebook id of the user and finds his friends from the stored ids
     Methods:
@@ -300,6 +296,7 @@ class FacebookHandler(RequestsBaseHandler):
     """
     def get(self):
         try:
+            check_udid_and_apk_version(self)
             response = {}
             fb_id = str(self.get_query_argument("fb_id"))
             token = str(self.get_query_argument("token"))
@@ -321,14 +318,14 @@ class FacebookHandler(RequestsBaseHandler):
             response["info"] = status.log_message 
             response["status"] = settings.STATUS_400
         except Exception, e:
-            self.response['info'] = " Error : % s " % e
-            self.response['status'] = settings.STATUS_500
+            response['info'] = " Error : % s " % e
+            response['status'] = settings.STATUS_500
         else:
-            if not self.response:
-                self.response['list'] = friends_details
-                self.response['status'] = settings.STATUS_200
+            if not response:
+                response['list'] = friends_details
+                response['status'] = settings.STATUS_200
         finally:
-            self.write(self.response)
+            self.write(response)
 
     def _get_friends_id(self, friends_details):
         friends_id_name = []
@@ -349,7 +346,7 @@ class FacebookHandler(RequestsBaseHandler):
         QueryHandler.execute(query, variables)
 
 
-class RegistrationHandler(RequestsBaseHandler):
+class RegistrationHandler(tornado.web.RequestHandler):
     """
     Handles the registration of the user.
     Parameters:- 
@@ -361,6 +358,7 @@ class RegistrationHandler(RequestsBaseHandler):
     def get(self):
         response = {}
         try:
+            check_udid_and_apk_version(self)
             phone_number = str(self.get_query_argument("phone_number"))
             user = User(phone_number)
             response['info'], response['status'] = user.handle_registration()
@@ -368,16 +366,17 @@ class RegistrationHandler(RequestsBaseHandler):
             response["info"] = status.log_message 
             response["status"] =settings.STATUS_400   
         except Exception, e:
-            self.response['info'] = " Error: %s " % e
-            self.response['status'] = settings.STATUS_500
+            response['info'] = " Error: %s " % e
+            response['status'] = settings.STATUS_500
         finally:
-            self.write(self.response)
+            self.write(response)
 
 
-class CreationHandler(RequestsBaseHandler):
+class CreationHandler(tornado.web.RequestHandler):
     def get(self):
         response = {}
         try:
+            check_udid_and_apk_version(self)
             phone_number = str(self.get_query_argument("phone_number"))
             auth_code = str(self.get_query_argument("auth_code"))
             user = User(phone_number)
@@ -387,13 +386,14 @@ class CreationHandler(RequestsBaseHandler):
             response["info"] = status.log_message 
             response["status"] =settings.STATUS_400
         except Exception, e:
-            self.response['info'] = " Error %s " % e
-            self.response['status'] = settings.STATUS_500
+            response['info'] = " Error %s " % e
+            response['status'] = settings.STATUS_500
         finally:
-            self.write(self.response)
+            self.write(response)
 
-class MediaPresentHandler(RequestsBaseHandler):
+class MediaPresentHandler(tornado.web.RequestHandler):
     def get(self):
+        check_udid_and_apk_version(self)
         response = {}
         try:
             file_name = "media/" + self.get_query_argument("name")
@@ -407,10 +407,10 @@ class MediaPresentHandler(RequestsBaseHandler):
             response["info"] = status.log_message 
             response["status"] =settings.STATUS_400
         except Exception, e:
-            self.response['status'] = settings.STATUS_500
-            self.response['info'] = 'error is: %s' % e
+            response['status'] = settings.STATUS_500
+            response['info'] = 'error is: %s' % e
         finally:
-            self.write(self.response)
+            self.write(response)
 
 
 @tornado.web.stream_request_body
@@ -419,14 +419,12 @@ class MediaHandler(tornado.web.RequestHandler):
 
     def prepare(self):
         self.file_content = ''
-        if not self.get_argument('apk_version', '') or not self.get_argument('udid', ''):
-            self.response['info'] = "Bad Request: Please provide 'apk_version' and 'udid'"
-            self.response['status'] = settings.STATUS_400
 
     def post(self):
+        response = {}
         try:
+            check_udid_and_apk_version(self)
             file_name = self.request.headers['Checksum']
-            response = {}
             file_name = "media/" + file_name
             if not os.path.isfile(file_name):
                 media_file = open(file_name, 'w')
@@ -438,104 +436,106 @@ class MediaHandler(tornado.web.RequestHandler):
             response["info"] = status.log_message 
             response["status"] =settings.STATUS_400
         except Exception, e:
-            self.response['status'] = settings.STATUS_500
-            self.response['info'] = 'error is: %s' % e
+            response['status'] = settings.STATUS_500
+            response['info'] = 'error is: %s' % e
         finally:
-            self.write(self.response)
+            self.write(response)
 
     def get(self):
         try:
-            if not self.response:
-                file_name = "media/" + self.get_arguments("name")[0]
-                if os.path.isfile(file_name):
-                    with open(file_name, 'r') as file_content:
-                        file_size = 0
-                        while 1:
-                            data = file_content.read(16384) # or some other nice-sized chunk
-                            if not data:
-                                break
-                            file_size += len(data)
-                            self.write(data)
-                        self.request.headers['Content-Length', file_size]
-                        self.add_header('Content-Length', file_size)
-                        file_content.close()
-                        self.finish()
-                else:
-                    self.response['info'] = 'Not Found'
-                    self.response['status'] = settings.STATUS_400
-                    self.write(self.response)
+            response = {}
+            check_udid_and_apk_version(self)
+            file_name = "media/" + self.get_arguments("name")[0]
+            if os.path.isfile(file_name):
+                with open(file_name, 'r') as file_content:
+                    file_size = 0
+                    while 1:
+                        data = file_content.read(16384) # or some other nice-sized chunk
+                        if not data:
+                            break
+                        file_size += len(data)
+                        self.write(data)
+                    self.request.headers['Content-Length', file_size]
+                    self.add_header('Content-Length', file_size)
+                    file_content.close()
+                    self.finish()
+            else:
+                response['info'] = 'Not Found'
+                response['status'] = settings.STATUS_400
+                self.write(response)
         except MissingArgumentError, status:
             response["info"] = status.log_message 
             response["status"] =settings.STATUS_400
         except Exception, e:
-            self.response['status'] = settings.STATUS_500
-            self.response['info'] = 'error is: %s' % e
-            self.write(self.response)
+            response['status'] = settings.STATUS_500
+            response['info'] = 'error is: %s' % e
+            self.write(response)
 
     def data_received(self, data):
         self.file_content += data
 
 
-class IOSMediaHandler(RequestsBaseHandler):
+class IOSMediaHandler(tornado.web.RequestHandler):
 
     def data_validation(self, headers, body):
-        self.response = {'info': '', 'status': 0}
+        response = {'info': '', 'status': 0}
 
         # 'Content-Type' not present in the header
         if not headers.get('Content-Type'):
-            self.response['info'] = " Bad Request: 'Content-Type' field not present in the Header!"
-            self.response['status'] = settings.STATUS_400
-            return self.response
+            response['info'] = " Bad Request: 'Content-Type' field not present in the Header!"
+            response['status'] = settings.STATUS_400
+            return response
 
         # 'Checksum' not present in the header
-        if self.response['status'] == 0 and not headers.get('Checksum'):
-            self.response['info'] = " Bad Request: 'Checksum' field not present in the Header!"
-            self.response['status'] = settings.STATUS_400
-            return self.response
+        if response['status'] == 0 and not headers.get('Checksum'):
+            response['info'] = " Bad Request: 'Checksum' field not present in the Header!"
+            response['status'] = settings.STATUS_400
+            return response
 
         # body not present
-        if self.response['status'] == 0 and not body:
-            self.response['info'] = " Bad request: Request body not present!"
-            self.response['status'] = settings.STATUS_400
-        return self.response
+        if response['status'] == 0 and not body:
+            response['info'] = " Bad request: Request body not present!"
+            response['status'] = settings.STATUS_400
+        return response
 
     def post(self):
+        response = {}
         try:
-            response = {}
-            if not self.response:
-                headers = self.request.headers
-                body = self.request.body
+            check_udid_and_apk_version(self)
+            headers = self.request.headers
+            body = self.request.body
 
-                # data validation
-                self.response = self.data_validation(headers, body)
+            # data validation
+            response = self.data_validation(headers, body)
 
-                if self.response['status'] != settings.STATUS_400:
-                    decoder = MultipartDecoder(body, content_type=headers.get('Content-Type'))
-                    file_content = decoder.parts[0].content
-                    file_name = "media/" + headers.get('Checksum')
-                    if os.path.isfile(file_name):
-                        self.response['status'] = settings.STATUS_422
-                        self.response['info'] = "Error: File with same name already exists!"
-                    else:
-                        media_file = open(file_name, 'w')
-                        media_file.write(file_content)
-                        media_file.flush()
-                        self.response['status'] = settings.STATUS_200
-                        self.response['info'] = settings.SUCCESS_RESPONSE
+            if response['status'] != settings.STATUS_400:
+                decoder = MultipartDecoder(body, content_type=headers.get('Content-Type'))
+                file_content = decoder.parts[0].content
+                file_name = "media/" + headers.get('Checksum')
+                if os.path.isfile(file_name):
+                    response['status'] = settings.STATUS_422
+                    response['info'] = "Error: File with same name already exists!"
+                else:
+                    media_file = open(file_name, 'w')
+                    media_file.write(file_content)
+                    media_file.flush()
+                    response['status'] = settings.STATUS_200
+                    response['info'] = settings.SUCCESS_RESPONSE
         except MissingArgumentError, status:
             response["info"] = status.log_message 
             response["status"] =settings.STATUS_400
         except Exception as e:
-            self.response['status'] = settings.STATUS_500
-            self.response['info'] = " Error is: %s" % e
+            response['status'] = settings.STATUS_500
+            response['info'] = " Error is: %s" % e
         finally:
-            self.write(self.response)
+            self.write(response)
 
 
-class GetNearbyUsers(RequestsBaseHandler):
+class GetNearbyUsers(tornado.web.RequestHandler):
     def get(self):
         response = {}
         try:
+            check_udid_and_apk_version(self)
             self.radius = self.get_query_argument('radius')
             self.lat = self.get_query_argument('lat')
             self.lng = self.get_query_argument('lng')
@@ -547,10 +547,10 @@ class GetNearbyUsers(RequestsBaseHandler):
             response["info"] = status.log_message 
             response["status"] =settings.STATUS_400
         except Exception, e:
-            self.response['status'] = settings.STATUS_500
-            self.response['info'] = 'Error: %s' % e
+            response['status'] = settings.STATUS_500
+            response['info'] = 'Error: %s' % e
         finally:
-            self.write(self.response)
+            self.write(response)
 
 
     def get_nearby_users(self):
@@ -568,7 +568,7 @@ class GetNearbyUsers(RequestsBaseHandler):
         return records
 
 
-class UserInterestHandler(RequestsBaseHandler):
+class UserInterestHandler(tornado.web.RequestHandler):
     """
     This class creates a link between users and interests. The interests have to
     stored beforehand.
@@ -585,6 +585,7 @@ class UserInterestHandler(RequestsBaseHandler):
     def get(self):
         response = {}
         try:
+            check_udid_and_apk_version(self)
             username = self.get_query_argument('username')
             interests = self.request.arguments['interests']
             interests = map(lambda interest: interest.lower(), interests)
@@ -605,17 +606,18 @@ class UserInterestHandler(RequestsBaseHandler):
             response["info"] = status.log_message 
             response["status"] =settings.STATUS_400
         except Exception, e:
-            self.response['status'] = settings.STATUS_500
-            self.response['info'] = "Error: %s " % e
+            response['status'] = settings.STATUS_500
+            response['info'] = "Error: %s " % e
         finally:
-            self.write(self.response)
+            self.write(response)
 
 
-class IOSSetUserDeviceId(RequestsBaseHandler):
+class IOSSetUserDeviceId(tornado.web.RequestHandler):
 
     def post(self):
+        response = {}
         try:
-            response = {}
+            check_udid_and_apk_version(self)
             username = str(self.get_body_argument('user'))
             password = str(self.get_body_argument('password'))
             udid = str(self.get_body_argument('token'))
@@ -635,34 +637,31 @@ class IOSSetUserDeviceId(RequestsBaseHandler):
             response["info"] = status.log_message 
             response["status"] =settings.STATUS_400
         except Exception as e:
-            self.response['info'] = "Error: %s" % e
-            self.response['status'] = settings.STATUS_500
+            response['info'] = "Error: %s" % e
+            response['status'] = settings.STATUS_500
         finally:
-            self.write(self.response)
+            self.write(response)
 
 
-class FootballEvents(RequestsBaseHandler):
+class FootballEvents(tornado.web.RequestHandler):
     def post(self):
-        if not self.response:
-            event = tornado.escape.json_decode(self.request.body)
-            if event:
-                NotificationAdapter(event, "Football").notify()
+        event = tornado.escape.json_decode(self.request.body)
+        if event:
+            NotificationAdapter(event, "Football").notify()
 
 
-class TennisEvents(RequestsBaseHandler):
+class TennisEvents(tornado.web.RequestHandler):
     def post(self):
-        if not self.response:
-            event = tornado.escape.json_decode(self.request.body)
-            if event:
-                NotificationAdapter(event, "Tennis").notify()
+        event = tornado.escape.json_decode(self.request.body)
+        if event:
+            NotificationAdapter(event, "Tennis").notify()
 
 
-class CricketEvents(RequestsBaseHandler):
+class CricketEvents(tornado.web.RequestHandler):
     def post(self):
-        if not self.response:
-            event = tornado.escape.json_decode(self.request.body)
-            if event:
-                NotificationAdapter(event, "Cricket").notify()
+        event = tornado.escape.json_decode(self.request.body)
+        if event:
+            NotificationAdapter(event, "Cricket").notify()
 
 
 def make_app():
