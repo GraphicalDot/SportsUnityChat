@@ -4,7 +4,9 @@ from tornado.log import enable_pretty_logging
 from tornado.options import options
 import magic
 import settings
+from tornado.web import MissingArgumentError
 import time
+import uuid
 import tornado.ioloop
 import tornado.web
 import random
@@ -13,12 +15,12 @@ import requests
 import os
 import facebook
 import json
-import register
 import ConfigParser
-#from IPython import embed
 import base64
 from requests_toolbelt import MultipartDecoder, MultipartEncoder
 
+import base64
+from custom_error import BadAuthentication
 config = ConfigParser.ConfigParser()
 config.read('config.py')
 
@@ -29,7 +31,7 @@ class RequestsBaseHandler(tornado.web.RequestHandler):
     def prepare(self):
         self.response = {}
         if not self.get_argument('apk_version', '') or not self.get_argument('udid', ''):
-            self.response['info'] = "Bad Request: Please provide 'apk_version' and 'udid'"
+            self.response['info'] = settings.MISSING_APK_AND_UDID_ERROR
             self.response['status'] = settings.STATUS_400
 
 
@@ -45,21 +47,23 @@ class SetLocationHandler(RequestsBaseHandler):
                 lng  longtitude
                 lat  latitude
             :response 
-                :success => {'status': 200, 'info': 'Success'}
+                :success => {'status':settings.STATUS_200, 'info': 'Success'}
                 :failure => {'status': 500, 'info': 'Error [Error message]'}
 
     """
 
     def get(self):
         try:
-            if not self.response:
-                user = str(self.get_arguments("user", True)[0])
-                longtitude = float(self.get_arguments("lng", True)[0])
-                latitude = float(self.get_arguments("lat", True)[0])
-                username = str.split(user, "@")[0]
-                query = " UPDATE users SET lat = %s, lng = %s " \
-                        " WHERE username = %s; "
-                QueryHandler.execute(query, (latitude, longtitude, username))
+            response = {}
+            username = self.get_query_argument("user")
+            longtitude = self.get_query_argument("lng")
+            latitude = self.get_query_argument("lat")
+            query = " UPDATE users SET lat = %s, lng = %s " \
+                    " WHERE username = %s; "
+            QueryHandler.execute(query, (latitude, longtitude, username))
+        except MissingArgumentError, status:
+            response["info"] = status.log_message 
+            response["status"] = settings.STATUS_400
         except Exception, e:
             self.response["info"] = " Error %s " % e
             self.response["status"] = settings.STATUS_500
@@ -81,16 +85,16 @@ class User:
         authenticate -- authenticates the user
         handle_creation -- handles the creation of user
         _is_token_correct -- checks whether the otp token given by the user is correct/expired
-        _exists -- checks whether the user exists or not   
         _create_new -- creates a new user after verifying the authenticity of the user
         handle_registration -- starts the registration process for the user
         _delete_registered -- deletes the registered user so that new otp can be sent to the user
         _register -- registers the user
         _send_message -- send the otp token to the users phone number
     """
-    def __init__(self, username, password = None):
+    def __init__(self, phone_number = None, password = None, username = None):
         self.username = username
-        self.password = str(password)
+        self.password = password
+        self.phone_number = phone_number
 
     def authenticate(self):
         """
@@ -103,10 +107,8 @@ class User:
 
         record = QueryHandler.get_results(query, variables)
 
-        if record:
-            return True
-        else:
-            return False
+        if not record:
+            raise BadAuthentication
 
     def handle_creation(self, auth_code):
         """
@@ -115,24 +117,62 @@ class User:
             auth_code - The otp token sent to the users cellphone
         Response :-
             If token correct:
-                "Success", 200, [password]
+                "Success",settings.STATUS_200, [password]
             If user already created
-                " User already created", 200, [password]
+                " User already created",settings.STATUS_200, [password]
             If wrong or expired auth token
-                " Wrong or Expired Token ", 400, None
+                " Wrong or Expired Token ",settings.STATUS_400, None
         """
-        if self._is_token_correct(auth_code):
-            is_created, password = self._exists()
-            if not is_created:
-                response, status = self._create_new()
-                password = self.password
+        try:
+            if self._is_token_correct(auth_code):
+                
+                query = " SELECT * FROM users WHERE phone_number = %s ;"
+                variables = (self.phone_number, )
+                record = QueryHandler.get_results(query, variables)
+                
+                if record:
+                    self.username = record[0]['username']
+                    response, status = self._reset_password()
+                else:
+                    response, status = self._create_new()
             else:
-                response, status = " User already created ", settings.STATUS_200
-                self.password = password
-        else:
-            response, status, password = " Wrong or Expired Token ", settings.STATUS_400, None
-        self._delete_registered()
-        return response, status, password
+                response, status = " Wrong or Expired Token ", settings.STATUS_400
+            pass
+        except Exception, e:
+            response, status = " Error %e " % e, settings.STATUS_500
+        finally:
+            self._delete_registered()
+            return response, status, self.password, self.username
+
+    def _generate_username(self):
+        self.username = self._generate_random()
+    
+    def _generate_password(self):
+        self.password = self._generate_random()
+
+    def _generate_random(self, n = 10):
+        return (uuid.uuid4().hex)[:n]
+
+    def _reset_password(self):
+        """
+            This functions resets the password of a user
+            Response:-
+                If successfully
+                    Response, Status = "Success",settings.STATUS_200
+                Else
+                    Response, Status = "Error [Error]", 500
+        """
+        try: 
+            self._generate_password()
+            query = " UPDATE users SET password = %s ; " 
+            variables = (self.password, )
+            QueryHandler.execute(query, variables)
+            response, status = "Success", settings.STATUS_200
+        except Exception, e:
+            response, status = " Error %e " % e, settings.STATUS_500
+        finally:
+            return response, status
+
 
     def _is_token_correct(self, auth_code):
         """
@@ -143,56 +183,43 @@ class User:
             True if correct
             False if wrong token
         """
-        query = " SELECT * FROM registered_users WHERE username = %s AND authorization_code = %s ;"
-        variables = (self.username, auth_code,)
+        query = " SELECT * FROM registered_users WHERE phone_number = %s AND authorization_code = %s ;"
+        variables = (self.phone_number, auth_code,)
 
         record = QueryHandler.get_results(query, variables)
-        if record and (record[0]['expiration_time'] > int(time.time())):
-            is_token_correct = True
-        else:
+        try:
+            if record and (record[0]['expiration_time'] > int(time.time())):
+                is_token_correct = True
+            else:
+                is_token_correct = False
+        except:
             is_token_correct = False
-        return is_token_correct
-
-    def _exists(self):
-        """
-        Checks for the existence of the user on the basis of username and the password
-        passed to the user class during initialization, also returns the password if 
-        user already created.
-        Response :-
-            True , [password] if user exists
-            False, None if user does not exists
-        """
-        query = " SELECT * FROM users WHERE username = %s;"
-        variables = (str.split(self.username, '@')[0],)
-        user_info = QueryHandler.get_results(query, variables)
-        if len(user_info) == 0:
-            registered = False
-            password = None
-        else:
-            password = user_info[0]['password']
-            registered = True
-        return registered, password
+        finally:
+            return is_token_correct
 
     def _create_new(self):
         """
-        Creates a new user in the xmpp directory using the sleek xmpp plugin.
+        Creates a new user in the database.
         """
         try:
-            registration = register.Register(self.username, self.password)
-            registration.register_plugin('xep_0030')
-            registration.register_plugin('xep_0004')
-            registration.register_plugin('xep_0066')
-            registration.register_plugin('xep_0077')
-            registration['xep_0077'].force_registration = True
-            if registration.connect(('localhost', 5222)):
-                registration.process(block=True)
-                response, status = settings.SUCCESS_RESPONSE, settings.STATUS_200
-            else:
-                response, status = "Failed registration", settings.STATUS_500
+            while True:
+                self._generate_username()
+                self._generate_password()
+
+                query = " SELECT * FROM users WHERE username = %s;"
+                variables = (self.username,)
+                record = QueryHandler.get_results(query, variables)
+
+                if not record:
+                    query = " INSERT INTO users (username, phone_number, password) VALUES "\
+                    + "(%s, %s, %s);"
+                    variables = (self.username, self.phone_number, self.password)
+                    QueryHandler.execute(query, variables)
+                    break
+            response, status = "Success", settings.STATUS_200
         except Exception, e:
             response, status = " %s " % e, settings.STATUS_500
         finally:
-            print " Response in registering users %s " % response
             return response, status
 
     def handle_registration(self):
@@ -208,8 +235,8 @@ class User:
         Deletes the registered users in the database, which have been created or 
         when new otp token has to be sent.
         """
-        query = " DELETE FROM registered_users WHERE username = %s ;"
-        variables = (self.username,)
+        query = " DELETE FROM registered_users WHERE phone_number = %s ;"
+        variables = (self.phone_number,)
         QueryHandler.execute(query, variables)
 
     def _register(self):
@@ -219,8 +246,8 @@ class User:
         random_integer = random.randint(1000,9999)
         expiration_time = int(time.time()) + int(config.get('registration', 'expiry_period_sec'))
 
-        query = " INSERT INTO registered_users (username, authorization_code, expiration_time) VALUES ( %s, %s, %s); "
-        variables = (self.username, random_integer, expiration_time)
+        query = " INSERT INTO registered_users (phone_number, authorization_code, expiration_time) VALUES ( %s, %s, %s); "
+        variables = (self.phone_number, random_integer, expiration_time)
         try:
             QueryHandler.execute(query, variables)
             return self._send_message(random_integer)
@@ -231,7 +258,7 @@ class User:
         """
         Sends the otp token to the user
         """
-        number = str.split(self.username,'@')[0]
+        number = self.phone_number
         message = config.get('database','message') + "  " + str(random_integer)
         payload = {
             'method': 'SendMessage',
@@ -247,7 +274,7 @@ class User:
         response = requests.get(config.get('database','message_gateway'), params=payload)
         response = str.split(str(response.text),'|')
         if str.strip(str.lower(response[0])) == "success":
-            return "Success", 200
+            return "Success",settings.STATUS_200
         else:
             error = response[2]
             return error, 500
@@ -273,20 +300,26 @@ class FacebookHandler(RequestsBaseHandler):
     """
     def get(self):
         try:
-            if not self.response:
-                fb_id = str(self.get_arguments("fb_id")[0])
-                token = str(self.get_arguments("token")[0])
-                user_id = str(self.get_arguments('id')[0])
-                username = str.split(user_id, "@")[0]
+            response = {}
+            fb_id = str(self.get_query_argument("fb_id"))
+            token = str(self.get_query_argument("token"))
+            user_id = str(self.get_query_argument('id'))
 
-                args = {'fields': 'id,name,email,friends', }
-                graph = facebook.GraphAPI(token)
-                fb_json = graph.get_object('me', **args)
+            username = str.split(user_id, "@")[0]
 
-                fb_name = fb_json['name']
-                self._set_fb_details(fb_id, username, fb_name)
-                friends_details = self._get_friends_id(fb_json['friends']['data'])
+            args = {'fields': 'id,name,email,friends', }
+            graph = facebook.GraphAPI(token)
+            fb_json = graph.get_object('me', **args)
+
+            fb_name = fb_json['name']
+
+            self._set_fb_details(fb_id, username, fb_name)
+
+            friends_details = self._get_friends_id(fb_json['friends']['data'])
         # TO-DO explicit error messages
+        except MissingArgumentError, status:
+            response["info"] = status.log_message 
+            response["status"] = settings.STATUS_400
         except Exception, e:
             self.response['info'] = " Error : % s " % e
             self.response['status'] = settings.STATUS_500
@@ -322,16 +355,18 @@ class RegistrationHandler(RequestsBaseHandler):
     Parameters:- 
         phone_number -- phone number of the user to be registered
     Response:-
-        {'info': 'Success', 'status': 200} if successfully registered 
+        {'info': 'Success', 'status':settings.STATUS_200} if successfully registered 
         {'info': 'Error [Error]', 'status': 500} if not successfully registered 
     """
     def get(self):
+        response = {}
         try:
-            if not self.response:
-                number = str(self.get_arguments("phone_number")[0])
-                username = str.strip(number) + config.get('xmpp', 'domain')
-                user = User(username)
-                self.response['info'], self.response['status'] = user.handle_registration()
+            phone_number = str(self.get_query_argument("phone_number"))
+            user = User(phone_number)
+            response['info'], response['status'] = user.handle_registration()
+        except MissingArgumentError, status:
+            response["info"] = status.log_message 
+            response["status"] =settings.STATUS_400   
         except Exception, e:
             self.response['info'] = " Error: %s " % e
             self.response['status'] = settings.STATUS_500
@@ -341,174 +376,36 @@ class RegistrationHandler(RequestsBaseHandler):
 
 class CreationHandler(RequestsBaseHandler):
     def get(self):
+        response = {}
         try:
-            if not self.response:
-                phone_number = str(self.get_arguments("phone_number")[0])
-                username = str.strip(phone_number) + config.get('xmpp', 'domain')
-                auth_code = str(self.get_arguments("auth_code")[0])
-                password = int(random.random() * 1000000)
-                user = User(username, password)
-                self.response['info'], self.response['status'], self.response['password'] = user.handle_creation(auth_code)
+            phone_number = str(self.get_query_argument("phone_number"))
+            auth_code = str(self.get_query_argument("auth_code"))
+            user = User(phone_number)
+            response['info'], response['status'], response['password'], response['username']\
+                = user.handle_creation(auth_code)
+        except MissingArgumentError, status:
+            response["info"] = status.log_message 
+            response["status"] =settings.STATUS_400
         except Exception, e:
             self.response['info'] = " Error %s " % e
             self.response['status'] = settings.STATUS_500
         finally:
             self.write(self.response)
 
-
-class ArchiveAcessHandler(RequestsBaseHandler):
-    def get(self):
-        if not self.response:
-            from_timestamp = self.get_arguments("from")
-            to_timestamp = self.get_arguments("to")
-            skip = self.get_arguments("skip", True) or [0]
-            limit = self.get_arguments("limit", True) or [100]
-            self.response['version'] = 0.1
-            try:
-                self.response['info'] = QueryHandler.get_results(" SELECT txt, username FROM archive WHERE timestamp > %s " \
-                                                            " AND timestamp < %s OFFSET %s LIMIT %s; " \
-                                                            , (from_timestamp[0], to_timestamp[0], skip[0], limit[0],))
-                self.response['status'] = settings.STATUS_200
-            except Exception, e:
-                print(e)
-                self.response['info'] = " Error: %s" % e
-                self.response['status'] = settings.STATUS_500
-        self.write(self.response)
-
-
-class GroupsHandler(RequestsBaseHandler):
-    def get(self):
-        if not self.response:
-            skip = self.get_arguments("skip", True) or [0]
-            limit = self.get_arguments("limit", True) or [100]
-            self.response['version'] = 0.1
-            try:
-                self.response['info'] = QueryHandler.get_results(" SELECT name FROM muc_room OFFSET %s LIMIT %s; " \
-                                                            , (skip[0], limit[0],))
-                self.response['status'] = settings.STATUS_200
-            except Exception, e:
-                self.response['info'] = " Error: %s" % e
-                self.response['status'] = settings.STATUS_500
-        self.write(self.response)
-
-
-class GroupsMessagesHandler(RequestsBaseHandler):
-    def get(self):
-        if not self.response:
-            from_timestamp = self.get_arguments("from")
-            to_timestamp = self.get_arguments("to")
-            skip = self.get_arguments("skip", True) or [0]
-            limit = self.get_arguments("limit", True) or [100]
-            self.response['version'] = 0.1
-            try:
-                self.response['info'] = QueryHandler.get_results(" SELECT txt, username FROM archive WHERE timestamp > %s " \
-                                                            " AND timestamp < %s AND bare_peer LIKE '%%@conference.mm.io' " \
-                                                            " OFFSET %s LIMIT %s; ", \
-                                                            (from_timestamp[0], to_timestamp[0], skip[0], limit[0],))
-                self.response['status'] = settings.STATUS_200
-            except Exception, e:
-                self.response['info'] = " Error: %s" % e
-                self.response['status'] = settings.STATUS_500
-        self.write(self.response)
-
-
-class GroupMessagesHandler(RequestsBaseHandler):
-    def get(self):
-        if not self.response:
-            from_timestamp = self.get_arguments("from")
-            to_timestamp = self.get_arguments("to")
-            skip = self.get_arguments("skip", True) or [0]
-            group = self.get_arguments("group", True) or ["test@conference.mm.io"]
-            limit = self.get_arguments("limit", True) or [100]
-            self.response['version'] = 0.1
-            try:
-                self.response['info'] = QueryHandler.get_results(" SELECT txt, username FROM archive WHERE timestamp > %s " \
-                                                            " AND timestamp < %s AND bare_peer LIKE %s OFFSET %s LIMIT %s;" \
-                                                            , (
-                        from_timestamp[0], to_timestamp[0], group[0], skip[0], limit[0],))
-                self.response['status'] = settings.STATUS_200
-            except Exception, e:
-                self.response['info'] = " Error: %s" % e
-                self.response['status'] = settings.STATUS_500
-        self.write(self.response)
-
-
-class UserGroupMessagesHandler(RequestsBaseHandler):
-    def get(self):
-        if not self.response:
-            from_timestamp = self.get_arguments("from")
-            to_timestamp = self.get_arguments("to")
-            skip = self.get_arguments("skip", True) or [0]
-            user = self.get_arguments("user", True) or ['satish@mm.io']
-            limit = self.get_arguments("limit", True) or [100]
-            self.response['version'] = 0.1
-            try:
-                self.response['info'] = QueryHandler.get_results(" SELECT txt, username FROM archive WHERE timestamp > %s " \
-                                                            " AND timestamp < %s AND username LIKE %s AND bare_peer " \
-                                                            " LIKE '%%@conference.mm.io' OFFSET %s LIMIT %s; " \
-                                                            , (from_timestamp[0], to_timestamp[0], user[0], skip[0], limit[0],))
-                self.response['status'] = settings.STATUS_200
-            except Exception, e:
-                self.response['info'] = " Error: %s" % e
-                self.response['status'] = settings.STATUS_500
-        self.write(self.response)
-
-
-class PubSubEventHandler(RequestsBaseHandler):
-    def get(self):
-        try:
-            if not self.response:
-                name = self.get_arguments("name")[0]
-        except Exception, e:
-            self.response['message'] = " Internal Server Error "
-            self.response['status'] = settings.STATUS_500
-        except NameError:
-            self.response['message'] = " Proper parameters not supplied "
-            self.response['status'] = settings.STATUS_500
-        else:
-            self.response['message'] = settings.SUCCESS_RESPONSE
-            self.response['status'] = settings.STATUS_200
-        finally:
-            self.write(self.response)
-
-
-class ProfilePicHandler(RequestsBaseHandler):
-    def post(self):
-        try:
-            if not self.response:
-                profile_pic_bucket = config.get('amazon', 'profile_pics_bucket')
-                info = self.request.files['file'][0]
-                file_name = info['filename']
-                image_file = info['body']
-                username = self.get_arguments('username')[0]
-                password = self.get_arguments('password')[0]
-                user = User(username, password)
-                if user.authenticate():
-                    s3 = S3Handler(profile_pic_bucket)
-                    s3.upload(username, image_file)
-                    self.response['status'] = settings.STATUS_200
-                    self.response['info'] = settings.SUCCESS_RESPONSE
-                else:
-                    self.response['status'] = settings.STATUS_400
-                    self.response['info'] = 'Invalid Credentials'
-        except Exception, e:
-            self.response['status'] = settings.STATUS_500
-            self.response['info'] = 'error is: %s' % e
-        finally:
-            self.write(self.response)
-
-
 class MediaPresentHandler(RequestsBaseHandler):
     def get(self):
-        file_name = "media/" + self.get_arguments("name")[0]
+        response = {}
         try:
-            if not self.response:
-                if os.path.isfile(file_name):
-                    self.response['info'] = 'Present'
-                    self.response['status'] = settings.STATUS_200
-                else:
-                    self.response['info'] = 'Not Found'
-                    self.response['status'] = settings.STATUS_400
+            file_name = "media/" + self.get_query_argument("name")
+            if os.path.isfile(file_name):
+                response['info'] = 'Present'
+                response['status'] =settings.STATUS_200
+            else:
+                response['info'] = 'Not Found'
+                response['status'] =settings.STATUS_400
+        except MissingArgumentError, status:
+            response["info"] = status.log_message 
+            response["status"] =settings.STATUS_400
         except Exception, e:
             self.response['status'] = settings.STATUS_500
             self.response['info'] = 'error is: %s' % e
@@ -528,15 +425,18 @@ class MediaHandler(tornado.web.RequestHandler):
 
     def post(self):
         try:
-            if not self.response:
-                file_name = self.request.headers['Checksum']
-                file_name = "media/" + file_name
-                if not os.path.isfile(file_name):
-                    media_file = open(file_name, 'w')
-                    media_file.write(self.file_content)
-                    media_file.flush()
-                self.response['status'] = settings.STATUS_200
-                self.response['info'] = settings.SUCCESS_RESPONSE
+            file_name = self.request.headers['Checksum']
+            response = {}
+            file_name = "media/" + file_name
+            if not os.path.isfile(file_name):
+                media_file = open(file_name, 'w')
+                media_file.write(self.file_content)
+                media_file.flush()
+            response['status'] =settings.STATUS_200
+            response['info'] = 'Success'
+        except MissingArgumentError, status:
+            response["info"] = status.log_message 
+            response["status"] =settings.STATUS_400
         except Exception, e:
             self.response['status'] = settings.STATUS_500
             self.response['info'] = 'error is: %s' % e
@@ -564,6 +464,9 @@ class MediaHandler(tornado.web.RequestHandler):
                     self.response['info'] = 'Not Found'
                     self.response['status'] = settings.STATUS_400
                     self.write(self.response)
+        except MissingArgumentError, status:
+            response["info"] = status.log_message 
+            response["status"] =settings.STATUS_400
         except Exception, e:
             self.response['status'] = settings.STATUS_500
             self.response['info'] = 'error is: %s' % e
@@ -598,6 +501,7 @@ class IOSMediaHandler(RequestsBaseHandler):
 
     def post(self):
         try:
+            response = {}
             if not self.response:
                 headers = self.request.headers
                 body = self.request.body
@@ -618,7 +522,9 @@ class IOSMediaHandler(RequestsBaseHandler):
                         media_file.flush()
                         self.response['status'] = settings.STATUS_200
                         self.response['info'] = settings.SUCCESS_RESPONSE
-
+        except MissingArgumentError, status:
+            response["info"] = status.log_message 
+            response["status"] =settings.STATUS_400
         except Exception as e:
             self.response['status'] = settings.STATUS_500
             self.response['info'] = " Error is: %s" % e
@@ -628,15 +534,18 @@ class IOSMediaHandler(RequestsBaseHandler):
 
 class GetNearbyUsers(RequestsBaseHandler):
     def get(self):
+        response = {}
         try:
-            if not self.response:
-                self.radius = self.get_arguments('radius')[0]
-                self.lat = self.get_arguments('lat')[0]
-                self.lng = self.get_arguments('lng')[0]
-                users = self.get_nearby_users()
-                self.response['status'] = settings.STATUS_200
-                self.response['info'] = settings.SUCCESS_RESPONSE
-                self.response['users'] = users
+            self.radius = self.get_query_argument('radius')
+            self.lat = self.get_query_argument('lat')
+            self.lng = self.get_query_argument('lng')
+            users = self.get_nearby_users()
+            response['status'] =settings.STATUS_200
+            response['info'] = 'Success'
+            response['users'] = users
+        except MissingArgumentError, status:
+            response["info"] = status.log_message 
+            response["status"] =settings.STATUS_400
         except Exception, e:
             self.response['status'] = settings.STATUS_500
             self.response['info'] = 'Error: %s' % e
@@ -670,28 +579,31 @@ class UserInterestHandler(RequestsBaseHandler):
                 username => username 
                 interests => list of interests like interests=football&interests=cricket 
             :response 
-                :success => {'status': 200, 'info': 'Success'}
+                :success => {'status':settings.STATUS_200, 'info': 'Success'}
                 :failure => {'status': 500, 'info': 'Error [Error message]'}     
     """
     def get(self):
+        response = {}
         try:
-            if not self.response:
-                username = self.get_arguments('username')[0]
-                interests = self.request.arguments['interests']
-                interests = map(lambda interest: interest.lower(), interests)
+            username = self.get_query_argument('username')
+            interests = self.request.arguments['interests']
+            interests = map(lambda interest: interest.lower(), interests)
 
-                query = " DELETE FROM users_interest WHERE username = %s;"
-                variables = (username,)
-                QueryHandler.execute(query, variables)
+            query = " DELETE FROM users_interest WHERE username = %s;"
+            variables = (username,)
+            QueryHandler.execute(query, variables)            
 
-                query = "INSERT INTO users_interest (interest_id, username) "\
-                    " (SELECT interest_id, %s FROM interest WHERE "\
-                    + " OR ".join(map( lambda interest: "interest_name = '" + interest + "'" , interests))\
-                    + ");"
-                variables = (username, )
-                QueryHandler.execute(query, variables)
-                self.response['status'] = settings.STATUS_200
-                self.response['info'] = settings.SUCCESS_RESPONSE
+            query = "INSERT INTO users_interest (interest_id, username) "\
+                " (SELECT interest_id, %s FROM interest WHERE "\
+                + " OR ".join(map( lambda interest: "interest_name = '" + interest + "'" , interests))\
+                + ");"         
+            variables = (username, )
+            QueryHandler.execute(query, variables)
+            response['status'] =settings.STATUS_200
+            response['info'] = "Success"
+        except MissingArgumentError, status:
+            response["info"] = status.log_message 
+            response["status"] =settings.STATUS_400
         except Exception, e:
             self.response['status'] = settings.STATUS_500
             self.response['info'] = "Error: %s " % e
@@ -701,46 +613,27 @@ class UserInterestHandler(RequestsBaseHandler):
 
 class IOSSetUserDeviceId(RequestsBaseHandler):
 
-    def data_validations(self, username, udid):
-        self.response = {'info': '', 'status': 0}
-
-        if not username:
-            self.response['info'] = "Bad Request: Username not provided!"
-            self.response['status'] = settings.STATUS_400
-            return self.response
-
-        if not udid:
-            self.response['info'] = "Bad Request: UDID not provided!"
-            self.response['status'] = settings.STATUS_400
-            return self.response
-
-        query = "SELECT * FROM users WHERE username=%s;"
-        variables = (username, )
-        try:
-            result = QueryHandler.get_results(query, variables)
-            if len(result) < 1:
-                self.response['info'] = "Error: User not registered!"
-                self.response['status'] = settings.STATUS_404
-            return self.response
-        except Exception as e:
-            raise e
-
     def post(self):
         try:
-            if not self.response:
-                username = str(self.get_argument('user', ''))
-                udid = str(self.get_argument('token', ''))
+            response = {}
+            username = str(self.get_body_argument('user'))
+            password = str(self.get_body_argument('password'))
+            udid = str(self.get_body_argument('token'))
 
-                # data validation
-                self.response = self.data_validations(username, udid)
-                if self.response['status'] not in settings.STATUS_ERROR_LIST:
-                    # add udid in users table
-                    query = "UPDATE users SET apple_udid=%s WHERE username=%s;"
-                    variables = (udid, username)
-                    QueryHandler.execute(query, variables)
+            user = User(password = password, username = username)
+            user.authenticate()
+            query = "UPDATE users SET apple_udid=%s WHERE username=%s;"
+            variables = (udid, username)
+            QueryHandler.execute(query, variables)
 
-                    self.response['info'] = settings.SUCCESS_RESPONSE
-                    self.response['status'] = settings.STATUS_200
+            response['info'] = "Success"
+            response['status'] =settings.STATUS_200
+        except BadAuthentication, status:
+            response["info"] = status.log_message 
+            response["status"] =settings.STATUS_400
+        except MissingArgumentError, status:
+            response["info"] = status.log_message 
+            response["status"] =settings.STATUS_400
         except Exception as e:
             self.response['info'] = "Error: %s" % e
             self.response['status'] = settings.STATUS_500
@@ -774,17 +667,11 @@ class CricketEvents(RequestsBaseHandler):
 
 def make_app():
     return tornado.web.Application([
-                                       (r"/messages", ArchiveAcessHandler),
-                                       (r"/groups", GroupsHandler),
-                                       (r"/groups_messages", GroupsMessagesHandler),
-                                       (r"/group_messages", GroupMessagesHandler),
-                                       (r"/user_group", UserGroupMessagesHandler),
                                        (r"/register", RegistrationHandler),
                                        (r"/create", CreationHandler),
                                        (r"/set_location", SetLocationHandler),
                                        (r"/retrieve_nearby_users", GetNearbyUsers),
                                        (r"/fb_friends", FacebookHandler),
-                                       (r"/profile_pic", ProfilePicHandler),
                                        (r"/football_notifications", FootballEvents),
                                        (r"/tennis_notifications", TennisEvents),
                                        (r"/media", MediaHandler),
