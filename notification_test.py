@@ -4,6 +4,7 @@ from notification_adapter import NotificationAdapter
 from tornado.testing import AsyncHTTPTestCase
 from xml.etree import cElementTree as ET
 import api_v0_archive
+import settings
 import json
 import unittest
 import xmltodict
@@ -139,9 +140,9 @@ class PubSubServiceTest(AsyncHTTPTestCase):
 
 
 class SportRequestsTest(AsyncHTTPTestCase):
-	_cricket_notifications = '/cricket_notifications'
-	_tennis_notifications = '/tennis_notifications'
-	_football_notifications = '/football_notifications'
+	_cricket_notifications = '/cricket_notifications' + '?apk_version=v0.1&udid=TEST@UDID'
+	_tennis_notifications = '/tennis_notifications' + '?apk_version=v0.1&udid=TEST@UDID'
+	_football_notifications = '/football_notifications' + '?apk_version=v0.1&udid=TEST@UDID'
 
 	def get_app(self):
 		return api_v0_archive.make_app()
@@ -154,7 +155,7 @@ class SportRequestsTest(AsyncHTTPTestCase):
 							   body = json.dumps(_test_football_data)
 							   )
 		response = self.wait(timeout = 50)
-		assert response.code == 200
+		self.assertEqual(response.code, settings.STATUS_200)
 
 	def test_tennis_requests(self):
 		global _test_tennis_data
@@ -164,12 +165,12 @@ class SportRequestsTest(AsyncHTTPTestCase):
 							   body = json.dumps(_test_tennis_data)
 							   )
 		response = self.wait(timeout = 50)
-		assert response.code == 200
+		self.assertEqual(response.code, settings.STATUS_200)
 
 	def test_cricket_requests(self):
 		self.http_client.fetch(self.get_url(self._cricket_notifications), self.stop, method='POST', body=json.dumps(_test_cricket_data))
 		response = self.wait(timeout=50)
-		self.assertEquals(response.code, 200)
+		self.assertEquals(response.code, settings.STATUS_200)
 
 
 if __name__ == '__main__':
