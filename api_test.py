@@ -9,10 +9,8 @@ import sys
 import time
 import unittest
 from ConfigParser import ConfigParser
-from nose.tools import assert_equal
 from ConfigParser import ConfigParser
 from global_func import QueryHandler, S3Handler
-from nose.tools import assert_equal, assert_not_equal
 from requests_toolbelt.multipart.encoder import MultipartEncoder
 from tornado.testing import AsyncHTTPTestCase
 from requests_toolbelt import MultipartEncoder
@@ -613,8 +611,8 @@ class IOSSetUserDeviceIdTests(unittest.TestCase):
 
     def assert_status_info(self, response, expected_status):
         res = json.loads(response.content)
-        assert_equal(response.status_code, settings.STATUS_200)
-        assert_equal(json.loads(response.content)['status'], expected_status)
+        assert response.status_code == settings.STATUS_200
+        assert json.loads(response.content)['status'] == expected_status
 
     def setUp(self):
         self.url = 'http://localhost:3000/set_udid' + '?apk_version=v0.1&udid=TEST@UDID'
