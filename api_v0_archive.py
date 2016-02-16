@@ -373,6 +373,19 @@ class RegistrationHandler(tornado.web.RequestHandler):
 
 
 class CreationHandler(tornado.web.RequestHandler):
+    """
+    Handles the creation of the user.
+    Query Parameters:- 
+        phone_number -- phone number of the user to be registered
+        auth_code -- auth code otp sent to the user
+    Response:-
+        {'info': 'Success', 'status': 200
+        , 'username': [username], 'password': [password]} if successfully registered 
+        {'info': 'Wrong or Expired Token', 'status': 400
+        , 'username': null, 'password': null} if wrong auth code
+        {'info': 'Error [Error]', 'status': 500} if not successfully registered 
+        {'info': 'Error [Error]', 'status': 500} if not successfully registered 
+    """
     def get(self):
         response = {}
         try:
@@ -384,7 +397,7 @@ class CreationHandler(tornado.web.RequestHandler):
                 = user.handle_creation(auth_code)
         except MissingArgumentError, status:
             response["info"] = status.log_message 
-            response["status"] =settings.STATUS_400
+            response["status"] = settings.STATUS_400
         except Exception, e:
             response['info'] = " Error %s " % e
             response['status'] = settings.STATUS_500

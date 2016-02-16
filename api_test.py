@@ -85,35 +85,37 @@ class CreationTest(AsyncHTTPTestCase):
     def setUp(self):
         super(CreationTest, self).setUp()
         delete_user(username = self._username)
+        delete_user(username = self._phone_number)
 
     def get_app(self):
         return api_v0_archive.make_app()
 
-    # def test_user_registration(self):
+    def test_user_registration(self):
 
-    #     # Invalid url params
-    #     self.http_client.fetch(self.get_url(self._registration_url), self.stop)
-    #     response = self.wait(timeout=20)
-    #     res = json.loads(response.body)
-    #     self.assertEqual(res['info'], "Bad Request: Please provide 'apk_version' and 'udid'")
-    #     self.assertEqual(res['status'], settings.STATUS_400)
+        # Invalid url params
+        self.http_client.fetch(self.get_url(self._registration_url), self.stop)
+        response = self.wait(timeout=20)
+        res = json.loads(response.body)
+        self.assertEqual(res['info'], "Bad Request: Please provide 'apk_version' and 'udid'")
+        self.assertEqual(res['status'], settings.STATUS_400)
 
-    #     query = " SELECT * FROM registered_users WHERE phone_number = %s "
-    #     variables = (self._phone_number,)
-    #     record = QueryHandler.get_results(query, variables)
-    #     self.assertEqual(len(record), 0)
+        query = " SELECT * FROM registered_users WHERE phone_number = %s "
+        variables = (self._phone_number,)
+        record = QueryHandler.get_results(query, variables)
+        self.assertEqual(len(record), 0)
 
-    #     # valid url params
-    #     self.http_client.fetch(self.get_url(self._registration_url + extra_params), self.stop)
-    #     response = self.wait(timeout=20)
+        # valid url params
+        self.http_client.fetch(self.get_url(self._registration_url + extra_params), self.stop)
+        response = self.wait(timeout=20)
 
-    #     variables = (self._phone_number, )
-    #     record = QueryHandler.get_results(query, variables)
+        variables = (self._phone_number, )
+        record = QueryHandler.get_results(query, variables)
         
-    #     assert record
-    #     self.assertEqual(settings.STATUS_200, json.loads(response.body)['status'])
+        assert record
+        self.assertEqual(settings.STATUS_200, json.loads(response.body)['status'])
 
     def test_wrong_auth_code_failure(self):
+        delete_user(self._phone_number)
         query = " UPDATE registered_users SET authorization_code = '12345' " \
                 " WHERE phone_number = %s; "
         variables = (self._phone_number,)
