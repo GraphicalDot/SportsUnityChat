@@ -26,8 +26,8 @@ config.read('config.py')
 
 
 def check_udid_and_apk_version(request_handler_object):
-    request_handler_object.get_query_argument('apk_version') 
-    request_handler_object.get_query_argument('udid')
+    request_handler_object.get_argument('apk_version') 
+    request_handler_object.get_argument('udid')
 
 
 class SetLocationHandler(tornado.web.RequestHandler):
@@ -121,7 +121,6 @@ class User:
         """
         try:
             if self._is_token_correct(auth_code):
-                
                 query = " SELECT * FROM users WHERE phone_number = %s ;"
                 variables = (self.phone_number, )
                 record = QueryHandler.get_results(query, variables)
@@ -160,8 +159,8 @@ class User:
         """
         try: 
             self._generate_password()
-            query = " UPDATE users SET password = %s ; " 
-            variables = (self.password, )
+            query = " UPDATE users SET password = %s WHERE username = %s; " 
+            variables = (self.password, self.username)
             QueryHandler.execute(query, variables)
             response, status = "Success", settings.STATUS_200
         except Exception, e:
@@ -393,8 +392,7 @@ class CreationHandler(tornado.web.RequestHandler):
             phone_number = str(self.get_query_argument("phone_number"))
             auth_code = str(self.get_query_argument("auth_code"))
             user = User(phone_number)
-            response['info'], response['status'], response['password'], response['username']\
-                = user.handle_creation(auth_code)
+            response['info'], response['status'], response['password'], response['username'] = user.handle_creation(auth_code)
         except MissingArgumentError, status:
             response["info"] = status.log_message 
             response["status"] = settings.STATUS_400
@@ -677,6 +675,62 @@ class CricketEvents(tornado.web.RequestHandler):
             NotificationAdapter(event, "Cricket").notify()
 
 
+class ContactJidsHandler(tornado.web.RequestHandler):
+    """
+    This class handles the retrival of jids in the contact list
+    of the user
+    Methods : 
+        get :
+            :params 
+                username => username
+                password => password
+                apk_version and udid
+                contacts => a list of all the contacts in the users phone                 
+            :response 
+                :success => {'status':200, 'info': 'Success', 'jids': [List of jids]}
+                :failure => {'status': 404, 'info': ' Bad Authentication Info'} in case of bad authentication          
+                :failure => {'status': 400, 'info': ' MissingArgumentError'} in case of missing arguments          
+                :failure => {'status': 500, 'info': 'Error [Error message]'} in case of internal server error
+    """
+
+    def get_contacts_jids(self, username, contacts):
+        where_arguments = [" phone_number = %s "] * len(contacts)
+        contacts = tuple(contacts)
+        query =  " SELECT username FROM users WHERE " + " OR ".join(where_arguments)
+        records = QueryHandler.get_results(query, (contacts))
+        return map(lambda x: x['username'], records)
+
+
+    def get(self):
+        response = {}
+        try:
+            username = self.get_argument('username')
+            password = self.get_argument('password')
+            contacts = self.get_arguments('contacts') 
+            assert type(contacts) == list 
+            contacts = map(lambda x: str(x), contacts)
+            user = User(username = username, password = password)
+            user.authenticate()
+            check_udid_and_apk_version(self)
+            response['info'] = 'Success'
+            response['status'] = settings.STATUS_200
+            response['jids'] = self.get_contacts_jids(username, contacts)
+        except BadAuthentication, status:
+            response["info"] = status.log_message 
+            response["status"] = settings.STATUS_404
+        except MissingArgumentError, status:
+            response["info"] = status.log_message 
+            response["status"] = settings.STATUS_400
+        except AssertionError:
+            response["info"] = "Bad contacts value type" 
+            response["status"] = settings.STATUS_400
+        except Exception as e:
+            response['info'] = "Error: %s" % e
+            response['status'] = settings.STATUS_500
+        finally:
+            self.write(response)
+
+
 def make_app():
     return tornado.web.Application([
                                        (r"/register", RegistrationHandler),
@@ -692,6 +746,7 @@ def make_app():
                                        (r"/cricket_notifications", CricketEvents),
                                        (r"/set_user_interests", UserInterestHandler),
                                        (r"/set_udid", IOSSetUserDeviceId),
+                                       (r"/get_contact_jids", ContactJidsHandler),
                                        ],
                                    autoreload = True,
                                    )
@@ -700,5 +755,5 @@ if __name__ == "__main__":
     app = make_app()
     options.log_file_prefix  = "tornado_log"
     enable_pretty_logging(options=options)
-    app.listen(3000)
+    app.listen(int(config.get('tornado', 'listening_port')))
     tornado.ioloop.IOLoop.current().start()
