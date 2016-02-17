@@ -677,7 +677,7 @@ class ContactListTest(unittest.TestCase):
     def test_unauthenticated_contacts_retrieval(self):
         fraud_auth_payload = {'username': 'test', 'password': 'asfdas'}
         payload = merge_dicts([self._default_payload, self._contact_list_payload, fraud_auth_payload])
-        response = requests.get(self._url, data=payload)
+        response = requests.post(self._url, data=payload)
         content = json.loads(response.content) 
         assert content['status'] == settings.STATUS_404
         assert content['info'] == settings.BAD_AUTHENTICATION_ERROR
@@ -685,7 +685,7 @@ class ContactListTest(unittest.TestCase):
 
     def test_contacts_retrieval(self):
         payload = merge_dicts([self._default_payload, self._contact_list_payload, self._payload_auth])
-        response = requests.get(self._url, data=payload)
+        response = requests.post(self._url, data=payload)
         content = json.loads(response.content)
         assert content['status'] == settings.STATUS_200
         assert type(content['jids']) == list

@@ -701,7 +701,7 @@ class ContactJidsHandler(tornado.web.RequestHandler):
         return map(lambda x: x['username'], records)
 
 
-    def get(self):
+    def post(self):
         response = {}
         try:
             username = self.get_argument('username')
