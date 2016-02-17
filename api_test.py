@@ -680,7 +680,7 @@ class ContactListTest(unittest.TestCase):
         content = json.loads(response.content) 
         assert content['status'] == settings.STATUS_404
         assert content['info'] == settings.BAD_AUTHENTICATION_ERROR
-        assert not content.has_key('jid_list')
+        assert not content.has_key('jids')
 
     def test_contacts_retrieval(self):
         payload = merge_dicts([self._default_payload, self._contact_list_payload, self._payload_auth])
@@ -689,6 +689,7 @@ class ContactListTest(unittest.TestCase):
         assert content['status'] == settings.STATUS_200
         assert type(content['jids']) == list
         assert content['jids'][0] == self._friend_username
+        assert len(content['jids']) == 1
 
     def tearDown(self):
         delete_user(phone_number = self._phone_number)
