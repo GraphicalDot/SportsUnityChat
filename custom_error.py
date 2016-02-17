@@ -1,3 +1,4 @@
+import settings
 class BadAuthentication(Exception):
-	log_message = " Bad Authentication Info"
+	log_message = settings.BAD_AUTHENTICATION_ERROR
 	

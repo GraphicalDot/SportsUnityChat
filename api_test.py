@@ -23,6 +23,18 @@ config = ConfigParser()
 config.read('config.py')
 
 extra_params = '&apk_version=v0.1&udid=TEST@UDID'
+tornado_listening_port =  int(config.get('tornado', 'listening_port'))
+tornado_local_address =  "http://localhost:%u" % tornado_listening_port
+
+def merge_dicts(dict_list):
+
+    '''Given two dicts, merge them into a new dict as a shallow copy.'''
+    z = dict_list[0].copy()
+    for x in range(1, len(dict_list)):
+        z.update(dict_list[x])
+    return z
+
+
 def create_user(username, password, phone_number):
     query = " INSERT INTO users (username, password, phone_number) VALUES (%s,%s, %s);"
     variables = (username, password, phone_number,)
@@ -76,7 +88,7 @@ class CreationTest(AsyncHTTPTestCase):
     _phone_number = config.get('tests', 'test_phone_number')
     _username = 'test'
     _auth_code = 'ASDFG'
-    _registration_url = "http://localhost:3000/register?phone_number=" + str(_phone_number)
+    _registration_url = tornado_local_address + "/register?phone_number=" + str(_phone_number)
     _creation_url = "/create?phone_number=" + str(_phone_number) \
                     + "&auth_code=" + str(_auth_code) + extra_params
 
@@ -490,8 +502,8 @@ class MediaTest(AsyncHTTPTestCase):
             os.remove(file_storage_name2)
 
     def test_upload_download_media_presence(self):
-        self.url = "http://localhost:3000/media" + '?apk_version=v0.1&udid=TEST@UDID'
-        self.media_presence_url = "http://localhost:3000/media_present?name=md5_sample" + extra_params
+        self.url = tornado_local_address + "/media" + '?apk_version=v0.1&udid=TEST@UDID'
+        self.media_presence_url = tornado_local_address + "/media_present?name=md5_sample" + extra_params
         file_name = sys.argv[0]
         file_content = open(file_name, 'r').read()
         md5 = hashlib.md5(file_content).hexdigest()
@@ -500,7 +512,7 @@ class MediaTest(AsyncHTTPTestCase):
         self.assertEqual(json.loads(response.content)['status'], settings.STATUS_200)
         assert os.path.isfile('media/md5_sample')
 
-        self.url = "http://localhost:3000/media?name=md5_sample" + extra_params
+        self.url = tornado_local_address + "/media?name=md5_sample" + extra_params
         response = requests.get(self.url)
         assert response.content
 
@@ -513,7 +525,7 @@ class MediaTest(AsyncHTTPTestCase):
         response = requests.get(self.media_presence_url)
         self.assertEqual(json.loads(response.content)["status"], settings.STATUS_400)
 
-        self.url = "http://localhost:3000/media" + '?apk_version=v0.1&udid=TEST@UDID'
+        self.url = tornado_local_address + "/media" + '?apk_version=v0.1&udid=TEST@UDID'
         file_name2 = 'big.mp4'
         headers = {'Checksum': 'big.mp4'}
         with open(file_name2, 'rb') as file_content2:
@@ -521,7 +533,7 @@ class MediaTest(AsyncHTTPTestCase):
         self.assertEqual(json.loads(response.content)['status'], settings.STATUS_200)
         assert os.path.isfile('media/big.mp4')
 
-        self.url = "http://localhost:3000/media?name=big.mp4" + extra_params
+        self.url = tornado_local_address + "/media?name=big.mp4" + extra_params
         response = requests.get(self.url)
         assert response.content
 
@@ -537,7 +549,7 @@ class IOSMediaHandlerTests(unittest.TestCase):
     filename = None
 
     def setUp(self):
-        self.url = 'http://localhost:3000/media_multipart' + '?apk_version=v0.1&udid=TEST@UDID'
+        self.url = tornado_local_address + '/media_multipart' + '?apk_version=v0.1&udid=TEST@UDID'
         self.test_files = [sys.argv[0]]
 
     def test_validations(self):
@@ -617,7 +629,7 @@ class IOSSetUserDeviceIdTests(unittest.TestCase):
         assert json.loads(response.content)['status'] == expected_status
 
     def setUp(self):
-        self.url = 'http://localhost:3000/set_udid' + '?apk_version=v0.1&udid=TEST@UDID'
+        self.url = tornado_local_address + '/set_udid' + '?apk_version=v0.1&udid=TEST@UDID'
         delete_user(username = self._username)
         create_user(username = self._username, password = self._password, phone_number = self._phone_number)
 
@@ -642,6 +654,46 @@ class IOSSetUserDeviceIdTests(unittest.TestCase):
         response = requests.post(self.url, data=self.data)
         self.assert_status_info(response, settings.STATUS_200)
 
+class ContactListTest(unittest.TestCase):
+    _username = 'test'
+    _password = 'password'
+    _phone_number = config.get('tests', 'test_phone_number')
+    _default_payload = {'apk_version': 'v1.0', 'udid' : '00'}
+    _payload_auth = {'username': _username, 'password': _password}
+    _friend_username = 'friend'
+    _friend_password = 'test'
+    _friend_phone_number = '91919191'
+    _url = tornado_local_address + "/get_contact_jids"
+    _contact_list_payload = {'contacts': [_friend_phone_number, '123']}
+
+    def setUp(self):
+        delete_user(phone_number = self._phone_number)
+        create_user(phone_number = self._phone_number, username = self._username, password = self._password)
+        
+        delete_user(phone_number = self._friend_phone_number)
+        create_user(phone_number = self._friend_phone_number, username = self._friend_username, password = self._friend_password)
+
+    def test_unauthenticated_contacts_retrieval(self):
+        fraud_auth_payload = {'username': 'test', 'password': 'asfdas'}
+        payload = merge_dicts([self._default_payload, self._contact_list_payload, fraud_auth_payload])
+        response = requests.get(self._url, data=payload)
+        content = json.loads(response.content) 
+        assert content['status'] == settings.STATUS_404
+        assert content['info'] == settings.BAD_AUTHENTICATION_ERROR
+        assert not content.has_key('jids')
+
+    def test_contacts_retrieval(self):
+        payload = merge_dicts([self._default_payload, self._contact_list_payload, self._payload_auth])
+        response = requests.get(self._url, data=payload)
+        content = json.loads(response.content)
+        assert content['status'] == settings.STATUS_200
+        assert type(content['jids']) == list
+        assert content['jids'][0] == self._friend_username
+        assert len(content['jids']) == 1
+
+    def tearDown(self):
+        delete_user(phone_number = self._phone_number)
+        delete_user(phone_number = self._friend_phone_number)
 
 if __name__ == '__main__':
     unittest.main()
