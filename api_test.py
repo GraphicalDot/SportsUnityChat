@@ -631,6 +631,7 @@ class IOSSetUserDeviceIdTests(unittest.TestCase):
     def setUp(self):
         self.url = tornado_local_address + '/set_udid' + '?apk_version=v0.1&udid=TEST@UDID'
         delete_user(username = self._username)
+        delete_user(phone_number = self._phone_number)
         create_user(username = self._username, password = self._password, phone_number = self._phone_number)
 
     def test_validations(self):
