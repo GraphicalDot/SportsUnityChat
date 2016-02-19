@@ -1,4 +1,4 @@
-from global_func import QueryHandler, S3Handler
+from global_func import QueryHandler, S3Handler, merge_dicts
 from notification_adapter import NotificationAdapter
 from tornado.log import enable_pretty_logging
 from tornado.options import options
@@ -23,6 +23,11 @@ import base64
 from custom_error import BadAuthentication
 config = ConfigParser.ConfigParser()
 config.read('config.py')
+
+
+class RequestHandler(tornado.web.RequestHandler):
+    def prepare(self):
+        self.request.arguments = merge_dicts([self.request.arguments, json.loads(self.request.body)])
 
 
 def check_udid_and_apk_version(request_handler_object):
@@ -51,9 +56,9 @@ class SetLocationHandler(tornado.web.RequestHandler):
         try:
             response = {}
             check_udid_and_apk_version(self)
-            username = self.get_query_argument("user")
-            longtitude = self.get_query_argument("lng")
-            latitude = self.get_query_argument("lat")
+            username = self.get_argument("user")
+            longtitude = self.get_argument("lng")
+            latitude = self.get_argument("lat")
             query = " UPDATE users SET lat = %s, lng = %s " \
                     " WHERE username = %s; "
             QueryHandler.execute(query, (latitude, longtitude, username))
@@ -297,9 +302,9 @@ class FacebookHandler(tornado.web.RequestHandler):
         try:
             check_udid_and_apk_version(self)
             response = {}
-            fb_id = str(self.get_query_argument("fb_id"))
-            token = str(self.get_query_argument("token"))
-            user_id = str(self.get_query_argument('id'))
+            fb_id = str(self.get_argument("fb_id"))
+            token = str(self.get_argument("token"))
+            user_id = str(self.get_argument('id'))
 
             username = str.split(user_id, "@")[0]
 
@@ -358,7 +363,7 @@ class RegistrationHandler(tornado.web.RequestHandler):
         response = {}
         try:
             check_udid_and_apk_version(self)
-            phone_number = str(self.get_query_argument("phone_number"))
+            phone_number = str(self.get_argument("phone_number"))
             user = User(phone_number)
             response['info'], response['status'] = user.handle_registration()
         except MissingArgumentError, status:
@@ -389,8 +394,8 @@ class CreationHandler(tornado.web.RequestHandler):
         response = {}
         try:
             check_udid_and_apk_version(self)
-            phone_number = str(self.get_query_argument("phone_number"))
-            auth_code = str(self.get_query_argument("auth_code"))
+            phone_number = str(self.get_argument("phone_number"))
+            auth_code = str(self.get_argument("auth_code"))
             user = User(phone_number)
             response['info'], response['status'], response['password'], response['username'] = user.handle_creation(auth_code)
         except MissingArgumentError, status:
@@ -407,7 +412,7 @@ class MediaPresentHandler(tornado.web.RequestHandler):
         check_udid_and_apk_version(self)
         response = {}
         try:
-            file_name = "media/" + self.get_query_argument("name")
+            file_name = "media/" + self.get_argument("name")
             if os.path.isfile(file_name):
                 response['info'] = 'Present'
                 response['status'] =settings.STATUS_200
@@ -547,9 +552,9 @@ class GetNearbyUsers(tornado.web.RequestHandler):
         response = {}
         try:
             check_udid_and_apk_version(self)
-            self.radius = self.get_query_argument('radius')
-            self.lat = self.get_query_argument('lat')
-            self.lng = self.get_query_argument('lng')
+            self.radius = self.get_argument('radius')
+            self.lat = self.get_argument('lat')
+            self.lng = self.get_argument('lng')
             users = self.get_nearby_users()
             response['status'] =settings.STATUS_200
             response['info'] = 'Success'
@@ -597,7 +602,7 @@ class UserInterestHandler(tornado.web.RequestHandler):
         response = {}
         try:
             check_udid_and_apk_version(self)
-            username = self.get_query_argument('username')
+            username = self.get_argument('username')
             interests = self.request.arguments['interests']
             interests = map(lambda interest: interest.lower(), interests)
 
@@ -629,9 +634,9 @@ class IOSSetUserDeviceId(tornado.web.RequestHandler):
         response = {}
         try:
             check_udid_and_apk_version(self)
-            username = str(self.get_body_argument('user'))
-            password = str(self.get_body_argument('password'))
-            udid = str(self.get_body_argument('token'))
+            username = str(self.get_argument('user'))
+            password = str(self.get_argument('password'))
+            udid = str(self.get_argument('token'))
 
             user = User(password = password, username = username)
             user.authenticate()
@@ -675,7 +680,7 @@ class CricketEvents(tornado.web.RequestHandler):
             NotificationAdapter(event, "Cricket").notify()
 
 
-class ContactJidsHandler(tornado.web.RequestHandler):
+class ContactJidsHandler(RequestHandler):
     """
     This class handles the retrival of jids in the contact list
     of the user
@@ -704,20 +709,26 @@ class ContactJidsHandler(tornado.web.RequestHandler):
     def post(self):
         response = {}
         try:
-            username = self.get_argument('username')
-            password = self.get_argument('password')
-            contacts = self.get_arguments('contacts') 
+            check_udid_and_apk_version(self)
+            username = self.request.arguments['username']
+            password = self.request.arguments['password']
+            contacts = self.request.arguments['contacts'] 
             assert type(contacts) == list 
             contacts = map(lambda x: str(x), contacts)
             user = User(username = username, password = password)
             user.authenticate()
-            check_udid_and_apk_version(self)
             response['info'] = 'Success'
             response['status'] = settings.STATUS_200
-            response['jids'] = self.get_contacts_jids(username, contacts)
+            if len(contacts) == 0:
+                response['jids'] = []
+            else:
+                response['jids'] = self.get_contacts_jids(username, contacts)
         except BadAuthentication, status:
             response["info"] = status.log_message 
             response["status"] = settings.STATUS_404
+        except KeyError, status:
+            response["info"] = " Missing %e" % status.message  
+            response["status"] = settings.STATUS_400            
         except MissingArgumentError, status:
             response["info"] = status.log_message 
             response["status"] = settings.STATUS_400

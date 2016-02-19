@@ -57,3 +57,13 @@ class S3Handler:
 
     def check_exists(self, key):
         return self.bucket.get_key(key)
+
+
+
+
+def merge_dicts(dict_list):
+    '''Given two dicts, merge them into a new dict as a shallow copy.'''
+    z = dict_list[0].copy()
+    for x in range(1, len(dict_list)):
+        z.update(dict_list[x])
+    return z

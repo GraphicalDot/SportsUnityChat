@@ -10,7 +10,7 @@ import time
 import unittest
 from ConfigParser import ConfigParser
 from ConfigParser import ConfigParser
-from global_func import QueryHandler, S3Handler
+from global_func import QueryHandler, S3Handler, merge_dicts
 from requests_toolbelt.multipart.encoder import MultipartEncoder
 from tornado.testing import AsyncHTTPTestCase
 from requests_toolbelt import MultipartEncoder
@@ -25,15 +25,6 @@ config.read('config.py')
 extra_params = '&apk_version=v0.1&udid=TEST@UDID'
 tornado_listening_port =  int(config.get('tornado', 'listening_port'))
 tornado_local_address =  "http://localhost:%u" % tornado_listening_port
-
-def merge_dicts(dict_list):
-
-    '''Given two dicts, merge them into a new dict as a shallow copy.'''
-    z = dict_list[0].copy()
-    for x in range(1, len(dict_list)):
-        z.update(dict_list[x])
-    return z
-
 
 def create_user(username, password, phone_number):
     query = " INSERT INTO users (username, password, phone_number) VALUES (%s,%s, %s);"
@@ -677,7 +668,7 @@ class ContactListTest(unittest.TestCase):
     def test_unauthenticated_contacts_retrieval(self):
         fraud_auth_payload = {'username': 'test', 'password': 'asfdas'}
         payload = merge_dicts([self._default_payload, self._contact_list_payload, fraud_auth_payload])
-        response = requests.post(self._url, data=payload)
+        response = requests.post(self._url, json=payload)
         content = json.loads(response.content) 
         assert content['status'] == settings.STATUS_404
         assert content['info'] == settings.BAD_AUTHENTICATION_ERROR
@@ -685,8 +676,10 @@ class ContactListTest(unittest.TestCase):
 
     def test_contacts_retrieval(self):
         payload = merge_dicts([self._default_payload, self._contact_list_payload, self._payload_auth])
-        response = requests.post(self._url, data=payload)
+        response = requests.post(self._url, json=payload)
         content = json.loads(response.content)
+        # from IPython import embed
+        # embed()
         assert content['status'] == settings.STATUS_200
         assert type(content['jids']) == list
         assert content['jids'][0] == self._friend_username
