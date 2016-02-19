@@ -701,9 +701,9 @@ class ContactJidsHandler(RequestHandler):
     def get_contacts_jids(self, username, contacts):
         where_arguments = [" phone_number = %s "] * len(contacts)
         contacts = tuple(contacts)
-        query =  " SELECT username FROM users WHERE " + " OR ".join(where_arguments)
+        query =  " SELECT username, phone_number FROM users WHERE " + " OR ".join(where_arguments)
         records = QueryHandler.get_results(query, (contacts))
-        return map(lambda x: x['username'], records)
+        return records
 
 
     def post(self):
