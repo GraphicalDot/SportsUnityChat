@@ -678,8 +678,6 @@ class ContactListTest(unittest.TestCase):
         payload = merge_dicts([self._default_payload, self._contact_list_payload, self._payload_auth])
         response = requests.post(self._url, json=payload)
         content = json.loads(response.content)
-        # from IPython import embed
-        # embed()
         assert content['status'] == settings.STATUS_200
         assert type(content['jids']) == list
         assert content['jids'][0] == self._friend_username
