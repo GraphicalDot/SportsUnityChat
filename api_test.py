@@ -56,154 +56,154 @@ def select_user(username = None, phone_number = None):
     else:
         raise Exception 
 
-class UserTest(unittest.TestCase):
-
-    def test_user_authentication(self):
-        phone_number = config.get('tests', 'test_phone_number')
-        username = "test"
-        password = "password"
-
-        delete_user(username = username)
-        create_user(username, password, phone_number)
-
-        user = api_v0_archive.User(username = username, password = password)
-
-        fraud_password = 'test'
-        fraud_user = api_v0_archive.User(username, fraud_password)
-
-        try:
-            user.authenticate()
-        except BadAuthentication:
-            raise AssertionError
-
-        try:
-            fraud_user.authenticate() 
-        except BadAuthentication:
-            pass
-
-
-
-class CreationTest(AsyncHTTPTestCase):
-    username = None
-    _phone_number = config.get('tests', 'test_phone_number')
-    _username = 'test'
-    _auth_code = 'ASDFG'
-    _registration_url = tornado_local_address + "/register?phone_number=" + str(_phone_number)
-    _creation_url = "/create?phone_number=" + str(_phone_number) \
-                    + "&auth_code=" + str(_auth_code) + extra_params
-
-    def setUp(self):
-        super(CreationTest, self).setUp()
-        delete_user(username = self._username)
-        delete_user(username = self._phone_number)
-
-    def get_app(self):
-        return api_v0_archive.make_app()
-
-    def test_user_registration(self):
-
-        # Invalid url params
-        self.http_client.fetch(self.get_url(self._registration_url), self.stop)
-        response = self.wait(timeout=20)
-        res = json.loads(response.body)
-        self.assertEqual(res['info'], "Bad Request: Please provide 'apk_version' and 'udid'")
-        self.assertEqual(res['status'], settings.STATUS_400)
-
-        query = " SELECT * FROM registered_users WHERE phone_number = %s "
-        variables = (self._phone_number,)
-        record = QueryHandler.get_results(query, variables)
-        self.assertEqual(len(record), 0)
-
-        # valid url params
-        self.http_client.fetch(self.get_url(self._registration_url + extra_params), self.stop)
-        response = self.wait(timeout=20)
-
-        variables = (self._phone_number, )
-        record = QueryHandler.get_results(query, variables)
-        
-        assert record
-        self.assertEqual(settings.STATUS_200, json.loads(response.body)['status'])
-
-    def test_wrong_auth_code_failure(self):
-        delete_user(self._phone_number)
-        query = " UPDATE registered_users SET authorization_code = '12345' " \
-                " WHERE phone_number = %s; "
-        variables = (self._phone_number,)
-
-        QueryHandler.execute(query, variables)
-
-        self.http_client.fetch(self.get_url(self._creation_url + extra_params), self.stop)
-        response = self.wait(timeout=20)
-        res = json.loads(response.body)
-        self.assertEqual(res['status'], settings.STATUS_400)
-        self.assertEqual(res['password'], None)
-
-        assert not select_user(self._phone_number)
-
-        assert json.loads(response.body).get('password' ,None) == None
-        self.assertNotEqual(json.loads(response.body)['status'], 200)
-
-
-    def test_user_creation(self):
-
-        delete_user(phone_number = self._phone_number)
-
-        query = " DELETE FROM registered_users WHERE phone_number = %s; "
-        variables = (self._phone_number,)
-        QueryHandler.execute(query, variables)
-
-
-        expiration_time = int(time.time()) + int(config.get('registration', 'expiry_period_sec'))
-        query = " INSERT INTO registered_users (authorization_code, expiration_time, phone_number) VALUES ( %s, %s, %s); "
-        variables = (self._auth_code, expiration_time, self._phone_number)
-        QueryHandler.execute(query, variables)
-
-        # valid url params
-        self.http_client.fetch(self.get_url(self._creation_url + extra_params), self.stop)
-        response = self.wait(timeout=20)
-        res = json.loads(response.body)
-
-        record = select_user(phone_number = self._phone_number)
-
-        self.assertEqual(res['status'], settings.STATUS_200)
-        self.assertEqual(res['password'], record[0]['password'])
-        self.assertEqual(
-            json.loads(response.body)['username'], record[0]['username'])
-        old_username = record[0]['username']
-
-        query = " SELECT * FROM registered_users WHERE phone_number = %s; "
-        variables = (self._phone_number,)
-        record = QueryHandler.get_results(query, variables)
-        self.assertEqual(len(record), 0)
-        
-        expiration_time = int(time.time()) + int(config.get('registration', 'expiry_period_sec'))
-        query = " INSERT INTO registered_users (authorization_code, expiration_time, phone_number) VALUES ( %s, %s, %s); "
-        variables = (self._auth_code, expiration_time, self._phone_number)
-        QueryHandler.execute(query, variables)        
-
-        self.http_client.fetch(self.get_url(self._creation_url), self.stop)
-        response = self.wait(timeout=20)
-
-        self.assertEqual(
-            json.loads(response.body)['username'], old_username)
-
-        query = " SELECT * FROM registered_users WHERE phone_number = %s; "
-        variables = (self._phone_number,)
-        record = QueryHandler.get_results(query, variables)
-        assert not record
-
-        query = " INSERT INTO registered_users (authorization_code, expiration_time, phone_number) VALUES ( %s, %s, %s); "
-        variables = (self._auth_code, expiration_time, self._phone_number)
-        QueryHandler.execute(query, variables)        
-
-        # invalid url params
-        faulty_creation_url = "/create?phone_number=" + str(self._phone_number) \
-                    + "&auth_code=" + str(self._auth_code)
-        self.http_client.fetch(self.get_url(faulty_creation_url), self.stop)
-        response = self.wait(timeout=20)
-        res = json.loads(response.body)
-
-        self.assertEqual(res['status'], settings.STATUS_400)
+# class UserTest(unittest.TestCase):
+#
+#     def test_user_authentication(self):
+#         phone_number = config.get('tests', 'test_phone_number')
+#         username = "test"
+#         password = "password"
+#
+#         delete_user(username = username)
+#         create_user(username, password, phone_number)
+#
+#         user = api_v0_archive.User(username = username, password = password)
+#
+#         fraud_password = 'test'
+#         fraud_user = api_v0_archive.User(username, fraud_password)
+#
+#         try:
+#             user.authenticate()
+#         except BadAuthentication:
+#             raise AssertionError
+#
+#         try:
+#             fraud_user.authenticate()
+#         except BadAuthentication:
+#             pass
+#
+#
+#
+# class CreationTest(AsyncHTTPTestCase):
+#     username = None
+#     _phone_number = config.get('tests', 'test_phone_number')
+#     _username = 'test'
+#     _auth_code = 'ASDFG'
+#     _registration_url = tornado_local_address + "/register?phone_number=" + str(_phone_number)
+#     _creation_url = "/create?phone_number=" + str(_phone_number) \
+#                     + "&auth_code=" + str(_auth_code) + extra_params
+#
+#     def setUp(self):
+#         super(CreationTest, self).setUp()
+#         delete_user(username = self._username)
+#         delete_user(username = self._phone_number)
+#
+#     def get_app(self):
+#         return api_v0_archive.make_app()
+#
+#     def test_user_registration(self):
+#
+#         # Invalid url params
+#         self.http_client.fetch(self.get_url(self._registration_url), self.stop)
+#         response = self.wait(timeout=20)
+#         res = json.loads(response.body)
+#         self.assertEqual(res['info'], "Bad Request: Please provide 'apk_version' and 'udid'")
+#         self.assertEqual(res['status'], settings.STATUS_400)
+#
+#         query = " SELECT * FROM registered_users WHERE phone_number = %s "
+#         variables = (self._phone_number,)
+#         record = QueryHandler.get_results(query, variables)
+#         self.assertEqual(len(record), 0)
+#
+#         # valid url params
+#         self.http_client.fetch(self.get_url(self._registration_url + extra_params), self.stop)
+#         response = self.wait(timeout=20)
+#
+#         variables = (self._phone_number, )
+#         record = QueryHandler.get_results(query, variables)
+#
+#         assert record
+#         self.assertEqual(settings.STATUS_200, json.loads(response.body)['status'])
+#
+#     def test_wrong_auth_code_failure(self):
+#         delete_user(self._phone_number)
+#         query = " UPDATE registered_users SET authorization_code = '12345' " \
+#                 " WHERE phone_number = %s; "
+#         variables = (self._phone_number,)
+#
+#         QueryHandler.execute(query, variables)
+#
+#         self.http_client.fetch(self.get_url(self._creation_url + extra_params), self.stop)
+#         response = self.wait(timeout=20)
+#         res = json.loads(response.body)
+#         self.assertEqual(res['status'], settings.STATUS_400)
+#         self.assertEqual(res['password'], None)
+#
+#         assert not select_user(self._phone_number)
+#
+#         assert json.loads(response.body).get('password' ,None) == None
+#         self.assertNotEqual(json.loads(response.body)['status'], 200)
+#
+#
+#     def test_user_creation(self):
+#
+#         delete_user(phone_number = self._phone_number)
+#
+#         query = " DELETE FROM registered_users WHERE phone_number = %s; "
+#         variables = (self._phone_number,)
+#         QueryHandler.execute(query, variables)
+#
+#
+#         expiration_time = int(time.time()) + int(config.get('registration', 'expiry_period_sec'))
+#         query = " INSERT INTO registered_users (authorization_code, expiration_time, phone_number) VALUES ( %s, %s, %s); "
+#         variables = (self._auth_code, expiration_time, self._phone_number)
+#         QueryHandler.execute(query, variables)
+#
+#         # valid url params
+#         self.http_client.fetch(self.get_url(self._creation_url + extra_params), self.stop)
+#         response = self.wait(timeout=20)
+#         res = json.loads(response.body)
+#
+#         record = select_user(phone_number = self._phone_number)
+#
+#         self.assertEqual(res['status'], settings.STATUS_200)
+#         self.assertEqual(res['password'], record[0]['password'])
+#         self.assertEqual(
+#             json.loads(response.body)['username'], record[0]['username'])
+#         old_username = record[0]['username']
+#
+#         query = " SELECT * FROM registered_users WHERE phone_number = %s; "
+#         variables = (self._phone_number,)
+#         record = QueryHandler.get_results(query, variables)
+#         self.assertEqual(len(record), 0)
+#
+#         expiration_time = int(time.time()) + int(config.get('registration', 'expiry_period_sec'))
+#         query = " INSERT INTO registered_users (authorization_code, expiration_time, phone_number) VALUES ( %s, %s, %s); "
+#         variables = (self._auth_code, expiration_time, self._phone_number)
+#         QueryHandler.execute(query, variables)
+#
+#         self.http_client.fetch(self.get_url(self._creation_url), self.stop)
+#         response = self.wait(timeout=20)
+#
+#         self.assertEqual(
+#             json.loads(response.body)['username'], old_username)
+#
+#         query = " SELECT * FROM registered_users WHERE phone_number = %s; "
+#         variables = (self._phone_number,)
+#         record = QueryHandler.get_results(query, variables)
+#         assert not record
+#
+#         query = " INSERT INTO registered_users (authorization_code, expiration_time, phone_number) VALUES ( %s, %s, %s); "
+#         variables = (self._auth_code, expiration_time, self._phone_number)
+#         QueryHandler.execute(query, variables)
+#
+#         # invalid url params
+#         faulty_creation_url = "/create?phone_number=" + str(self._phone_number) \
+#                     + "&auth_code=" + str(self._auth_code)
+#         self.http_client.fetch(self.get_url(faulty_creation_url), self.stop)
+#         response = self.wait(timeout=20)
+#         res = json.loads(response.body)
+#
+#         self.assertEqual(res['status'], settings.STATUS_400)
 
 
 # class FacebookFriendServiceTest(AsyncHTTPTestCase):
@@ -301,400 +301,533 @@ class CreationTest(AsyncHTTPTestCase):
 #         delete_user(username = self._username)
 
 
-class LocationTest(AsyncHTTPTestCase):
-    _username = 'test'
-    _password = 'password'
-    _phone_number = config.get('tests', 'test_phone_number')
+# class LocationTest(AsyncHTTPTestCase):
+#     _username = 'test'
+#     _password = 'password'
+#     _phone_number = config.get('tests', 'test_phone_number')
+#
+#     def setUp(self):
+#         super(LocationTest, self).setUp()
+#         delete_user(username = self._username)
+#         create_user(username = self._username, password = self._phone_number, phone_number = self._phone_number)
+#
+#         interests = ['interest_one', 'interest_two']
+#         query = " DELETE FROM interest WHERE "\
+#         + " OR ".join(map( lambda interest: "interest_name = '" + interest + "'" , interests))\
+#         + " ;"
+#         QueryHandler.execute(query, ())
+#
+#         query = "INSERT INTO interest (interest_name) VALUES ('interest_one'), ('interest_two');"
+#         QueryHandler.execute(query, ())
+#
+#         query = "INSERT INTO users_interest (interest_id, username) "\
+#         + " (SELECT interest_id, %s FROM interest WHERE "\
+#         + " OR ".join(map( lambda interest: "interest_name = '" + interest + "'" , interests))\
+#         + ");"
+#
+#         variables = (self._username, )
+#
+#         QueryHandler.execute(query, variables)
+#
+#     def get_app(self):
+#         return api_v0_archive.make_app()
+#
+#     def test_storage(self):
+#         lat = "0.0"
+#         lng = "0.0"
+#         self.set_location_storage_url = "/set_location?"\
+#             + "lat=" + lat \
+#             + "&lng=" + lng \
+#             + "&user=" + self._username
+#         self.http_client.fetch(self.get_url(self.set_location_storage_url) + extra_params, self.stop)
+#         response = self.wait(timeout=20)
+#         self.assertEqual(json.loads(response.body)['status'], settings.STATUS_200)
+#
+#         query = " SELECT lat, lng FROM users WHERE username = %s;"
+#         variables = (self._username,)
+#         result = QueryHandler.get_results(query, variables)
+#         self.assertEqual(str(result[0]['lat']), lat)
+#         self.assertEqual(str(result[0]['lng']), lng)
+#
+#     def test_retrieval(self):
+#         lat = "0.0"
+#         lng = "0.0"
+#         radius = "5"
+#         self.username = config.get('tests', 'test_phone_number')
+#         self.test_storage()
+#
+#         nearby_user = "a"
+#         nearby_user_password = "password"
+#         nearby_user_phone = "00000000"
+#
+#         try:
+#             create_user(username = nearby_user, password = nearby_user_password, phone_number = nearby_user_phone)
+#             query = " UPDATE users SET is_available = True WHERE username = %s;"
+#             variables = (nearby_user,)
+#             QueryHandler.execute(query, variables)
+#         except psycopg2.IntegrityError:
+#             pass
+#
+#         interests = ['interest_one', 'interest_two']
+#         test_storage_url = "/set_user_interests?username=" + nearby_user\
+#             + "".join(map(lambda interest: "&interests=" + interest, interests))
+#         print 'test storage url::::::::', test_storage_url
+#         self.http_client.fetch(self.get_url(test_storage_url + extra_params), self.stop)
+#         response = self.wait(timeout=20)
+#
+#         nearby_user_lat = "0.0000009"
+#         nearby_user_lng = "0.0000009"
+#         self.set_location_storage_url = "/set_location?"\
+#             + "lat=" + nearby_user_lat \
+#             + "&lng=" + nearby_user_lng \
+#             + "&user=" + nearby_user
+#
+#         self.http_client.fetch(self.get_url(self.set_location_storage_url) + extra_params, self.stop)
+#         response = self.wait(timeout=20)
+#         retrirval_url = "/retrieve_nearby_users?"\
+#             + "lat=" +  lat\
+#             + "&lng=" + lng\
+#             + "&radius=" + radius
+#
+#         self.http_client.fetch(self.get_url(retrirval_url) + extra_params, self.stop)
+#         response = self.wait(timeout=20)
+#
+#         # delete_user(username = nearby_user)
+#         print 'response:::::', response.body
 
-    def setUp(self):
-        super(LocationTest, self).setUp()
-        delete_user(username = self._username)
-        create_user(username = self._username, password = self._phone_number, phone_number = self._phone_number)
+        # assert response
+        # assert json.loads(response.body)['users']
+        # self.assertEqual(json.loads(response.body)['status'], settings.STATUS_200)
+        # self.assertEqual(type(json.loads(response.body)['users']), list)
+        # assert json.loads(response.body)['users'][0]['username']
+        # self.assertEqual(type(json.loads(response.body)['users'][0]['distance']), float)
+        # self.assertEqual(type(json.loads(response.body)['users'][0]['lat']), float)
+        # self.assertEqual(type(json.loads(response.body)['users'][0]['lng']), float)
+        # assert json.loads(response.body)['users'][0]['interests']
 
-        interests = ['interest_one', 'interest_two']
-        query = " DELETE FROM interest WHERE "\
-        + " OR ".join(map( lambda interest: "interest_name = '" + interest + "'" , interests))\
-        + " ;"
-        QueryHandler.execute(query, ())
+    # def tearDown(self):
+    #     pass
 
-        query = "INSERT INTO interest (interest_name) VALUES ('interest_one'), ('interest_two');"
-        QueryHandler.execute(query, ())
+#
+# class InterestTest(AsyncHTTPTestCase):
+#     _username = 'test'
+#     _password = 'password'
+#     _phone_number = config.get('tests', 'test_phone_number')
+#
+#     def get_app(self):
+#         return api_v0_archive.make_app()
+#
+#     def setUp(self):
+#         super(InterestTest, self).setUp()
+#         try:
+#             delete_user(username = self._username)
+#             create_user(username = self._username, password = self._phone_number, phone_number = self._phone_number)
+#
+#             query = " DELETE FROM users_interest WHERE username = %s;"
+#             variables = (self._username,)
+#             QueryHandler.execute(query, variables)
+#         except psycopg2.IntegrityError:
+#             pass
+#
+#         try:
+#             interests = ['interest_one', 'interest_two']
+#             query = " DELETE FROM interest WHERE "\
+#                 " interest_name = 'interest_one' OR interest_name = 'interest_two';"
+#             variables = ()
+#             QueryHandler.execute(query, variables)
+#
+#             interests = ['interest_one', 'interest_two']
+#             query = "INSERT INTO interest (interest_name) VALUES ('interest_one'), ('interest_two');"
+#             QueryHandler.execute(query, ())
+#         except psycopg2.IntegrityError, e:
+#             pass
+#
+#     def test_storage(self):
+#         interests = ['interest_one', 'interest_two']
+#
+#         test_storage_url = "/set_user_interests?username=" + self._username\
+#             + "".join(map(lambda interest: "&interests=" + interest, interests))
+#
+#         self.http_client.fetch(self.get_url(test_storage_url) + extra_params, self.stop)
+#         response = self.wait(timeout=20)
+#
+#         assert response
+#         self.assertEqual(json.loads(response.body)['status'], settings.STATUS_200)
+#
+#
+#         query = "select users.username, string_agg(interest.interest_name, ' ,') as interests from users "\
+#             + " left outer join users_interest on (users.username = users_interest.username) "\
+#             + " left outer join interest on (users_interest.interest_id = interest.interest_id)"\
+#             + " WHERE users.username = %s group by users.username;"
+#         variables = (self._username,)
+#         record = QueryHandler.get_results(query, variables)
+#
+#         assert record
+#         assert record[0]['username']
+#         assert record[0]['interests'] == "interest_one ,interest_two"
+#
+#         interests = ['interest_one']
+#         test_storage_url = "/set_user_interests?username=" + self._username\
+#             + "".join(map(lambda interest: "&interests=" + interest, interests))
+#
+#         self.http_client.fetch(self.get_url(test_storage_url) + extra_params, self.stop)
+#         response = self.wait(timeout=20)
+#
+#         assert response
+#         self.assertEqual(json.loads(response.body)['status'], settings.STATUS_200)
+#
+#         query = "select users.username, string_agg(interest.interest_name, ' ,') as interests from users "\
+#             + " left outer join users_interest on (users.username = users_interest.username) "\
+#             + " left outer join interest on (users_interest.interest_id = interest.interest_id)"\
+#             + " WHERE users.username = %s group by users.username;"
+#         variables = (self._username,)
+#         record = QueryHandler.get_results(query, variables)
+#
+#         assert record
+#         assert record[0]['username']
+#         self.assertEqual(record[0]['interests'], "interest_one")
+#
+#     def tearDown(self):
+#         pass
+#
+#
+# class MediaTest(AsyncHTTPTestCase):
+#
+#     def setUp(self):
+#         super(MediaTest, self).setUp()
+#         file_storage_name = "media/md5_sample"
+#         file_storage_name2 = "media/big.mp4"
+#         if os.path.isfile(file_storage_name):
+#             os.remove(file_storage_name)
+#         if os.path.isfile(file_storage_name2):
+#             os.remove(file_storage_name2)
+#
+#     def test_upload_download_media_presence(self):
+#         self.url = tornado_local_address + "/media" + '?apk_version=v0.1&udid=TEST@UDID'
+#         self.media_presence_url = tornado_local_address + "/media_present?name=md5_sample" + extra_params
+#         file_name = sys.argv[0]
+#         file_content = open(file_name, 'r').read()
+#         md5 = hashlib.md5(file_content).hexdigest()
+#         headers = {'Checksum': 'md5_sample'}
+#         response = requests.post(self.url, headers=headers, data=file_content)
+#         self.assertEqual(json.loads(response.content)['status'], settings.STATUS_200)
+#         assert os.path.isfile('media/md5_sample')
+#
+#         self.url = tornado_local_address + "/media?name=md5_sample" + extra_params
+#         response = requests.get(self.url)
+#         assert response.content
+#
+#         response = requests.get(self.media_presence_url)
+#         self.assertEqual(json.loads(response.content)["status"], settings.STATUS_200)
+#
+#         file_storage_name = "media/md5_sample"
+#         os.remove(file_storage_name)
+#
+#         response = requests.get(self.media_presence_url)
+#         self.assertEqual(json.loads(response.content)["status"], settings.STATUS_400)
+#
+#         self.url = tornado_local_address + "/media" + '?apk_version=v0.1&udid=TEST@UDID'
+#         file_name2 = 'big.mp4'
+#         headers = {'Checksum': 'big.mp4'}
+#         with open(file_name2, 'rb') as file_content2:
+#             response = requests.post(self.url, headers=headers, data=file_content2)
+#         self.assertEqual(json.loads(response.content)['status'], settings.STATUS_200)
+#         assert os.path.isfile('media/big.mp4')
+#
+#         self.url = tornado_local_address + "/media?name=big.mp4" + extra_params
+#         response = requests.get(self.url)
+#         assert response.content
+#
+#     def get_app(self):
+#         return api_v0_archive.make_app()
+#
+#     def tearDown(self):
+#         pass
+#
+#
+# class IOSMediaHandlerTests(unittest.TestCase):
+#     url = None
+#     filename = None
+#
+#     def setUp(self):
+#         self.url = tornado_local_address + '/media_multipart' + '?apk_version=v0.1&udid=TEST@UDID'
+#         self.test_files = [sys.argv[0]]
+#
+#     def test_validations(self):
+#         self.filename = self.test_files[0]
+#         mime = magic.Magic(mime=True)
+#         mime_type = mime.from_file(self.filename)
+#         encoder = MultipartEncoder(
+#             fields={'name': 'image', 'filename': self.filename, 'Content-Disposition': 'form-data',
+#                     'Content-Type': mime_type, 'file': (self.filename, open(self.filename, 'rb'), mime_type)}
+#         )
+#
+#         # 'Content-type' not provided
+#         response = requests.post(self.url, data=encoder.to_string(), headers={'Checksum': 'test_image'})
+#         res = json.loads(response.content)
+#         self.assertEqual(response.status_code, settings.STATUS_200)
+#         self.assertEqual(res['status'], settings.STATUS_400)
+#
+#         # 'Checksum' not provided
+#         response = requests.post(self.url, data=encoder.to_string(), headers={'Content-Type': encoder.content_type})
+#         res = json.loads(response.content)
+#         self.assertEqual(response.status_code, settings.STATUS_200)
+#         self.assertEqual(res['status'], settings.STATUS_400)
+#
+#         # Request body not provided
+#         response = requests.post(self.url, headers={'Checksum': 'test_image', 'Content-Type': encoder.content_type})
+#         res = json.loads(response.content)
+#         self.assertEqual(response.status_code, settings.STATUS_200)
+#         self.assertEqual(res['status'], settings.STATUS_400)
+#
+#     def test_upload_media(self):
+#
+#         # test on different media files
+#         for file in self.test_files:
+#             self.filename = file
+#             mime = magic.Magic(mime=True)
+#             mime_type = mime.from_file(self.filename)
+#             encoder = MultipartEncoder(
+#                 fields={'name': 'image', 'filename': self.filename, 'Content-Disposition': 'form-data',
+#                         'Content-Type': mime_type, 'file': (self.filename, open(self.filename, 'rb'), mime_type)}
+#                 )
+#             response = requests.post(self.url, data=encoder.to_string(),
+#                                      headers={'Content-Type': encoder.content_type, 'Checksum': file})
+#             res = json.loads(response.content)
+#             self.assertEqual(response.status_code, settings.STATUS_200)
+#             self.assertEqual(res['info'], 'Success')
+#             self.assertEqual(res['status'], settings.STATUS_200)
+#
+#
+#         # if file already exists
+#         self.filename = self.test_files[0]
+#         mime = magic.Magic(mime=True)
+#         mime_type = mime.from_file(self.filename)
+#         encoder = MultipartEncoder(
+#             fields={'name': 'image', 'filename': self.filename, 'Content-Disposition': 'form-data',
+#                     'Content-Type': mime_type, 'file': (self.filename, open(self.filename, 'rb'), mime_type)}
+#         )
+#         response = requests.post(self.url, data=encoder.to_string(),
+#                                  headers={'Content-Type': encoder.content_type, 'Checksum': file})
+#         res = json.loads(response.content)
+#         self.assertEqual(response.status_code, settings.STATUS_200)
+#         self.assertEqual(res['status'], settings.STATUS_422)
+#
+#         # delete all test files from media folder
+#         for file in self.test_files:
+#             os.remove('media/' + file)
+#
+#
+# class IOSSetUserDeviceIdTests(unittest.TestCase):
+#
+#     _username = 'test'
+#     _password = 'password'
+#     _phone_number = config.get('tests', 'test_phone_number')
+#
+#     def assert_status_info(self, response, expected_status):
+#         res = json.loads(response.content)
+#         assert response.status_code == settings.STATUS_200
+#         assert json.loads(response.content)['status'] == expected_status
+#
+#     def setUp(self):
+#         self.url = tornado_local_address + '/set_udid' + '?apk_version=v0.1&udid=TEST@UDID'
+#         delete_user(username = self._username)
+#         delete_user(phone_number = self._phone_number)
+#         create_user(username = self._username, password = self._password, phone_number = self._phone_number)
+#
+#     def test_validations(self):
+#         # self._username not provided
+#         self.data = {'token': 'AAAAAAAA'}
+#         response = requests.post(self.url, data=self.data)
+#         self.assert_status_info(response, settings.STATUS_400)
+#
+#         # udid token not provided
+#         self.data = {'user': self._username}
+#         response = requests.post(self.url, data=self.data)
+#         self.assert_status_info(response, settings.STATUS_400)
+#
+#         # self._username is not registered
+#         self.data = {'user': '910000000000', 'token': 'AAAAAA'}
+#         response = requests.post(self.url, data=self.data)
+#         self.assert_status_info(response, settings.STATUS_400)
+#
+#     def test_post(self):
+#         self.data = {'user': self._username, 'token': 'AAAAAA', 'password': self._password}
+#         response = requests.post(self.url, data=self.data)
+#         self.assert_status_info(response, settings.STATUS_200)
+#
+# class ContactListTest(unittest.TestCase):
+#     _username = 'test'
+#     _password = 'password'
+#     _phone_number = config.get('tests', 'test_phone_number')
+#     _default_payload = {'apk_version': 'v1.0', 'udid' : '00'}
+#     _payload_auth = {'username': _username, 'password': _password}
+#     _friend_username = 'friend'
+#     _friend_password = 'test'
+#     _friend_phone_number = '91919191'
+#     _url = tornado_local_address + "/get_contact_jids"
+#     _contact_list_payload = {'contacts': [_friend_phone_number, '123']}
+#
+#     def setUp(self):
+#         delete_user(phone_number = self._phone_number)
+#         create_user(phone_number = self._phone_number, username = self._username, password = self._password)
+#
+#         delete_user(phone_number = self._friend_phone_number)
+#         create_user(phone_number = self._friend_phone_number, username = self._friend_username, password = self._friend_password)
+#
+#     def test_unauthenticated_contacts_retrieval(self):
+#         fraud_auth_payload = {'username': 'test', 'password': 'asfdas'}
+#         payload = merge_dicts([self._default_payload, self._contact_list_payload, fraud_auth_payload])
+#         response = requests.post(self._url, data=payload)
+#         content = json.loads(response.content)
+#         assert content['status'] == settings.STATUS_404
+#         assert content['info'] == settings.BAD_AUTHENTICATION_ERROR
+#         assert not content.has_key('jids')
+#
+#     def test_contacts_retrieval(self):
+#         payload = merge_dicts([self._default_payload, self._contact_list_payload, self._payload_auth])
+#         response = requests.post(self._url, data=payload)
+#         content = json.loads(response.content)
+#         assert content['status'] == settings.STATUS_200
+#         assert type(content['jids']) == list
+#         assert content['jids'][0] == self._friend_username
+#         assert len(content['jids']) == 1
+#
+#     def tearDown(self):
+#         delete_user(phone_number = self._phone_number)
+#         delete_user(phone_number = self._friend_phone_number)
 
-        query = "INSERT INTO users_interest (interest_id, username) "\
-        + " (SELECT interest_id, %s FROM interest WHERE "\
-        + " OR ".join(map( lambda interest: "interest_name = '" + interest + "'" , interests))\
-        + ");"
 
-        variables = (self._username, )
-
-        QueryHandler.execute(query, variables)
-
-    def get_app(self):
-        return api_v0_archive.make_app()
-
-    def test_storage(self):
-        lat = "0.0"
-        lng = "0.0"
-        self.set_location_storage_url = "/set_location?"\
-            + "lat=" + lat \
-            + "&lng=" + lng \
-            + "&user=" + self._username
-        self.http_client.fetch(self.get_url(self.set_location_storage_url) + extra_params, self.stop)
-        response = self.wait(timeout=20)
-        self.assertEqual(json.loads(response.body)['status'], settings.STATUS_200)
-
-        query = " SELECT lat, lng FROM users WHERE username = %s;"
-        variables = (self._username,)
-        result = QueryHandler.get_results(query, variables)
-        self.assertEqual(str(result[0]['lat']), lat)
-        self.assertEqual(str(result[0]['lng']), lng)
-
-    def test_retrieval(self):
-        lat = "0.0"
-        lng = "0.0"
-        radius = "5"
-        self.username = config.get('tests', 'test_phone_number')
-        self.test_storage()
-
-        nearby_user = "a"
-        nearby_user_password = "password"
-        nearby_user_phone = "00000000"
-
-        try:
-            create_user(username = nearby_user, password = nearby_user_password, phone_number = nearby_user_phone)
-            query = " UPDATE users SET is_available = True WHERE username = %s;"
-            variables = (nearby_user,)
-            QueryHandler.execute(query, variables)
-        except psycopg2.IntegrityError:
-            pass
-
-        interests = ['interest_one', 'interest_two']
-        test_storage_url = "/set_user_interests?username=" + nearby_user\
-            + "".join(map(lambda interest: "&interests=" + interest, interests))
-        self.http_client.fetch(
-            self.get_url(test_storage_url + extra_params), self.stop)
-        response = self.wait(timeout=20)
-
-        nearby_user_lat = "0.0000009"
-        nearby_user_lng = "0.0000009"
-        self.set_location_storage_url = "/set_location?"\
-            + "lat=" + nearby_user_lat \
-            + "&lng=" + nearby_user_lng \
-            + "&user=" + nearby_user
-
-        self.http_client.fetch(self.get_url(self.set_location_storage_url) + extra_params, self.stop)
-        response = self.wait(timeout=20)
-        retrirval_url = "/retrieve_nearby_users?"\
-            + "lat=" +  lat\
-            + "&lng=" + lng\
-            + "&radius=" + radius
-
-        self.http_client.fetch(self.get_url(retrirval_url) + extra_params, self.stop)
-        response = self.wait(timeout=20)
-
-        delete_user(username = nearby_user)
-
-        assert response
-        assert json.loads(response.body)['users']
-        self.assertEqual(json.loads(response.body)['status'], settings.STATUS_200)
-        self.assertEqual(type(json.loads(response.body)['users']), list)
-        assert json.loads(response.body)['users'][0]['username']
-        self.assertEqual(type(json.loads(response.body)['users'][0]['distance']), float)
-        self.assertEqual(type(json.loads(response.body)['users'][0]['lat']), float)
-        self.assertEqual(type(json.loads(response.body)['users'][0]['lng']), float)
-        assert json.loads(response.body)['users'][0]['interests']
-
-    def tearDown(self):
-        pass
-
-
-class InterestTest(AsyncHTTPTestCase):
-    _username = 'test'
-    _password = 'password'
-    _phone_number = config.get('tests', 'test_phone_number')
-
-    def get_app(self):
-        return api_v0_archive.make_app()
-
-    def setUp(self):
-        super(InterestTest, self).setUp()
-        try:
-            delete_user(username = self._username)
-            create_user(username = self._username, password = self._phone_number, phone_number = self._phone_number)
-
-            query = " DELETE FROM users_interest WHERE username = %s;"
-            variables = (self._username,)
-            QueryHandler.execute(query, variables)
-        except psycopg2.IntegrityError:
-            pass
-
-        try:
-            interests = ['interest_one', 'interest_two']
-            query = " DELETE FROM interest WHERE "\
-                " interest_name = 'interest_one' OR interest_name = 'interest_two';"
-            variables = ()
-            QueryHandler.execute(query, variables)
-
-            interests = ['interest_one', 'interest_two']
-            query = "INSERT INTO interest (interest_name) VALUES ('interest_one'), ('interest_two');"
-            QueryHandler.execute(query, ())
-        except psycopg2.IntegrityError, e:
-            pass
-
-    def test_storage(self):
-        interests = ['interest_one', 'interest_two']
-
-        test_storage_url = "/set_user_interests?username=" + self._username\
-            + "".join(map(lambda interest: "&interests=" + interest, interests))
-
-        self.http_client.fetch(self.get_url(test_storage_url) + extra_params, self.stop)
-        response = self.wait(timeout=20)
-
-        assert response
-        self.assertEqual(json.loads(response.body)['status'], settings.STATUS_200)
-
-
-        query = "select users.username, string_agg(interest.interest_name, ' ,') as interests from users "\
-            + " left outer join users_interest on (users.username = users_interest.username) "\
-            + " left outer join interest on (users_interest.interest_id = interest.interest_id)"\
-            + " WHERE users.username = %s group by users.username;"
-        variables = (self._username,)
-        record = QueryHandler.get_results(query, variables)
-
-        assert record
-        assert record[0]['username']
-        assert record[0]['interests'] == "interest_one ,interest_two"
-
-        interests = ['interest_one']
-        test_storage_url = "/set_user_interests?username=" + self._username\
-            + "".join(map(lambda interest: "&interests=" + interest, interests))
-
-        self.http_client.fetch(self.get_url(test_storage_url) + extra_params, self.stop)
-        response = self.wait(timeout=20)
-
-        assert response
-        self.assertEqual(json.loads(response.body)['status'], settings.STATUS_200)
-
-        query = "select users.username, string_agg(interest.interest_name, ' ,') as interests from users "\
-            + " left outer join users_interest on (users.username = users_interest.username) "\
-            + " left outer join interest on (users_interest.interest_id = interest.interest_id)"\
-            + " WHERE users.username = %s group by users.username;"
-        variables = (self._username,)
-        record = QueryHandler.get_results(query, variables)
-
-        assert record
-        assert record[0]['username']
-        self.assertEqual(record[0]['interests'], "interest_one")
-
-    def tearDown(self):
-        pass
-
-
-class MediaTest(AsyncHTTPTestCase):
-
-    def setUp(self):
-        super(MediaTest, self).setUp()
-        file_storage_name = "media/md5_sample"
-        file_storage_name2 = "media/big.mp4"
-        if os.path.isfile(file_storage_name):
-            os.remove(file_storage_name)
-        if os.path.isfile(file_storage_name2):
-            os.remove(file_storage_name2)
-
-    def test_upload_download_media_presence(self):
-        self.url = tornado_local_address + "/media" + '?apk_version=v0.1&udid=TEST@UDID'
-        self.media_presence_url = tornado_local_address + "/media_present?name=md5_sample" + extra_params
-        file_name = sys.argv[0]
-        file_content = open(file_name, 'r').read()
-        md5 = hashlib.md5(file_content).hexdigest()
-        headers = {'Checksum': 'md5_sample'}
-        response = requests.post(self.url, headers=headers, data=file_content)
-        self.assertEqual(json.loads(response.content)['status'], settings.STATUS_200)
-        assert os.path.isfile('media/md5_sample')
-
-        self.url = tornado_local_address + "/media?name=md5_sample" + extra_params
-        response = requests.get(self.url)
-        assert response.content
-
-        response = requests.get(self.media_presence_url)
-        self.assertEqual(json.loads(response.content)["status"], settings.STATUS_200)
-
-        file_storage_name = "media/md5_sample"
-        os.remove(file_storage_name)
-
-        response = requests.get(self.media_presence_url)
-        self.assertEqual(json.loads(response.content)["status"], settings.STATUS_400)
-
-        self.url = tornado_local_address + "/media" + '?apk_version=v0.1&udid=TEST@UDID'
-        file_name2 = 'big.mp4'
-        headers = {'Checksum': 'big.mp4'}
-        with open(file_name2, 'rb') as file_content2:
-            response = requests.post(self.url, headers=headers, data=file_content2)
-        self.assertEqual(json.loads(response.content)['status'], settings.STATUS_200)
-        assert os.path.isfile('media/big.mp4')
-
-        self.url = tornado_local_address + "/media?name=big.mp4" + extra_params
-        response = requests.get(self.url)
-        assert response.content
-
-    def get_app(self):
-        return api_v0_archive.make_app()
-
-    def tearDown(self):
-        pass
-
-
-class IOSMediaHandlerTests(unittest.TestCase):
+class NearbyUsersWithSameInterestsTests(unittest.TestCase):
     url = None
-    filename = None
+    users = []
+    all_nearby_users = []
+    interests = []
+    interest_id = []
+    apk_version = 'v0.1'
+    udid = 'abc'
 
     def setUp(self):
-        self.url = tornado_local_address + '/media_multipart' + '?apk_version=v0.1&udid=TEST@UDID'
-        self.test_files = [sys.argv[0]]
-
-    def test_validations(self):
-        self.filename = self.test_files[0]
-        mime = magic.Magic(mime=True)
-        mime_type = mime.from_file(self.filename)
-        encoder = MultipartEncoder(
-            fields={'name': 'image', 'filename': self.filename, 'Content-Disposition': 'form-data',
-                    'Content-Type': mime_type, 'file': (self.filename, open(self.filename, 'rb'), mime_type)}
-        )
-
-        # 'Content-type' not provided
-        response = requests.post(self.url, data=encoder.to_string(), headers={'Checksum': 'test_image'})
-        res = json.loads(response.content)
-        self.assertEqual(response.status_code, settings.STATUS_200)
-        self.assertEqual(res['status'], settings.STATUS_400)
-
-        # 'Checksum' not provided
-        response = requests.post(self.url, data=encoder.to_string(), headers={'Content-Type': encoder.content_type})
-        res = json.loads(response.content)
-        self.assertEqual(response.status_code, settings.STATUS_200)
-        self.assertEqual(res['status'], settings.STATUS_400)
-
-        # Request body not provided
-        response = requests.post(self.url, headers={'Checksum': 'test_image', 'Content-Type': encoder.content_type})
-        res = json.loads(response.content)
-        self.assertEqual(response.status_code, settings.STATUS_200)
-        self.assertEqual(res['status'], settings.STATUS_400)
-
-    def test_upload_media(self):
-
-        # test on different media files
-        for file in self.test_files:
-            self.filename = file
-            mime = magic.Magic(mime=True)
-            mime_type = mime.from_file(self.filename)
-            encoder = MultipartEncoder(
-                fields={'name': 'image', 'filename': self.filename, 'Content-Disposition': 'form-data',
-                        'Content-Type': mime_type, 'file': (self.filename, open(self.filename, 'rb'), mime_type)}
-                )
-            response = requests.post(self.url, data=encoder.to_string(),
-                                     headers={'Content-Type': encoder.content_type, 'Checksum': file})
-            res = json.loads(response.content)
-            self.assertEqual(response.status_code, settings.STATUS_200)
-            self.assertEqual(res['info'], 'Success')
-            self.assertEqual(res['status'], settings.STATUS_200)
+        print 'inside setup'
+        self.url = 'http://localhost:3000/get_nearby_similar_interests_users'
+        self.users = [('test_1', 'pswd_1', 'test_1', 0.0000080, 0.0000080),
+                      ('test_2', 'pswd_2', 'test_2', 0.0000090, 0.0000090),
+                      ('test_3', 'pswd_3', 'test_3', 28.5232818, 77.1907957),
+                      ('test_4', 'pswd_4', 'test_4', 0.0, 0.0),
+                      ('test_5', 'pswd_5', 'test_5', 0.0000010, 0.0000010)]
+        for user in self.users:
+            query = "INSERT INTO users(username, password, phone_number, lat, lng, is_available) values(%s, %s, %s, %s, %s, True);"
+            variables = (user[0], user[1], user[2], user[3], user[4])
+            try:
+                QueryHandler.execute(query, variables)
+            except Exception as e:
+                raise e
 
 
-        # if file already exists
-        self.filename = self.test_files[0]
-        mime = magic.Magic(mime=True)
-        mime_type = mime.from_file(self.filename)
-        encoder = MultipartEncoder(
-            fields={'name': 'image', 'filename': self.filename, 'Content-Disposition': 'form-data',
-                    'Content-Type': mime_type, 'file': (self.filename, open(self.filename, 'rb'), mime_type)}
-        )
-        response = requests.post(self.url, data=encoder.to_string(),
-                                 headers={'Content-Type': encoder.content_type, 'Checksum': file})
-        res = json.loads(response.content)
-        self.assertEqual(response.status_code, settings.STATUS_200)
-        self.assertEqual(res['status'], settings.STATUS_422)
+        # set interests
+        self.interests = ['test_interest_1', 'test_interest_2', 'test_interest_3', 'test_interest_4']
+        for interest in self.interests:
+            query = "INSERT INTO interest(interest_name) values(%s) RETURNING interest_id;"
+            variables = (interest,)
+            try:
+                result = QueryHandler.get_results(query, variables)
+                self.interest_id.append(result[0]['interest_id'])
+            except Exception as e:
+                raise e
 
-        # delete all test files from media folder
-        for file in self.test_files:
-            os.remove('media/' + file)
+        print 'interest ids:', self.interest_id
+
+        # set users' interests
+        self.users_interests = {'test_1': [self.interest_id[0], self.interest_id[2]],
+                                'test_2': [self.interest_id[1]],
+                                'test_3': [self.interest_id[2], self.interest_id[3]],
+                                'test_4': [self.interest_id[1], self.interest_id[0]],
+                                'test_5': [self.interest_id[0], self.interest_id[1], self.interest_id[2], self.interest_id[3]]}
+        try:
+            for key,value in self.users_interests.items():
+                username = key
+                for interest in value:
+                    query = "INSERT INTO users_interest(interest_id, username) VALUES(%s, %s);"
+                    variables = (interest, username)
+                    QueryHandler.execute(query, variables)
+        except Exception as e:
+            raise e
+
+        # get all nearby users
+        response = requests.get('http://localhost:3000/retrieve_nearby_users' +
+                                '?apk_version={}&udid={}&radius=5&lat=0.0&lng=0.0'.format(self.apk_version, self.udid))
+        self.all_nearby_users = json.loads(response.text)['users']
+        print 'all nearby users:::::::', self.all_nearby_users
+
+        # insert the user's friend in "rosterusers" table
+        query = "INSERT INTO rosterusers(username, jid, nick, subscription, ask, askmessage, server) VALUES" \
+                "(%s, %s, %s, %s, %s, %s, %s);"
+        variables = ('test_4', 'test_5@mm.io', 't5', 'B', '', 'N', 'N')
+        try:
+            QueryHandler.execute(query, variables)
+        except Exception as e:
+            raise e
+
+        # create privacy list for the user
+        query = "INSERT INTO privacy_list(username, name) values(%s, %s) RETURNING id;"
+        variables = ('test_4', 'test_4_privacy_list')
+        result = QueryHandler.get_results(query, variables)
+        list_id = result[0]['id']
+
+        # add few blocked contacts for the user
+        query = "INSERT INTO privacy_list_data(id, t, value, action, ord, match_all, match_iq, match_message, match_presence_in, match_presence_out)" \
+                "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s);"
+        variables = (list_id, 'j', 'test_1@mm.io', 'd', 1, 't', 't', 't', 't', 't')
+        try:
+            QueryHandler.execute(query, variables)
+        except Exception as e:
+            raise e
+
+    def delete_users(self):
+        print 'inside delete users'
+        for user in self.users:
+            query = "DELETE FROM users WHERE username=%s;"
+            variables = (user[0],)
+            try:
+                QueryHandler.execute(query, variables)
+            except Exception as e:
+                raise e
+
+    def delete_interests(self):
+        print 'inside delete interests'
+        for interest in self.interests:
+            query = "DELETE FROM interest where interest_name=%s;"
+            varaiables = (interest,)
+            try:
+                QueryHandler.execute(query, varaiables)
+            except Exception as e:
+                raise e
+
+    def delete_user_interests(self):
+        print 'inside delete_user_interests'
+        for user in self.users:
+            query = "DELETE FROM users_interest where username=%s;"
+            varaiables = (user,)
+            try:
+                QueryHandler.execute(query, varaiables)
+            except Exception as e:
+                raise e
 
 
-class IOSSetUserDeviceIdTests(unittest.TestCase):
+    def test_get(self):
+        print 'inside test get'
 
-    _username = 'test'
-    _password = 'password'
-    _phone_number = config.get('tests', 'test_phone_number')
 
-    def assert_status_info(self, response, expected_status):
-        res = json.loads(response.content)
-        assert response.status_code == settings.STATUS_200
-        assert json.loads(response.content)['status'] == expected_status
+        # self.delete_users()
+        # self.delete_interests()
+        # self.delete_user_interests()
 
-    def setUp(self):
-        self.url = tornado_local_address + '/set_udid' + '?apk_version=v0.1&udid=TEST@UDID'
-        delete_user(username = self._username)
-        delete_user(phone_number = self._phone_number)
-        create_user(username = self._username, password = self._password, phone_number = self._phone_number)
+        # delete rosterusers
+        # delete privacy list
+        # delete privacy list data
 
-    def test_validations(self):
-        # self._username not provided
-        self.data = {'token': 'AAAAAAAA'}
-        response = requests.post(self.url, data=self.data)
-        self.assert_status_info(response, settings.STATUS_400)
 
-        # udid token not provided
-        self.data = {'user': self._username}
-        response = requests.post(self.url, data=self.data)
-        self.assert_status_info(response, settings.STATUS_400)
 
-        # self._username is not registered
-        self.data = {'user': '910000000000', 'token': 'AAAAAA'}
-        response = requests.post(self.url, data=self.data)
-        self.assert_status_info(response, settings.STATUS_400)
-
-    def test_post(self):
-        self.data = {'user': self._username, 'token': 'AAAAAA', 'password': self._password}
-        response = requests.post(self.url, data=self.data)
-        self.assert_status_info(response, settings.STATUS_200)
-
-class ContactListTest(unittest.TestCase):
-    _username = 'test'
-    _password = 'password'
-    _phone_number = config.get('tests', 'test_phone_number')
-    _default_payload = {'apk_version': 'v1.0', 'udid' : '00'}
-    _payload_auth = {'username': _username, 'password': _password}
-    _friend_username = 'friend'
-    _friend_password = 'test'
-    _friend_phone_number = '91919191'
-    _url = tornado_local_address + "/get_contact_jids"
-    _contact_list_payload = {'contacts': [_friend_phone_number, '123']}
-
-    def setUp(self):
-        delete_user(phone_number = self._phone_number)
-        create_user(phone_number = self._phone_number, username = self._username, password = self._password)
-        
-        delete_user(phone_number = self._friend_phone_number)
-        create_user(phone_number = self._friend_phone_number, username = self._friend_username, password = self._friend_password)
-
-    def test_unauthenticated_contacts_retrieval(self):
-        fraud_auth_payload = {'username': 'test', 'password': 'asfdas'}
-        payload = merge_dicts([self._default_payload, self._contact_list_payload, fraud_auth_payload])
-        response = requests.post(self._url, data=payload)
-        content = json.loads(response.content) 
-        assert content['status'] == settings.STATUS_404
-        assert content['info'] == settings.BAD_AUTHENTICATION_ERROR
-        assert not content.has_key('jids')
-
-    def test_contacts_retrieval(self):
-        payload = merge_dicts([self._default_payload, self._contact_list_payload, self._payload_auth])
-        response = requests.post(self._url, data=payload)
-        content = json.loads(response.content)
-        assert content['status'] == settings.STATUS_200
-        assert type(content['jids']) == list
-        assert content['jids'][0] == self._friend_username
-        assert len(content['jids']) == 1
-
-    def tearDown(self):
-        delete_user(phone_number = self._phone_number)
-        delete_user(phone_number = self._friend_phone_number)
 
 if __name__ == '__main__':
     unittest.main()

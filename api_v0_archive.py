@@ -2,11 +2,13 @@ from global_func import QueryHandler, S3Handler
 from notification_adapter import NotificationAdapter
 from tornado.log import enable_pretty_logging
 from tornado.options import options
+import ast
 import magic
 import settings
 from tornado.web import MissingArgumentError
 import time
 import uuid
+import tornado.escape
 import tornado.ioloop
 import tornado.web
 import random
@@ -20,14 +22,16 @@ import base64
 from requests_toolbelt import MultipartDecoder, MultipartEncoder
 
 import base64
+import urllib
 from custom_error import BadAuthentication
 config = ConfigParser.ConfigParser()
 config.read('config.py')
 
 
 def check_udid_and_apk_version(request_handler_object):
-    request_handler_object.get_argument('apk_version') 
-    request_handler_object.get_argument('udid')
+    apk_version = str(request_handler_object.get_argument('apk_version'))
+    udid = str(request_handler_object.get_argument('udid'))
+    return (apk_version, udid)
 
 
 class SetLocationHandler(tornado.web.RequestHandler):
@@ -546,10 +550,12 @@ class GetNearbyUsers(tornado.web.RequestHandler):
     def get(self):
         response = {}
         try:
+            print 'inside get of GetNearbyUsers'
             check_udid_and_apk_version(self)
             self.radius = self.get_query_argument('radius')
             self.lat = self.get_query_argument('lat')
             self.lng = self.get_query_argument('lng')
+            print 'radius, lat, lng:::::::', self.radius, self.lat, self.lng
             users = self.get_nearby_users()
             response['status'] =settings.STATUS_200
             response['info'] = 'Success'
@@ -565,6 +571,7 @@ class GetNearbyUsers(tornado.web.RequestHandler):
 
 
     def get_nearby_users(self):
+        print 'inside get nearby users'
         query = "SELECT users.username, earth_distance(ll_to_earth(%s, %s),"\
             + " ll_to_earth(users.lat, users.lng)) as distance, users.lat AS lat, users.lng AS lng "\
             + ", string_agg(interest.interest_name, ' ,') as interests "\
@@ -576,6 +583,7 @@ class GetNearbyUsers(tornado.web.RequestHandler):
             + " GROUP BY users.username ORDER BY distance ASC;"
         variables = (self.lat, self.lng, self.lat, self.lng, self.radius)
         records = QueryHandler.get_results(query, variables)
+        print 'records:::', records
         return records
 
 
@@ -731,6 +739,134 @@ class ContactJidsHandler(tornado.web.RequestHandler):
             self.write(response)
 
 
+class NearbyUsersWithSameInterests(tornado.web.RequestHandler):
+    nearby_users = []
+    username = None
+    user_interests = []
+    user_friends = []
+    friends_interests = dict()
+    friends = dict()
+    anonymous = dict()
+
+    def get(self):
+        print 'inside get of NearbyUsersWithSameInterests'
+        response = dict()
+        try:
+            (apk_version, udid) = check_udid_and_apk_version(self)
+            self.username = str(self.get_argument('username'))
+            nearby_users = self.get_argument('nearby_users')
+            nearby_users = ast.literal_eval(nearby_users)
+            if nearby_users:
+                self.nearby_users = [str(user['username']) for user in nearby_users]
+
+            # fetch user's interests
+            query = "SELECT interest_id FROM users_interest WHERE username=%s;"
+            variables = (self.username,)
+            user_interests = QueryHandler.get_results(query, variables)
+            if user_interests:
+                self.user_interests = [interest['interest_id'] for interest in user_interests]
+
+            # fetch user's friends
+            query = "SELECT jid FROM rosterusers WHERE username=%s;"
+            variables = (self.username,)
+            users_friends = QueryHandler.get_results(query, variables)
+            if users_friends:
+                self.user_friends = [friend['jid'].split('@')[0] for friend in users_friends]
+
+            print 'nearby users::::', self.nearby_users
+            print '\n'
+            print 'user interests::::', self.user_interests
+            print '\n'
+            print 'user friends::::', self.user_friends
+
+            nearby_friends = list(set(self.nearby_users).intersection(self.user_friends))
+
+            for friend in nearby_friends:
+                self.nearby_users.pop(self.nearby_users.index(friend))
+            nearby_anonymous_users = self.nearby_users
+
+            for friend in nearby_friends:
+                query = "SELECT interest_id FROM users_interest WHERE username=%s;"
+                variables = (friend,)
+                result = QueryHandler.get_results(query, variables)
+                self.friends_interests[friend] = [interest['interest_id'] for interest in result]
+
+            for friend, interests in self.friends_interests.items():
+                int = set(interests).intersection(self.user_interests)
+                self.friends[friend] = list(int)
+
+            print 'self friends:::::::', self.friends
+
+            print '***********************************************************'
+
+            print 'nearby anonymous users:::::::', nearby_anonymous_users
+
+            # remove self user
+
+
+            # get users banned by the user
+            banned_users = []
+            query = "SELECT id FROM privacy_list WHERE username=%s;"
+            variables = (self.username,)
+            user_privacy_lists = QueryHandler.get_results(query, variables)
+            print 'user privacy lists:::::', user_privacy_lists
+            for privacy_list in user_privacy_lists:
+                query = "SELECT value FROM privacy_list_data WHERE id=%s;"
+                variables = (privacy_list['id'],)
+                result = QueryHandler.get_results(query, variables)
+                banned_users.extend(result)
+
+            anonymous_banned_users = []
+            for user in banned_users:
+                anonymous_banned_users.append(user['value'].split('@')[0])
+
+            # remove banned users from nearby_anonymous_users
+            non_banned_users = list(set(nearby_anonymous_users) - set(anonymous_banned_users))
+            print 'non banned usersssssssss:::::::', non_banned_users
+
+            # get recently online users
+            # query = "SELECT username FROM users WHERE username IN %s AND last_seen <= %s;"
+            # variables = (,)
+            # recently_online_anonymous_users = QueryHandler.get_results(query, variables)
+            recently_online_anonymous_users = ['test_4', 'test_2']
+
+            # get interests of these users
+            self.anonymous_interests = {}
+            for user in recently_online_anonymous_users:
+                query = "SELECT interest_id FROM users_interest WHERE username=%s;"
+                variables = (user,)
+                result = QueryHandler.get_results(query, variables)
+                self.anonymous_interests[user] = [interest['interest_id'] for interest in result]
+
+            # intersect with user's interests
+            self.anonymous_friends = {}
+            for user, interests in self.anonymous_interests.items():
+                int = set(interests).intersection(self.user_interests)
+                self.anonymous_friends[user] = list(int)
+
+            print 'annymoussssssssssssssssss friends with same interests:::::', self.anonymous_friends
+
+            # create anonymous users dictionary
+
+
+        except BadAuthentication, status:
+            print 'exception 1'
+            response["info"] = status.log_message
+            response["status"] = settings.STATUS_400
+        except MissingArgumentError, status:
+            print 'exception 2'
+            response["info"] = status.log_message
+            response["status"] = settings.STATUS_400
+        except Exception as e:
+            print 'exception 3'
+            print 'e:::::::', e
+            response['info'] = "Error: %s" % e
+            response['status'] = settings.STATUS_500
+        finally:
+            print 'inside finally'
+            self.write(response)
+
+
 def make_app():
     return tornado.web.Application([
                                        (r"/register", RegistrationHandler),
@@ -747,6 +883,7 @@ def make_app():
                                        (r"/set_user_interests", UserInterestHandler),
                                        (r"/set_udid", IOSSetUserDeviceId),
                                        (r"/get_contact_jids", ContactJidsHandler),
+                                       (r"/get_nearby_similar_interests_users", NearbyUsersWithSameInterests),
                                        ],
                                    autoreload = True,
                                    )
