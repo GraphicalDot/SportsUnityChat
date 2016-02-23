@@ -20,7 +20,7 @@ class QueryHandler:
         return connection
 
     @classmethod
-    def get_results(cls, query, variables):
+    def get_results(cls, query, variables=None):
         connection = cls.get_connection()
         cursor = connection.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
         print(cursor.mogrify(query, variables))
@@ -31,7 +31,7 @@ class QueryHandler:
         return results
 
     @classmethod
-    def execute(cls, query, variables):
+    def execute(cls, query, variables=None):
         connection = cls.get_connection()
         cursor = connection.cursor()
         print(cursor.mogrify(query, variables))

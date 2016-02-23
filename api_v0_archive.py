@@ -3,6 +3,8 @@ from notification_adapter import NotificationAdapter
 from tornado.log import enable_pretty_logging
 from tornado.options import options
 import ast
+import datetime
+import dateutil.relativedelta
 import magic
 import settings
 from tornado.web import MissingArgumentError
@@ -29,9 +31,8 @@ config.read('config.py')
 
 
 def check_udid_and_apk_version(request_handler_object):
-    apk_version = str(request_handler_object.get_argument('apk_version'))
-    udid = str(request_handler_object.get_argument('udid'))
-    return (apk_version, udid)
+    request_handler_object.get_argument('apk_version')
+    request_handler_object.get_argument('udid')
 
 
 class SetLocationHandler(tornado.web.RequestHandler):
@@ -550,12 +551,10 @@ class GetNearbyUsers(tornado.web.RequestHandler):
     def get(self):
         response = {}
         try:
-            print 'inside get of GetNearbyUsers'
             check_udid_and_apk_version(self)
             self.radius = self.get_query_argument('radius')
             self.lat = self.get_query_argument('lat')
             self.lng = self.get_query_argument('lng')
-            print 'radius, lat, lng:::::::', self.radius, self.lat, self.lng
             users = self.get_nearby_users()
             response['status'] =settings.STATUS_200
             response['info'] = 'Success'
@@ -569,12 +568,10 @@ class GetNearbyUsers(tornado.web.RequestHandler):
         finally:
             self.write(response)
 
-
     def get_nearby_users(self):
-        print 'inside get nearby users'
         query = "SELECT users.username, earth_distance(ll_to_earth(%s, %s),"\
             + " ll_to_earth(users.lat, users.lng)) as distance, users.lat AS lat, users.lng AS lng "\
-            + ", string_agg(interest.interest_name, ' ,') as interests "\
+            + ", string_agg(interest.interest_name, ',') as interests "\
             + " FROM users  "\
             + " left outer join users_interest on (users.username = users_interest.username) "\
             + " left outer join interest on (users_interest.interest_id = interest.interest_id)"\
@@ -583,7 +580,6 @@ class GetNearbyUsers(tornado.web.RequestHandler):
             + " GROUP BY users.username ORDER BY distance ASC;"
         variables = (self.lat, self.lng, self.lat, self.lng, self.radius)
         records = QueryHandler.get_results(query, variables)
-        print 'records:::', records
         return records
 
 
@@ -740,130 +736,87 @@ class ContactJidsHandler(tornado.web.RequestHandler):
 
 
 class NearbyUsersWithSameInterests(tornado.web.RequestHandler):
-    nearby_users = []
-    username = None
+    nearby_users_dict = {}
     user_interests = []
-    user_friends = []
-    friends_interests = dict()
-    friends = dict()
-    anonymous = dict()
+
+    def get_recently_online_anonymous_users(self):
+        current_dt = datetime.datetime.now()
+        for user in self.nearby_users_dict.keys():
+            query = "SELECT last_seen FROM users WHERE username=%s;"
+            variables = (user,)
+            last_seen = QueryHandler.get_results(query, variables)[0]['last_seen']
+            user_dt = datetime.datetime.fromtimestamp(float(last_seen))
+            relativde_td = dateutil.relativedelta.relativedelta (current_dt, user_dt)
+            if not ((relativde_td.years, relativde_td.months, relativde_td.days) == (0,0,0) and relativde_td.hours <= 1):
+                self.nearby_users_dict.pop(user)
+
+    def get_banned_users(self):
+        query = "SELECT VALUE FROM privacy_list_data, privacy_list WHERE privacy_list_data.id=privacy_list.id " \
+                "AND privacy_list.username=%s;"
+        variables = (self.username,)
+        banned_users = QueryHandler.get_results(query, variables)
+        return banned_users
+
+    def get_nearby_friends_with_same_interests(self):
+        nearby_friends = {}
+        query = "SELECT jid FROM rosterusers WHERE username=%s;"
+        result = QueryHandler.get_results(query, (self.username,))
+        user_friends = [friend['jid'].split('@')[0] for friend in result] if result else []
+        nearby = list(set(self.nearby_users_dict.keys()).intersection(user_friends))
+
+        for friend in nearby:
+            common_interests = list(set(self.nearby_users_dict.pop(friend)).intersection(self.user_interests))
+            if common_interests:
+                nearby_friends[friend] = common_interests
+        return nearby_friends
+
+    def get_nearby_anonymous_users_with_same_interests(self):
+        nearby_anonymous_users = {}
+        for banned in self.get_banned_users():
+            self.nearby_users_dict.pop(banned['value'].split('@')[0])
+        self.get_recently_online_anonymous_users()
+
+        for user, interests in self.nearby_users_dict.items():
+            common_interests = list(set(interests).intersection(self.user_interests))
+            if common_interests:
+                nearby_anonymous_users[user] = common_interests
+        return nearby_anonymous_users
 
     def get(self):
-        print 'inside get of NearbyUsersWithSameInterests'
-        response = dict()
+        response = {}
         try:
-            (apk_version, udid) = check_udid_and_apk_version(self)
+            check_udid_and_apk_version(self)
             self.username = str(self.get_argument('username'))
-            nearby_users = self.get_argument('nearby_users')
-            nearby_users = ast.literal_eval(nearby_users)
+            nearby_users = ast.literal_eval(self.get_argument('nearby_users'))
             if nearby_users:
-                self.nearby_users = [str(user['username']) for user in nearby_users]
+                for user in nearby_users:
+                    if user['interests'] != None:
+                        self.nearby_users_dict[user['username']] = user['interests'].split(',')
 
-            # fetch user's interests
-            query = "SELECT interest_id FROM users_interest WHERE username=%s;"
-            variables = (self.username,)
-            user_interests = QueryHandler.get_results(query, variables)
-            if user_interests:
-                self.user_interests = [interest['interest_id'] for interest in user_interests]
+                self.user_interests = self.nearby_users_dict.pop(self.username)     # fetch user's interests
+                if self.user_interests != ['']:
+                    nearby_friends = self.get_nearby_friends_with_same_interests()      # get friends with similar interests
+                    nearby_anonymous_users = self.get_nearby_anonymous_users_with_same_interests()     # get anonymous users with similar interests
 
-            # fetch user's friends
-            query = "SELECT jid FROM rosterusers WHERE username=%s;"
-            variables = (self.username,)
-            users_friends = QueryHandler.get_results(query, variables)
-            if users_friends:
-                self.user_friends = [friend['jid'].split('@')[0] for friend in users_friends]
-
-            print 'nearby users::::', self.nearby_users
-            print '\n'
-            print 'user interests::::', self.user_interests
-            print '\n'
-            print 'user friends::::', self.user_friends
-
-            nearby_friends = list(set(self.nearby_users).intersection(self.user_friends))
-
-            for friend in nearby_friends:
-                self.nearby_users.pop(self.nearby_users.index(friend))
-            nearby_anonymous_users = self.nearby_users
-
-            for friend in nearby_friends:
-                query = "SELECT interest_id FROM users_interest WHERE username=%s;"
-                variables = (friend,)
-                result = QueryHandler.get_results(query, variables)
-                self.friends_interests[friend] = [interest['interest_id'] for interest in result]
-
-            for friend, interests in self.friends_interests.items():
-                int = set(interests).intersection(self.user_interests)
-                self.friends[friend] = list(int)
-
-            print 'self friends:::::::', self.friends
-
-            print '***********************************************************'
-
-            print 'nearby anonymous users:::::::', nearby_anonymous_users
-
-            # remove self user
-
-
-            # get users banned by the user
-            banned_users = []
-            query = "SELECT id FROM privacy_list WHERE username=%s;"
-            variables = (self.username,)
-            user_privacy_lists = QueryHandler.get_results(query, variables)
-            print 'user privacy lists:::::', user_privacy_lists
-            for privacy_list in user_privacy_lists:
-                query = "SELECT value FROM privacy_list_data WHERE id=%s;"
-                variables = (privacy_list['id'],)
-                result = QueryHandler.get_results(query, variables)
-                banned_users.extend(result)
-
-            anonymous_banned_users = []
-            for user in banned_users:
-                anonymous_banned_users.append(user['value'].split('@')[0])
-
-            # remove banned users from nearby_anonymous_users
-            non_banned_users = list(set(nearby_anonymous_users) - set(anonymous_banned_users))
-            print 'non banned usersssssssss:::::::', non_banned_users
-
-            # get recently online users
-            # query = "SELECT username FROM users WHERE username IN %s AND last_seen <= %s;"
-            # variables = (,)
-            # recently_online_anonymous_users = QueryHandler.get_results(query, variables)
-            recently_online_anonymous_users = ['test_4', 'test_2']
-
-            # get interests of these users
-            self.anonymous_interests = {}
-            for user in recently_online_anonymous_users:
-                query = "SELECT interest_id FROM users_interest WHERE username=%s;"
-                variables = (user,)
-                result = QueryHandler.get_results(query, variables)
-                self.anonymous_interests[user] = [interest['interest_id'] for interest in result]
-
-            # intersect with user's interests
-            self.anonymous_friends = {}
-            for user, interests in self.anonymous_interests.items():
-                int = set(interests).intersection(self.user_interests)
-                self.anonymous_friends[user] = list(int)
-
-            print 'annymoussssssssssssssssss friends with same interests:::::', self.anonymous_friends
-
-            # create anonymous users dictionary
-
-
+                    response['result'] = {'friends': nearby_friends, 'anonymous': nearby_anonymous_users}
+                    response['info'] = settings.SUCCESS_RESPONSE
+                    response['status'] = settings.STATUS_200
+                else:
+                    response['info'] = "Bad Request: This user has NO interests!"
+                    response['status'] = settings.STATUS_400
+            else:
+                response['info'] = "Bad Request: User has no users nearby!"
+                response['status'] = settings.STATUS_400
         except BadAuthentication, status:
-            print 'exception 1'
             response["info"] = status.log_message
             response["status"] = settings.STATUS_400
         except MissingArgumentError, status:
-            print 'exception 2'
             response["info"] = status.log_message
             response["status"] = settings.STATUS_400
         except Exception as e:
-            print 'exception 3'
-            print 'e:::::::', e
             response['info'] = "Error: %s" % e
             response['status'] = settings.STATUS_500
         finally:
-            print 'inside finally'
             self.write(response)
 
 
