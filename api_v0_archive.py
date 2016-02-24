@@ -8,6 +8,7 @@ from tornado.web import MissingArgumentError
 import time
 import uuid
 import tornado.ioloop
+import tornado.autoreload
 import tornado.web
 import random
 import tornado
@@ -742,29 +743,57 @@ class ContactJidsHandler(RequestHandler):
             self.write(response)
 
 
+class AdminPage(tornado.web.RequestHandler):
+    def get(self):
+        html = self.render_string("admin.html")
+        self.render("admin.html")
+
+
+class AdminSelectUsers(tornado.web.RequestHandler):
+
+    def get(self):
+        query = "SELECT username,lat,lng,fb_id,fb_name,last_seen,is_available,is_banned FROM users LIMIT 40;"
+        try:
+            result = QueryHandler.get_results(query)
+            self.render("select_users.html", users=result)
+        except Exception as e:
+            raise e
+
+
 def make_app():
     return tornado.web.Application([
-                                       (r"/register", RegistrationHandler),
-                                       (r"/create", CreationHandler),
-                                       (r"/set_location", SetLocationHandler),
-                                       (r"/retrieve_nearby_users", GetNearbyUsers),
-                                       (r"/fb_friends", FacebookHandler),
-                                       (r"/football_notifications", FootballEvents),
-                                       (r"/tennis_notifications", TennisEvents),
-                                       (r"/media", MediaHandler),
-                                       (r"/media_present", MediaPresentHandler),
-                                       (r"/media_multipart", IOSMediaHandler),
-                                       (r"/cricket_notifications", CricketEvents),
-                                       (r"/set_user_interests", UserInterestHandler),
-                                       (r"/set_udid", IOSSetUserDeviceId),
-                                       (r"/get_contact_jids", ContactJidsHandler),
-                                       ],
-                                   autoreload = True,
-                                   )
+        (r"/register", RegistrationHandler),
+        (r"/create", CreationHandler),
+        (r"/set_location", SetLocationHandler),
+        (r"/retrieve_nearby_users", GetNearbyUsers),
+        (r"/fb_friends", FacebookHandler),
+        (r"/football_notifications", FootballEvents),
+        (r"/tennis_notifications", TennisEvents),
+        (r"/media", MediaHandler),
+        (r"/media_present", MediaPresentHandler),
+        (r"/media_multipart", IOSMediaHandler),
+        (r"/cricket_notifications", CricketEvents),
+        (r"/set_user_interests", UserInterestHandler),
+        (r"/set_udid", IOSSetUserDeviceId),
+        (r"/get_contact_jids", ContactJidsHandler),
+
+        (r"/admin", AdminPage),
+        (r"/get_users", AdminSelectUsers),
+    ],
+        autoreload = True,
+    )
+
+
+def add_templates_for_tornado_watch(watched_files):
+    for file in watched_files:
+        tornado.autoreload.watch(file)
+
 
 if __name__ == "__main__":
     app = make_app()
     options.log_file_prefix  = "tornado_log"
     enable_pretty_logging(options=options)
     app.listen(int(config.get('tornado', 'listening_port')))
+    tornado.autoreload.start()
+    add_templates_for_tornado_watch(['admin.html', 'select_users.html'])
     tornado.ioloop.IOLoop.current().start()
