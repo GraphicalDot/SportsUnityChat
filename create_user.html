@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>SportsUnity Admin Create User Page</title>
+</head>
+<body>
+    <form action="{{ request.path }}" method="post">
+        <div style="margin-bottom: 1em;">{{ _("Username") }} <input type="text" name="username"/></div>
+        <div style="margin-bottom: 1em;">{{ _("Password") }} <input type="password" name="password"/></div>
+        <div style="margin-bottom: 1em;">{{ _("Latitude") }} <input type="text" name="lat"/></div>
+        <div style="margin-bottom: 1em;">{{ _("Longitude") }} <input type="text" name="lng"/></div>
+        <div style="margin-bottom: 1em;">{{ _("Facebook ID") }} <input type="number" name="fb_id"/></div>
+        <div style="margin-bottom: 1em;">{{ _("Facebook Name") }} <input type="text" name="fb_name"/></div>
+        <div style="margin-bottom: 1em;">{{ _("Apple UDID") }} <input type="text" name="apple_udid"/></div>
+        <div style="margin-bottom: 1em;">{{ _("Phone Number") }} <input type="text" name="phone_number"/></div>
+        <div><input style="padding: 0.5em;" type="submit" value="{{ _("Create User") }}"/></div>
+        {% module xsrf_form_html() %}
+    </form>
+</body>
+</html>
