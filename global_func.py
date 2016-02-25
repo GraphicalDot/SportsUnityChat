@@ -31,7 +31,7 @@ class QueryHandler:
         return results
 
     @classmethod
-    def execute(cls, query, variables):
+    def execute(cls, query, variables=None):
         connection = cls.get_connection()
         cursor = connection.cursor()
         print(cursor.mogrify(query, variables))

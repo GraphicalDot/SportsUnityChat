@@ -1,4 +1,3 @@
-from celery.bin.celery import result
 from global_func import QueryHandler, S3Handler, merge_dicts
 from notification_adapter import NotificationAdapter
 from tornado.log import enable_pretty_logging
@@ -23,6 +22,7 @@ from requests_toolbelt import MultipartDecoder, MultipartEncoder
 
 import base64
 from custom_error import BadAuthentication
+import admin_api
 config = ConfigParser.ConfigParser()
 config.read('config.py')
 
@@ -744,53 +744,6 @@ class ContactJidsHandler(RequestHandler):
             self.write(response)
 
 
-class AdminPage(tornado.web.RequestHandler):
-    def get(self):
-        html = self.render_string("admin.html")
-        self.render("admin.html")
-
-
-class AdminSelectUsers(tornado.web.RequestHandler):
-    def get(self):
-        query = "SELECT username,lat,lng,fb_id,fb_name,last_seen,is_available,is_banned FROM users LIMIT 40;"
-        try:
-            result = QueryHandler.get_results(query)
-            self.render("select_users.html", users=result)
-        except Exception as e:
-            raise e
-
-
-class AdminCreateUser(tornado.web.RequestHandler):
-    def get(self):
-        try:
-            self.render("create_user.html", request=self.request)
-        except Exception as e:
-            raise e
-
-    def post(self):
-        response = {}
-        try:
-            username = self.get_body_argument("username")
-            password = self.get_body_argument("password")
-            lat = self.get_body_argument("lat", default=0.0)
-            lng = self.get_body_argument("lng", default=0.0)
-            fb_id = self.get_body_argument("fb_id", default="")
-            fb_name = self.get_body_argument("fb_name", default="")
-            apple_udid = self.get_body_argument("apple_udid", default="")
-            phone_number = self.get_argument("phone_number", default="")
-
-            query = "INSERT INTO users(username,password,lat,lng,fb_id,fb_name,apple_udid,phone_number) VALUES(%s, %s, %s, %s, %s, %s, %s, %s);"
-            variables = (username, password, lat, lng, fb_id, fb_name, apple_udid, phone_number)
-            QueryHandler.execute(query, variables)
-
-            response['info'] = settings.SUCCESS_RESPONSE
-            response['status'] = settings.STATUS_200
-        except Exception as e:
-            response['info'] = "Error: %s" % e
-            response['status'] = settings.STATUS_500
-        finally:
-            self.write(response)
-
 
 def make_app():
     return tornado.web.Application([
@@ -809,9 +762,11 @@ def make_app():
         (r"/set_udid", IOSSetUserDeviceId),
         (r"/get_contact_jids", ContactJidsHandler),
 
-        (r"/admin", AdminPage),
-        (r"/get_users", AdminSelectUsers),
-        (r"/create_user", AdminCreateUser),
+        (r"/admin", admin_api.AdminPage),
+        (r"/get_users", admin_api.AdminSelectUsers),
+        (r"/create_user", admin_api.AdminCreateUser),
+        (r"/update_user", admin_api.AdminUpdateUser),
+        (r"/delete_user", admin_api.AdminDeleteUser),
     ],
         autoreload = True,
     )
@@ -828,5 +783,5 @@ if __name__ == "__main__":
     enable_pretty_logging(options=options)
     app.listen(int(config.get('tornado', 'listening_port')))
     tornado.autoreload.start()
-    add_templates_for_tornado_watch(['admin.html', 'select_users.html', 'create_user.html'])
+    add_templates_for_tornado_watch(['admin.html', 'select_users.html', 'create_user.html', 'update_user.html', 'delete_user.html'])
     tornado.ioloop.IOLoop.current().start()

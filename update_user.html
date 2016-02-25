@@ -6,15 +6,14 @@
 </head>
 <body>
     <form action="{{ request.path }}" method="post">
-        <div style="margin-bottom: 1em;">{{ _("Username") }} <input type="text" name="username" required/></div>
-        <div style="margin-bottom: 1em;">{{ _("Password") }} <input type="password" name="password" required/></div>
+        <div style="margin-bottom: 1em;">{{ _("Phone Number") }} <input type="text" name="phone_number" required/></div>
         <div style="margin-bottom: 1em;">{{ _("Latitude") }} <input type="text" name="lat"/></div>
         <div style="margin-bottom: 1em;">{{ _("Longitude") }} <input type="text" name="lng"/></div>
         <div style="margin-bottom: 1em;">{{ _("Facebook ID") }} <input type="number" name="fb_id"/></div>
         <div style="margin-bottom: 1em;">{{ _("Facebook Name") }} <input type="text" name="fb_name"/></div>
+        <div style="margin-bottom: 1em;">{{ _("Is Available") }} <input type="checkbox" name="is_available"/></div>
         <div style="margin-bottom: 1em;">{{ _("Apple UDID") }} <input type="text" name="apple_udid"/></div>
-        <div style="margin-bottom: 1em;">{{ _("Phone Number") }} <input type="text" name="phone_number" required/></div>
-        <div><input style="padding: 0.5em;" type="submit" value="{{ _("Create User") }}"/></div>
+        <div><input style="padding: 0.5em;" type="submit" value="{{ _("Update User") }}"/></div>
         {% module xsrf_form_html() %}
     </form>
 </body>
