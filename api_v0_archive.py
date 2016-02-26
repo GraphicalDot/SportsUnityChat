@@ -2,11 +2,15 @@ from global_func import QueryHandler, S3Handler, merge_dicts
 from notification_adapter import NotificationAdapter
 from tornado.log import enable_pretty_logging
 from tornado.options import options
+import ast
+import datetime
+import dateutil.relativedelta
 import magic
 import settings
 from tornado.web import MissingArgumentError
 import time
 import uuid
+import tornado.escape
 import tornado.ioloop
 import tornado.web
 import random
@@ -20,18 +24,20 @@ import base64
 from requests_toolbelt import MultipartDecoder, MultipartEncoder
 
 import base64
+import urllib
 from custom_error import BadAuthentication
 config = ConfigParser.ConfigParser()
 config.read('config.py')
 
-
-class RequestHandler(tornado.web.RequestHandler):
-    def prepare(self):
-        self.request.arguments = merge_dicts([self.request.arguments, json.loads(self.request.body)])
-
+def merge_body_arguments(request_handler_object):
+    try:
+        request_handler_object.request.arguments.update(json.loads(request_handler_object.request.body))
+        return request_handler_object.request.arguments
+    except ValueError:
+        return request_handler_object.request.arguments
 
 def check_udid_and_apk_version(request_handler_object):
-    request_handler_object.get_argument('apk_version') 
+    request_handler_object.get_argument('apk_version')
     request_handler_object.get_argument('udid')
 
 
@@ -547,43 +553,6 @@ class IOSMediaHandler(tornado.web.RequestHandler):
             self.write(response)
 
 
-class GetNearbyUsers(tornado.web.RequestHandler):
-    def get(self):
-        response = {}
-        try:
-            check_udid_and_apk_version(self)
-            self.radius = self.get_argument('radius')
-            self.lat = self.get_argument('lat')
-            self.lng = self.get_argument('lng')
-            users = self.get_nearby_users()
-            response['status'] =settings.STATUS_200
-            response['info'] = 'Success'
-            response['users'] = users
-        except MissingArgumentError, status:
-            response["info"] = status.log_message 
-            response["status"] =settings.STATUS_400
-        except Exception, e:
-            response['status'] = settings.STATUS_500
-            response['info'] = 'Error: %s' % e
-        finally:
-            self.write(response)
-
-
-    def get_nearby_users(self):
-        query = "SELECT users.username, earth_distance(ll_to_earth(%s, %s),"\
-            + " ll_to_earth(users.lat, users.lng)) as distance, users.lat AS lat, users.lng AS lng "\
-            + ", string_agg(interest.interest_name, ' ,') as interests "\
-            + " FROM users  "\
-            + " left outer join users_interest on (users.username = users_interest.username) "\
-            + " left outer join interest on (users_interest.interest_id = interest.interest_id)"\
-            + " WHERE earth_box(ll_to_earth(%s, %s),  %s) @> ll_to_earth(users.lat, users.lng) AND  "\
-            + " is_available = True "\
-            + " GROUP BY users.username ORDER BY distance ASC;"
-        variables = (self.lat, self.lng, self.lat, self.lng, self.radius)
-        records = QueryHandler.get_results(query, variables)
-        return records
-
-
 class UserInterestHandler(tornado.web.RequestHandler):
     """
     This class creates a link between users and interests. The interests have to
@@ -680,7 +649,7 @@ class CricketEvents(tornado.web.RequestHandler):
             NotificationAdapter(event, "Cricket").notify()
 
 
-class ContactJidsHandler(RequestHandler):
+class ContactJidsHandler(tornado.web.RequestHandler):
     """
     This class handles the retrival of jids in the contact list
     of the user
@@ -708,11 +677,12 @@ class ContactJidsHandler(RequestHandler):
 
     def post(self):
         response = {}
+        self.request.arguments = merge_body_arguments(self)
         try:
             check_udid_and_apk_version(self)
-            username = self.request.arguments['username']
-            password = self.request.arguments['password']
-            contacts = self.request.arguments['contacts'] 
+            username = self.get_argument('username')
+            password = self.get_argument('password')
+            contacts = self.get_arguments('contacts') 
             assert type(contacts) == list 
             contacts = map(lambda x: str(x), contacts)
             user = User(username = username, password = password)
@@ -742,12 +712,95 @@ class ContactJidsHandler(RequestHandler):
             self.write(response)
 
 
+class GetNearbyUsers(tornado.web.RequestHandler):
+
+    def get_nearby_users(self):
+        query = "WITH uinterest AS "\
+            + "      ( "\
+            + "            SELECT array_agg(interest.interest_name) AS uinterest FROM interest, users_interest  "\
+            + "            WHERE users_interest.username = %s AND users_interest.interest_id = interest.interest_id "\
+            + "      ),"\
+            + " banned_users AS "\
+            + "      ("\
+            + "            SELECT split_part(privacy_list_data.value, '@', 1) AS bjids "\
+            + "            FROM privacy_list_data, privacy_list "\
+            + "            WHERE privacy_list.username = %s "\
+            + "                  AND privacy_list.id = privacy_list_data.id "\
+            + "                  AND privacy_list_data.action = 'd' "\
+            + "                  AND privacy_list_data.value IS NOT NULL "\
+            + "      )"\
+            + " SELECT DISTINCT ON (users.username) "\
+            + "      users.username , "\
+            + "      earth_distance(ll_to_earth(%s, %s), ll_to_earth(users.lat, users.lng)) as distance, "\
+            + "      users.lat AS lat, "\
+            + "      users.lng AS lng, "\
+            + "      array_intersect(array_agg(interest.interest_name), uinterest.uinterest) as interests, "\
+            + "      CASE WHEN EXISTS (SELECT 1 from rosterusers WHERE username = %s "\
+            + "         AND users.username = split_part(rosterusers.jid, '@', 1)) "\
+            + "      THEN 'friends' "\
+            + "      ELSE 'anonymous' "\
+            + "      END AS friendship_status "\
+            + "      FROM uinterest, users "\
+            + "      LEFT OUTER JOIN users_interest on (users.username = users_interest.username) "\
+            + "      LEFT OUTER JOIN interest on (users_interest.interest_id = interest.interest_id)"\
+            + " WHERE earth_box(ll_to_earth(%s, %s),  %s) @> ll_to_earth(users.lat, users.lng)  "\
+            + "      AND CASE WHEN isnumeric(last_seen) THEN last_seen::float ELSE 0 END >=  %s "\
+            + "      AND users.username != %s "\
+            + "      AND users.username NOT IN  "\
+            + "      ("\
+            + "      ( SELECT bjids FROM banned_users)"\
+            + "      )"\
+            + " GROUP BY  friendship_status, users.username, uinterest.uinterest  "\
+            + " ORDER BY users.username, friendship_status DESC;"
+        variables = (self.username, 
+                self.username, 
+                self.lat, 
+                self.lng, 
+                self.username,  
+                self.lat, 
+                self.lng, 
+                self.radius, 
+                int(time.time() - self.was_online_limit),
+                self.username
+        )
+        records = QueryHandler.get_results(query, variables)
+        return records
+
+    def get(self):
+        response = {}
+        self.request.arguments = merge_body_arguments(self)
+        try:
+            check_udid_and_apk_version(self)
+            self.username = str(self.get_argument('username'))
+            self.password = str(self.get_argument('password'))
+            user = User(username = self.username, password = self.password)
+            user.authenticate()
+            self.was_online_limit = int(config.get('nearby_users', 'was_online_limit'))
+            self.radius = self.get_argument('radius')
+            self.lat = self.get_argument('lat')
+            self.lng = self.get_argument('lng')
+            nearby_users = self.get_nearby_users()            
+            response['users'] = nearby_users
+            response['info'] = settings.SUCCESS_RESPONSE
+            response['status'] = settings.STATUS_200
+        except BadAuthentication, status:
+            response["info"] = status.log_message
+            response["status"] = settings.STATUS_400
+        except MissingArgumentError, status:
+            response["info"] = status.log_message
+            response["status"] = settings.STATUS_400
+        except Exception as e:
+            response['info'] = "Error: %s" % e
+            response['status'] = settings.STATUS_500
+        finally:
+            self.write(response)
+
 def make_app():
     return tornado.web.Application([
                                        (r"/register", RegistrationHandler),
                                        (r"/create", CreationHandler),
                                        (r"/set_location", SetLocationHandler),
-                                       (r"/retrieve_nearby_users", GetNearbyUsers),
+                                       (r"/get_nearby_users", GetNearbyUsers),
                                        (r"/fb_friends", FacebookHandler),
                                        (r"/football_notifications", FootballEvents),
                                        (r"/tennis_notifications", TennisEvents),
@@ -757,7 +810,7 @@ def make_app():
                                        (r"/cricket_notifications", CricketEvents),
                                        (r"/set_user_interests", UserInterestHandler),
                                        (r"/set_udid", IOSSetUserDeviceId),
-                                       (r"/get_contact_jids", ContactJidsHandler),
+                                       (r"/get_contact_jids", ContactJidsHandler)
                                        ],
                                    autoreload = True,
                                    )
