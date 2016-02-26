@@ -29,6 +29,12 @@ from custom_error import BadAuthentication
 config = ConfigParser.ConfigParser()
 config.read('config.py')
 
+def merge_body_arguments(request_handler_object):
+    try:
+        request_handler_object.request.arguments.update(json.loads(request_handler_object.request.body))
+        return request_handler_object.request.arguments
+    except ValueError:
+        return request_handler_object.request.arguments
 
 def check_udid_and_apk_version(request_handler_object):
     request_handler_object.get_argument('apk_version')
@@ -546,43 +552,6 @@ class IOSMediaHandler(tornado.web.RequestHandler):
         finally:
             self.write(response)
 
-
-class GetNearbyUsers(tornado.web.RequestHandler):
-    def get(self):
-        response = {}
-        try:
-            check_udid_and_apk_version(self)
-            self.radius = self.get_query_argument('radius')
-            self.lat = self.get_query_argument('lat')
-            self.lng = self.get_query_argument('lng')
-            users = self.get_nearby_users()
-            response['status'] =settings.STATUS_200
-            response['info'] = 'Success'
-            response['users'] = users
-        except MissingArgumentError, status:
-            response["info"] = status.log_message 
-            response["status"] =settings.STATUS_400
-        except Exception, e:
-            response['status'] = settings.STATUS_500
-            response['info'] = 'Error: %s' % e
-        finally:
-            self.write(response)
-
-    def get_nearby_users(self):
-        query = "SELECT users.username, earth_distance(ll_to_earth(%s, %s),"\
-            + " ll_to_earth(users.lat, users.lng)) as distance, users.lat AS lat, users.lng AS lng "\
-            + ", string_agg(interest.interest_name, ',') as interests "\
-            + " FROM users  "\
-            + " left outer join users_interest on (users.username = users_interest.username) "\
-            + " left outer join interest on (users_interest.interest_id = interest.interest_id)"\
-            + " WHERE earth_box(ll_to_earth(%s, %s),  %s) @> ll_to_earth(users.lat, users.lng) AND  "\
-            + " is_available = True "\
-            + " GROUP BY users.username ORDER BY distance ASC;"
-        variables = (self.lat, self.lng, self.lat, self.lng, self.radius)
-        records = QueryHandler.get_results(query, variables)
-        return records
-
-
 class UserInterestHandler(tornado.web.RequestHandler):
     """
     This class creates a link between users and interests. The interests have to
@@ -735,78 +704,78 @@ class ContactJidsHandler(tornado.web.RequestHandler):
             self.write(response)
 
 
-class NearbyUsersWithSameInterests(tornado.web.RequestHandler):
-    nearby_users_dict = {}
-    user_interests = []
+class GetNearbyUsers(tornado.web.RequestHandler):
 
-    def get_recently_online_anonymous_users(self):
-        current_dt = datetime.datetime.now()
-        for user in self.nearby_users_dict.keys():
-            query = "SELECT last_seen FROM users WHERE username=%s;"
-            variables = (user,)
-            last_seen = QueryHandler.get_results(query, variables)[0]['last_seen']
-            user_dt = datetime.datetime.fromtimestamp(float(last_seen))
-            relativde_td = dateutil.relativedelta.relativedelta (current_dt, user_dt)
-            if not ((relativde_td.years, relativde_td.months, relativde_td.days) == (0,0,0) and relativde_td.hours <= 1):
-                self.nearby_users_dict.pop(user)
-
-    def get_banned_users(self):
-        query = "SELECT VALUE FROM privacy_list_data, privacy_list WHERE privacy_list_data.id=privacy_list.id " \
-                "AND privacy_list.username=%s;"
-        variables = (self.username,)
-        banned_users = QueryHandler.get_results(query, variables)
-        return banned_users
-
-    def get_nearby_friends_with_same_interests(self):
-        nearby_friends = {}
-        query = "SELECT jid FROM rosterusers WHERE username=%s;"
-        result = QueryHandler.get_results(query, (self.username,))
-        user_friends = [friend['jid'].split('@')[0] for friend in result] if result else []
-        nearby = list(set(self.nearby_users_dict.keys()).intersection(user_friends))
-
-        for friend in nearby:
-            common_interests = list(set(self.nearby_users_dict.pop(friend)).intersection(self.user_interests))
-            if common_interests:
-                nearby_friends[friend] = common_interests
-        return nearby_friends
-
-    def get_nearby_anonymous_users_with_same_interests(self):
-        nearby_anonymous_users = {}
-        for banned in self.get_banned_users():
-            self.nearby_users_dict.pop(banned['value'].split('@')[0])
-        self.get_recently_online_anonymous_users()
-
-        for user, interests in self.nearby_users_dict.items():
-            common_interests = list(set(interests).intersection(self.user_interests))
-            if common_interests:
-                nearby_anonymous_users[user] = common_interests
-        return nearby_anonymous_users
+    def get_nearby_users(self):
+        query = "WITH uinterest AS "\
+            + "      ( "\
+            + "            SELECT array_agg(interest.interest_name) AS uinterest FROM interest, users_interest  "\
+            + "            WHERE users_interest.username = %s AND users_interest.interest_id = interest.interest_id "\
+            + "      ),"\
+            + " banned_users AS "\
+            + "      ("\
+            + "            SELECT split_part(privacy_list_data.value, '@', 1) AS bjids "\
+            + "            FROM privacy_list_data, privacy_list "\
+            + "            WHERE privacy_list.username = %s "\
+            + "                  AND privacy_list.id = privacy_list_data.id "\
+            + "                  AND privacy_list_data.action = 'd' "\
+            + "                  AND privacy_list_data.value IS NOT NULL "\
+            + "      )"\
+            + " SELECT DISTINCT ON (users.username) "\
+            + "      users.username , "\
+            + "      earth_distance(ll_to_earth(%s, %s), ll_to_earth(users.lat, users.lng)) as distance, "\
+            + "      users.lat AS lat, "\
+            + "      users.lng AS lng, "\
+            + "      users.last_seen AS last_seen, "\
+            + "      array_intersect(array_agg(interest.interest_name), uinterest.uinterest) as interests, "\
+            + "      CASE WHEN EXISTS (SELECT 1 from rosterusers WHERE username = %s "\
+            + "         AND users.username = split_part(rosterusers.jid, '@', 1)) "\
+            + "      THEN 'friends' "\
+            + "      ELSE 'anonymous' "\
+            + "      END AS friendship_status "\
+            + "      FROM uinterest, users "\
+            + "      LEFT OUTER JOIN users_interest on (users.username = users_interest.username) "\
+            + "      LEFT OUTER JOIN interest on (users_interest.interest_id = interest.interest_id)"\
+            + " WHERE earth_box(ll_to_earth(%s, %s),  %s) @> ll_to_earth(users.lat, users.lng)  "\
+            + "      AND CASE WHEN isnumeric(last_seen) THEN last_seen::float ELSE 0 END >=  %s "\
+            + "      AND users.username != %s "\
+            + "      AND users.username NOT IN  "\
+            + "      ("\
+            + "      ( SELECT bjids FROM banned_users)"\
+            + "      )"\
+            + " GROUP BY  friendship_status, users.username, uinterest.uinterest  "\
+            + " ORDER BY users.username, friendship_status DESC;"
+        variables = (self.username, 
+                self.username, 
+                self.lat, 
+                self.lng, 
+                self.username,  
+                self.lat, 
+                self.lng, 
+                self.radius, 
+                int(time.time() - self.was_online_limit),
+                self.username
+        )
+        records = QueryHandler.get_results(query, variables)
+        return records
 
     def get(self):
         response = {}
+        self.request.arguments = merge_body_arguments(self)
         try:
             check_udid_and_apk_version(self)
             self.username = str(self.get_argument('username'))
-            nearby_users = ast.literal_eval(self.get_argument('nearby_users'))
-            if nearby_users:
-                for user in nearby_users:
-                    if user['interests'] != None:
-                        self.nearby_users_dict[user['username']] = user['interests'].split(',')
-
-                self.user_interests = self.nearby_users_dict.pop(self.username)     # fetch user's interests
-                if self.user_interests != ['']:
-                    nearby_friends = self.get_nearby_friends_with_same_interests()      # get friends with similar interests
-                    nearby_anonymous_users = self.get_nearby_anonymous_users_with_same_interests()     # get anonymous users with similar interests
-
-                    response['result'] = {'friends': nearby_friends, 'anonymous': nearby_anonymous_users}
-                    response['info'] = settings.SUCCESS_RESPONSE
-                    response['status'] = settings.STATUS_200
-                else:
-                    response['info'] = "Bad Request: This user has NO interests!"
-                    response['status'] = settings.STATUS_400
-            else:
-                response['info'] = "Bad Request: User has no users nearby!"
-                response['status'] = settings.STATUS_400
+            self.password = str(self.get_argument('password'))
+            user = User(username = self.username, password = self.password)
+            user.authenticate()
+            self.was_online_limit = int(config.get('nearby_users', 'was_online_limit'))
+            self.radius = self.get_argument('radius')
+            self.lat = self.get_argument('lat')
+            self.lng = self.get_argument('lng')
+            nearby_users = self.get_nearby_users()            
+            response['users'] = nearby_users
+            response['info'] = settings.SUCCESS_RESPONSE
+            response['status'] = settings.STATUS_200
         except BadAuthentication, status:
             response["info"] = status.log_message
             response["status"] = settings.STATUS_400
@@ -819,13 +788,12 @@ class NearbyUsersWithSameInterests(tornado.web.RequestHandler):
         finally:
             self.write(response)
 
-
 def make_app():
     return tornado.web.Application([
                                        (r"/register", RegistrationHandler),
                                        (r"/create", CreationHandler),
                                        (r"/set_location", SetLocationHandler),
-                                       (r"/retrieve_nearby_users", GetNearbyUsers),
+                                       (r"/get_nearby_users", GetNearbyUsers),
                                        (r"/fb_friends", FacebookHandler),
                                        (r"/football_notifications", FootballEvents),
                                        (r"/tennis_notifications", TennisEvents),
@@ -835,8 +803,7 @@ def make_app():
                                        (r"/cricket_notifications", CricketEvents),
                                        (r"/set_user_interests", UserInterestHandler),
                                        (r"/set_udid", IOSSetUserDeviceId),
-                                       (r"/get_contact_jids", ContactJidsHandler),
-                                       (r"/get_nearby_similar_interests_users", NearbyUsersWithSameInterests),
+                                       (r"/get_contact_jids", ContactJidsHandler)
                                        ],
                                    autoreload = True,
                                    )
