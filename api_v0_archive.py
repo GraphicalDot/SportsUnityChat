@@ -440,8 +440,7 @@ class MediaHandler(tornado.web.RequestHandler):
         response = {}
         try:
             check_udid_and_apk_version(self)
-            file_name = self.request.headers['Checksum']
-            file_name = "media/" + file_name
+            file_name = "media/" + self.request.headers['Checksum']
             if not os.path.isfile(file_name):
                 media_file = open(file_name, 'w')
                 media_file.write(self.file_content)
@@ -449,7 +448,7 @@ class MediaHandler(tornado.web.RequestHandler):
             response['status'] =settings.STATUS_200
             response['info'] = 'Success'
         except MissingArgumentError, status:
-            response["info"] = status.log_message 
+            response["info"] = status.log_message
             response["status"] =settings.STATUS_400
         except Exception, e:
             response['status'] = settings.STATUS_500
@@ -461,18 +460,14 @@ class MediaHandler(tornado.web.RequestHandler):
         try:
             response = {}
             check_udid_and_apk_version(self)
-            file_name = "media/" + self.get_arguments("name")[0]
+            file_name = "media/" + self.get_argument("name")
             if os.path.isfile(file_name):
                 with open(file_name, 'r') as file_content:
-                    file_size = 0
                     while 1:
                         data = file_content.read(16384) # or some other nice-sized chunk
                         if not data:
                             break
-                        file_size += len(data)
                         self.write(data)
-                    self.request.headers['Content-Length', file_size]
-                    self.add_header('Content-Length', file_size)
                     file_content.close()
                     self.finish()
             else:
@@ -481,7 +476,7 @@ class MediaHandler(tornado.web.RequestHandler):
                 self.write(response)
         except MissingArgumentError, status:
             response["info"] = status.log_message 
-            response["status"] =settings.STATUS_400
+            response["status"] = settings.STATUS_400
         except Exception, e:
             response['status'] = settings.STATUS_500
             response['info'] = 'error is: %s' % e

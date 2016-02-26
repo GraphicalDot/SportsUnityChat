@@ -68,7 +68,7 @@ class UserTest(unittest.TestCase):
             raise AssertionError
 
         try:
-            fraud_user.authenticate() 
+            fraud_user.authenticate()
         except BadAuthentication:
             pass
 
@@ -111,7 +111,7 @@ class CreationTest(AsyncHTTPTestCase):
 
         variables = (self._phone_number, )
         record = QueryHandler.get_results(query, variables)
-        
+
         assert record
         self.assertEqual(settings.STATUS_200, json.loads(response.body)['status'])
 
@@ -166,11 +166,11 @@ class CreationTest(AsyncHTTPTestCase):
         variables = (self._phone_number,)
         record = QueryHandler.get_results(query, variables)
         self.assertEqual(len(record), 0)
-        
+
         expiration_time = int(time.time()) + int(config.get('registration', 'expiry_period_sec'))
         query = " INSERT INTO registered_users (authorization_code, expiration_time, phone_number) VALUES ( %s, %s, %s); "
         variables = (self._auth_code, expiration_time, self._phone_number)
-        QueryHandler.execute(query, variables)        
+        QueryHandler.execute(query, variables)
 
         self.http_client.fetch(self.get_url(self._creation_url), self.stop)
         response = self.wait(timeout=20)
@@ -185,7 +185,7 @@ class CreationTest(AsyncHTTPTestCase):
 
         query = " INSERT INTO registered_users (authorization_code, expiration_time, phone_number) VALUES ( %s, %s, %s); "
         variables = (self._auth_code, expiration_time, self._phone_number)
-        QueryHandler.execute(query, variables)        
+        QueryHandler.execute(query, variables)
 
         # invalid url params
         faulty_creation_url = "/create?phone_number=" + str(self._phone_number) \
@@ -229,7 +229,7 @@ class CreationTest(AsyncHTTPTestCase):
 #         self.http_client.fetch(
 #             self.get_url(self._get_facebook_friends), self.stop)
 #         self.wait(timeout=20)
-        
+
 #         query = " SELECT * FROM users WHERE fb_id = %s ;"
 #         results = QueryHandler.get_results(query, (self._facebook_id, ))
 #         self.assertEqual(results[0]['username'], str.split(self._id, '@')[0])
@@ -247,7 +247,7 @@ class CreationTest(AsyncHTTPTestCase):
 #         super(ProfilePicServiceTest, self).setUp()
 #         try:
 #             create_user(username = self._username, password = self._password, phone_number = self._phone_number)
-            
+
 #             query = "INSERT INTO users (fb_id) VALUES (%s) WHERE username = %s;"
 #             variables = (self._username, config.get('tests', 'test_facebook_id'))
 #             QueryHandler.execute(query, variables)
@@ -661,7 +661,7 @@ class ContactListTest(unittest.TestCase):
     def setUp(self):
         delete_user(phone_number = self._phone_number)
         create_user(phone_number = self._phone_number, username = self._username, password = self._password)
-        
+
         delete_user(phone_number = self._friend_phone_number)
         create_user(phone_number = self._friend_phone_number, username = self._friend_username, password = self._friend_password)
 
@@ -669,7 +669,7 @@ class ContactListTest(unittest.TestCase):
         fraud_auth_payload = {'username': 'test', 'password': 'asfdas'}
         payload = merge_dicts([self._default_payload, self._contact_list_payload, fraud_auth_payload])
         response = requests.post(self._url, json=payload)
-        content = json.loads(response.content) 
+        content = json.loads(response.content)
         assert content['status'] == settings.STATUS_404
         assert content['info'] == settings.BAD_AUTHENTICATION_ERROR
         assert not content.has_key('jids')
@@ -686,6 +686,7 @@ class ContactListTest(unittest.TestCase):
     def tearDown(self):
         delete_user(phone_number = self._phone_number)
         delete_user(phone_number = self._friend_phone_number)
+
 
 if __name__ == '__main__':
     unittest.main()
