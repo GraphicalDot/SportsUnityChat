@@ -743,42 +743,47 @@ class ContactJidsHandler(RequestHandler):
         finally:
             self.write(response)
 
+class Application(tornado.web.Application):
+    def __init__(self):
+        handlers = [
+            (r"/register", RegistrationHandler),
+            (r"/create", CreationHandler),
+            (r"/set_location", SetLocationHandler),
+            (r"/retrieve_nearby_users", GetNearbyUsers),
+            (r"/fb_friends", FacebookHandler),
+            (r"/football_notifications", FootballEvents),
+            (r"/tennis_notifications", TennisEvents),
+            (r"/media", MediaHandler),
+            (r"/media_present", MediaPresentHandler),
+            (r"/media_multipart", IOSMediaHandler),
+            (r"/cricket_notifications", CricketEvents),
+            (r"/set_user_interests", UserInterestHandler),
+            (r"/set_udid", IOSSetUserDeviceId),
+            (r"/get_contact_jids", ContactJidsHandler),
 
+            (r"/admin", admin_api.AdminPage),
+            (r"/get_users", admin_api.AdminSelectUsers),
+            (r"/create_user", admin_api.AdminCreateUser),
+            (r"/update_user", admin_api.AdminUpdateUser),
+            (r"/delete_user", admin_api.AdminDeleteUser),
 
-def make_app():
-    return tornado.web.Application([
-        (r"/register", RegistrationHandler),
-        (r"/create", CreationHandler),
-        (r"/set_location", SetLocationHandler),
-        (r"/retrieve_nearby_users", GetNearbyUsers),
-        (r"/fb_friends", FacebookHandler),
-        (r"/football_notifications", FootballEvents),
-        (r"/tennis_notifications", TennisEvents),
-        (r"/media", MediaHandler),
-        (r"/media_present", MediaPresentHandler),
-        (r"/media_multipart", IOSMediaHandler),
-        (r"/cricket_notifications", CricketEvents),
-        (r"/set_user_interests", UserInterestHandler),
-        (r"/set_udid", IOSSetUserDeviceId),
-        (r"/get_contact_jids", ContactJidsHandler),
-
-        (r"/admin", admin_api.AdminPage),
-        (r"/get_users", admin_api.AdminSelectUsers),
-        (r"/create_user", admin_api.AdminCreateUser),
-        (r"/update_user", admin_api.AdminUpdateUser),
-        (r"/delete_user", admin_api.AdminDeleteUser),
-    ],
-        autoreload = True,
-    )
+        ]
+        settings = dict(
+            # template_path=os.path.join(os.path.dirname(__file__), "templates"),
+            static_path=os.path.join(os.path.dirname(__file__), "static"),
+            debug=True,
+            autoescape=None
+        )
+        tornado.web.Application.__init__(self, handlers, **settings)
 
 
 def add_templates_for_tornado_watch(watched_files):
     for file in watched_files:
-        tornado.autoreload.watch(file)
+        tornado.autoreload.watch(settings.ADMIN_TEMPLATES_PATH + file)
 
 
 if __name__ == "__main__":
-    app = make_app()
+    app = Application()
     options.log_file_prefix  = "tornado_log"
     enable_pretty_logging(options=options)
     app.listen(int(config.get('tornado', 'listening_port')))

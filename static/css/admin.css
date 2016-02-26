@@ -1,0 +1,18 @@
+.navbar-heading {
+    margin-bottom:30px;
+    margin-top: 0px;
+}
+
+.navbar-h3 {
+    color: rgb(51, 122, 183);
+    font-weight: bold;
+}
+
+.content-wrap {
+    background-color: white;
+    padding: 25px;
+}
+
+.admin-btn {
+    width: 100%;
+}

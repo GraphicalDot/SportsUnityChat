@@ -2,6 +2,7 @@ import tornado
 import tornado.web
 import settings
 from global_func import QueryHandler
+from tornado.web import MissingArgumentError
 
 
 class AdminRequestHandler(tornado.web.RequestHandler):
@@ -20,7 +21,7 @@ class AdminPage(AdminRequestHandler):
     Main Admin Page
     """
     def get(self):
-        super(AdminPage, self).get("admin.html")
+        super(AdminPage, self).get(settings.ADMIN_TEMPLATES_PATH + "admin.html")
 
 
 class AdminSelectUsers(tornado.web.RequestHandler):
@@ -31,7 +32,7 @@ class AdminSelectUsers(tornado.web.RequestHandler):
         query = "SELECT username,lat,lng,fb_id,fb_name,last_seen,is_available,is_banned FROM users LIMIT 40;"
         try:
             result = QueryHandler.get_results(query)
-            self.render("select_users.html", users=result)
+            self.render(settings.ADMIN_TEMPLATES_PATH + "select_users.html", users=result)
         except Exception as e:
             raise e
 
@@ -41,7 +42,7 @@ class AdminCreateUser(AdminRequestHandler):
     Admin Page to create a user in "users" table.
     """
     def get(self):
-        super(AdminCreateUser, self).get("create_user.html")
+        super(AdminCreateUser, self).get(settings.ADMIN_TEMPLATES_PATH + "create_user.html")
 
     def post(self):
         response = {}
@@ -61,6 +62,9 @@ class AdminCreateUser(AdminRequestHandler):
 
             response['info'] = settings.SUCCESS_RESPONSE
             response['status'] = settings.STATUS_200
+        except MissingArgumentError, status:
+            response["info"] = status.log_message
+            response["status"] = settings.STATUS_400
         except Exception as e:
             response['info'] = "Error: %s" % e
             response['status'] = settings.STATUS_500
@@ -73,7 +77,7 @@ class AdminUpdateUser(AdminRequestHandler):
     Admin page to update a user.
     """
     def get(self):
-        super(AdminUpdateUser, self).get("update_user.html")
+        super(AdminUpdateUser, self).get(settings.ADMIN_TEMPLATES_PATH + "update_user.html")
 
     def post(self):
         response = {'info': '', 'status': 0}
@@ -100,6 +104,9 @@ class AdminUpdateUser(AdminRequestHandler):
 
             response['info'] = settings.SUCCESS_RESPONSE
             response['status'] = settings.STATUS_200
+        except MissingArgumentError, status:
+            response["info"] = status.log_message
+            response["status"] = settings.STATUS_400
         except Exception as e:
             response['info'] = "Error: %s" % e
             response['status'] = settings.STATUS_500
@@ -112,7 +119,7 @@ class AdminDeleteUser(AdminRequestHandler):
     Admin Page to delete a user.
     """
     def get(self):
-        super(AdminDeleteUser, self).get("delete_user.html")
+        super(AdminDeleteUser, self).get(settings.ADMIN_TEMPLATES_PATH + "delete_user.html")
 
     def post(self):
         response = {}
@@ -121,9 +128,11 @@ class AdminDeleteUser(AdminRequestHandler):
             query = "DELETE FROM users WHERE phone_number=%s;"
             variables = (phone_number,)
             QueryHandler.execute(query, variables)
-
             response['info'] = settings.SUCCESS_RESPONSE
             response['status'] = settings.STATUS_200
+        except MissingArgumentError, status:
+            response["info"] = status.log_message
+            response["status"] = settings.STATUS_400
         except Exception as e:
             response['info'] = "Error: %s" % e
             response['status'] = settings.STATUS_500
