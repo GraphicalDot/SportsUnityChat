@@ -1,4 +1,4 @@
-from global_func import QueryHandler, S3Handler
+from global_func import QueryHandler, S3Handler, merge_dicts
 from notification_adapter import NotificationAdapter
 from tornado.log import enable_pretty_logging
 from tornado.options import options
@@ -62,9 +62,9 @@ class SetLocationHandler(tornado.web.RequestHandler):
         try:
             response = {}
             check_udid_and_apk_version(self)
-            username = self.get_query_argument("user")
-            longtitude = self.get_query_argument("lng")
-            latitude = self.get_query_argument("lat")
+            username = self.get_argument("user")
+            longtitude = self.get_argument("lng")
+            latitude = self.get_argument("lat")
             query = " UPDATE users SET lat = %s, lng = %s " \
                     " WHERE username = %s; "
             QueryHandler.execute(query, (latitude, longtitude, username))
@@ -308,9 +308,9 @@ class FacebookHandler(tornado.web.RequestHandler):
         try:
             check_udid_and_apk_version(self)
             response = {}
-            fb_id = str(self.get_query_argument("fb_id"))
-            token = str(self.get_query_argument("token"))
-            user_id = str(self.get_query_argument('id'))
+            fb_id = str(self.get_argument("fb_id"))
+            token = str(self.get_argument("token"))
+            user_id = str(self.get_argument('id'))
 
             username = str.split(user_id, "@")[0]
 
@@ -369,7 +369,7 @@ class RegistrationHandler(tornado.web.RequestHandler):
         response = {}
         try:
             check_udid_and_apk_version(self)
-            phone_number = str(self.get_query_argument("phone_number"))
+            phone_number = str(self.get_argument("phone_number"))
             user = User(phone_number)
             response['info'], response['status'] = user.handle_registration()
         except MissingArgumentError, status:
@@ -400,8 +400,8 @@ class CreationHandler(tornado.web.RequestHandler):
         response = {}
         try:
             check_udid_and_apk_version(self)
-            phone_number = str(self.get_query_argument("phone_number"))
-            auth_code = str(self.get_query_argument("auth_code"))
+            phone_number = str(self.get_argument("phone_number"))
+            auth_code = str(self.get_argument("auth_code"))
             user = User(phone_number)
             response['info'], response['status'], response['password'], response['username'] = user.handle_creation(auth_code)
         except MissingArgumentError, status:
@@ -418,7 +418,7 @@ class MediaPresentHandler(tornado.web.RequestHandler):
         check_udid_and_apk_version(self)
         response = {}
         try:
-            file_name = "media/" + self.get_query_argument("name")
+            file_name = "media/" + self.get_argument("name")
             if os.path.isfile(file_name):
                 response['info'] = 'Present'
                 response['status'] =settings.STATUS_200
@@ -552,6 +552,7 @@ class IOSMediaHandler(tornado.web.RequestHandler):
         finally:
             self.write(response)
 
+
 class UserInterestHandler(tornado.web.RequestHandler):
     """
     This class creates a link between users and interests. The interests have to
@@ -570,7 +571,7 @@ class UserInterestHandler(tornado.web.RequestHandler):
         response = {}
         try:
             check_udid_and_apk_version(self)
-            username = self.get_query_argument('username')
+            username = self.get_argument('username')
             interests = self.request.arguments['interests']
             interests = map(lambda interest: interest.lower(), interests)
 
@@ -602,9 +603,9 @@ class IOSSetUserDeviceId(tornado.web.RequestHandler):
         response = {}
         try:
             check_udid_and_apk_version(self)
-            username = str(self.get_body_argument('user'))
-            password = str(self.get_body_argument('password'))
-            udid = str(self.get_body_argument('token'))
+            username = str(self.get_argument('user'))
+            password = str(self.get_argument('password'))
+            udid = str(self.get_argument('token'))
 
             user = User(password = password, username = username)
             user.authenticate()
@@ -669,14 +670,16 @@ class ContactJidsHandler(tornado.web.RequestHandler):
     def get_contacts_jids(self, username, contacts):
         where_arguments = [" phone_number = %s "] * len(contacts)
         contacts = tuple(contacts)
-        query =  " SELECT username FROM users WHERE " + " OR ".join(where_arguments)
+        query =  " SELECT username, phone_number FROM users WHERE " + " OR ".join(where_arguments)
         records = QueryHandler.get_results(query, (contacts))
-        return map(lambda x: x['username'], records)
+        return records
 
 
     def post(self):
         response = {}
+        self.request.arguments = merge_body_arguments(self)
         try:
+            check_udid_and_apk_version(self)
             username = self.get_argument('username')
             password = self.get_argument('password')
             contacts = self.get_arguments('contacts') 
@@ -684,13 +687,18 @@ class ContactJidsHandler(tornado.web.RequestHandler):
             contacts = map(lambda x: str(x), contacts)
             user = User(username = username, password = password)
             user.authenticate()
-            check_udid_and_apk_version(self)
             response['info'] = 'Success'
             response['status'] = settings.STATUS_200
-            response['jids'] = self.get_contacts_jids(username, contacts)
+            if len(contacts) == 0:
+                response['jids'] = []
+            else:
+                response['jids'] = self.get_contacts_jids(username, contacts)
         except BadAuthentication, status:
             response["info"] = status.log_message 
             response["status"] = settings.STATUS_404
+        except KeyError, status:
+            response["info"] = " Missing %e" % status.message  
+            response["status"] = settings.STATUS_400            
         except MissingArgumentError, status:
             response["info"] = status.log_message 
             response["status"] = settings.STATUS_400

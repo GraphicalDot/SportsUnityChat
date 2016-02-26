@@ -10,7 +10,7 @@ import time
 import unittest
 from ConfigParser import ConfigParser
 from ConfigParser import ConfigParser
-from global_func import QueryHandler, S3Handler
+from global_func import QueryHandler, S3Handler, merge_dicts
 from requests_toolbelt.multipart.encoder import MultipartEncoder
 from tornado.testing import AsyncHTTPTestCase
 from requests_toolbelt import MultipartEncoder
@@ -588,7 +588,7 @@ class ContactListTest(unittest.TestCase):
         content = json.loads(response.content)
         assert content['status'] == settings.STATUS_200
         assert type(content['jids']) == list
-        assert content['jids'][0] == self._friend_username
+        assert content['jids'][0]['username'] == self._friend_username
         assert len(content['jids']) == 1
 
     def tearDown(self):
