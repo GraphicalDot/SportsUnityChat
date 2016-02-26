@@ -2,9 +2,6 @@ from global_func import QueryHandler, S3Handler, merge_dicts
 from notification_adapter import NotificationAdapter
 from tornado.log import enable_pretty_logging
 from tornado.options import options
-import ast
-import datetime
-import dateutil.relativedelta
 import magic
 import settings
 from tornado.web import MissingArgumentError
@@ -12,6 +9,7 @@ import time
 import uuid
 import tornado.escape
 import tornado.ioloop
+import tornado.autoreload
 import tornado.web
 import random
 import tornado
@@ -24,8 +22,8 @@ import base64
 from requests_toolbelt import MultipartDecoder, MultipartEncoder
 
 import base64
-import urllib
 from custom_error import BadAuthentication
+import admin_api
 config = ConfigParser.ConfigParser()
 config.read('config.py')
 
@@ -682,7 +680,7 @@ class ContactJidsHandler(tornado.web.RequestHandler):
             check_udid_and_apk_version(self)
             username = self.get_argument('username')
             password = self.get_argument('password')
-            contacts = self.get_arguments('contacts') 
+            contacts = self.get_arguments('contacts')
             assert type(contacts) == list 
             contacts = map(lambda x: str(x), contacts)
             user = User(username = username, password = password)
@@ -752,14 +750,14 @@ class GetNearbyUsers(tornado.web.RequestHandler):
             + "      )"\
             + " GROUP BY  friendship_status, users.username, uinterest.uinterest  "\
             + " ORDER BY users.username, friendship_status DESC;"
-        variables = (self.username, 
-                self.username, 
-                self.lat, 
-                self.lng, 
-                self.username,  
-                self.lat, 
-                self.lng, 
-                self.radius, 
+        variables = (self.username,
+                self.username,
+                self.lat,
+                self.lng,
+                self.username,
+                self.lat,
+                self.lng,
+                self.radius,
                 int(time.time() - self.was_online_limit),
                 self.username
         )
@@ -779,7 +777,7 @@ class GetNearbyUsers(tornado.web.RequestHandler):
             self.radius = self.get_argument('radius')
             self.lat = self.get_argument('lat')
             self.lng = self.get_argument('lng')
-            nearby_users = self.get_nearby_users()            
+            nearby_users = self.get_nearby_users()
             response['users'] = nearby_users
             response['info'] = settings.SUCCESS_RESPONSE
             response['status'] = settings.STATUS_200
@@ -795,29 +793,51 @@ class GetNearbyUsers(tornado.web.RequestHandler):
         finally:
             self.write(response)
 
-def make_app():
-    return tornado.web.Application([
-                                       (r"/register", RegistrationHandler),
-                                       (r"/create", CreationHandler),
-                                       (r"/set_location", SetLocationHandler),
-                                       (r"/get_nearby_users", GetNearbyUsers),
-                                       (r"/fb_friends", FacebookHandler),
-                                       (r"/football_notifications", FootballEvents),
-                                       (r"/tennis_notifications", TennisEvents),
-                                       (r"/media", MediaHandler),
-                                       (r"/media_present", MediaPresentHandler),
-                                       (r"/media_multipart", IOSMediaHandler),
-                                       (r"/cricket_notifications", CricketEvents),
-                                       (r"/set_user_interests", UserInterestHandler),
-                                       (r"/set_udid", IOSSetUserDeviceId),
-                                       (r"/get_contact_jids", ContactJidsHandler)
-                                       ],
-                                   autoreload = True,
-                                   )
+
+class Application(tornado.web.Application):
+    def __init__(self):
+        handlers = [
+            (r"/register", RegistrationHandler),
+            (r"/create", CreationHandler),
+            (r"/set_location", SetLocationHandler),
+            (r"/retrieve_nearby_users", GetNearbyUsers),
+            (r"/fb_friends", FacebookHandler),
+            (r"/football_notifications", FootballEvents),
+            (r"/tennis_notifications", TennisEvents),
+            (r"/media", MediaHandler),
+            (r"/media_present", MediaPresentHandler),
+            (r"/media_multipart", IOSMediaHandler),
+            (r"/cricket_notifications", CricketEvents),
+            (r"/set_user_interests", UserInterestHandler),
+            (r"/set_udid", IOSSetUserDeviceId),
+            (r"/get_contact_jids", ContactJidsHandler),
+
+            (r"/admin", admin_api.AdminPage),
+            (r"/get_users", admin_api.AdminSelectUsers),
+            (r"/create_user", admin_api.AdminCreateUser),
+            (r"/update_user", admin_api.AdminUpdateUser),
+            (r"/delete_user", admin_api.AdminDeleteUser),
+
+        ]
+        settings = dict(
+            # template_path=os.path.join(os.path.dirname(__file__), "templates"),
+            static_path=os.path.join(os.path.dirname(__file__), "static"),
+            debug=True,
+            autoescape=None
+        )
+        tornado.web.Application.__init__(self, handlers, **settings)
+
+
+def add_templates_for_tornado_watch(watched_files):
+    for file in watched_files:
+        tornado.autoreload.watch(settings.ADMIN_TEMPLATES_PATH + file)
+
 
 if __name__ == "__main__":
-    app = make_app()
+    app = Application()
     options.log_file_prefix  = "tornado_log"
     enable_pretty_logging(options=options)
     app.listen(int(config.get('tornado', 'listening_port')))
+    tornado.autoreload.start()
+    add_templates_for_tornado_watch(['admin.html', 'select_users.html', 'create_user.html', 'update_user.html', 'delete_user.html'])
     tornado.ioloop.IOLoop.current().start()
