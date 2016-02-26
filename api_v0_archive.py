@@ -734,7 +734,6 @@ class GetNearbyUsers(tornado.web.RequestHandler):
             + "      earth_distance(ll_to_earth(%s, %s), ll_to_earth(users.lat, users.lng)) as distance, "\
             + "      users.lat AS lat, "\
             + "      users.lng AS lng, "\
-            + "      users.last_seen AS last_seen, "\
             + "      array_intersect(array_agg(interest.interest_name), uinterest.uinterest) as interests, "\
             + "      CASE WHEN EXISTS (SELECT 1 from rosterusers WHERE username = %s "\
             + "         AND users.username = split_part(rosterusers.jid, '@', 1)) "\
