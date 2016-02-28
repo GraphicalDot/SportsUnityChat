@@ -15,3 +15,10 @@ BAD_AUTHENTICATION_ERROR = " Bad Authentication Info"
 
 # admin templates path
 ADMIN_TEMPLATES_PATH = 'admin_templates/'
+ADMIN_TEMPLATES = [
+    'admin.html',
+    'select_users.html',
+    'create_user.html',
+    'update_user.html',
+    'delete_user.html',
+    'block_unblock_user.html']

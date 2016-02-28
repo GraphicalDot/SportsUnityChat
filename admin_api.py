@@ -138,3 +138,36 @@ class AdminDeleteUser(AdminRequestHandler):
             response['status'] = settings.STATUS_500
         finally:
             self.write(response)
+
+
+class AdminBlockUser(tornado.web.RequestHandler):
+    """
+    Admin Page to block / unblock a user.
+    """
+
+    def get(self):
+        query = "SELECT username,phone_number,is_banned FROM users;"
+        try:
+            result = QueryHandler.get_results(query)
+            self.render(settings.ADMIN_TEMPLATES_PATH + "block_unblock_user.html", users=result)
+        except Exception as e:
+            raise e
+
+    def post(self, *args, **kwargs):
+        response = {}
+        try:
+            username = self.get_body_argument('username')
+            btn_action = self.get_body_argument('btn_action')
+            is_banned = True if btn_action == 'Block' else False
+            query = "UPDATE users SET is_banned=%s WHERE username=%s;"
+            variables = (is_banned, username)
+            QueryHandler.execute(query, variables)
+            self.get()
+        except MissingArgumentError, status:
+            response["info"] = status.log_message
+            response["status"] = settings.STATUS_400
+            self.write(response)
+        except Exception as e:
+            response['info'] = "Error: %s" % e
+            response['status'] = settings.STATUS_500
+            self.write(response)

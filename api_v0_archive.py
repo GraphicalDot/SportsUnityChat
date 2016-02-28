@@ -817,12 +817,11 @@ class Application(tornado.web.Application):
             (r"/create_user", admin_api.AdminCreateUser),
             (r"/update_user", admin_api.AdminUpdateUser),
             (r"/delete_user", admin_api.AdminDeleteUser),
+            (r"/block_user", admin_api.AdminBlockUser),
 
         ]
         settings = dict(
-            # template_path=os.path.join(os.path.dirname(__file__), "templates"),
             static_path=os.path.join(os.path.dirname(__file__), "static"),
-            debug=True,
             autoescape=None
         )
         tornado.web.Application.__init__(self, handlers, **settings)
@@ -839,5 +838,5 @@ if __name__ == "__main__":
     enable_pretty_logging(options=options)
     app.listen(int(config.get('tornado', 'listening_port')))
     tornado.autoreload.start()
-    add_templates_for_tornado_watch(['admin.html', 'select_users.html', 'create_user.html', 'update_user.html', 'delete_user.html'])
+    add_templates_for_tornado_watch(settings.ADMIN_TEMPLATES)
     tornado.ioloop.IOLoop.current().start()
