@@ -88,6 +88,7 @@ class UserTest(unittest.TestCase):
             pass
 
 
+
 class CreationTest(AsyncHTTPTestCase):
     username = None
     _phone_number = config.get('tests', 'test_phone_number')
@@ -125,7 +126,7 @@ class CreationTest(AsyncHTTPTestCase):
 
         variables = (self._phone_number, )
         record = QueryHandler.get_results(query, variables)
-
+        
         assert record
         self.assertEqual(settings.STATUS_200, json.loads(response.body)['status'])
 
@@ -730,9 +731,9 @@ class NearbyUsersWithSameInterestsTests(unittest.TestCase):
         self.assertEqual(res['info'], expected_info)
         self.assertEqual(res['status'], expected_status)
         modified_user_interest_dict = self.modify_response(response)
-        if expected_result: 
+        if expected_result:
             assert modified_user_interest_dict == expected_result
-        
+
 
     def test_get(self):
         # case 1: when 'test_2' was online 1 hour back
@@ -788,7 +789,7 @@ class NearbyUsersWithSameInterestsTests(unittest.TestCase):
 
     def test_no_interests(self):
         self.expected_result_dict = {"friends": {"test_5": []},
-                                     "anonymous": {"test_6": [], "test_2": []}}        
+                                     "anonymous": {"test_6": [], "test_2": []}}
         self.delete_interests()
         self.data = {'username': 'test_4', 'password': 'pswd_4', 'lat': '0', 'lng': '0', 'radius': 5, 'apk_version': self.apk_version, 'udid': self.udid}
         response = requests.get(self.url, data=self.data)
