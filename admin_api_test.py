@@ -144,5 +144,53 @@ class AdminDeleteUserTest(unittest.TestCase):
         self.assertEqual(len(result), 0)
 
 
+class AdminBlockUserTests(unittest.TestCase):
+    url = None
+    phone_number = username = '913333333333'
+    password = 'password'
+
+    def setUp(self):
+        self.url = LOCAL_ADDRESS + '/block_user'
+        test_utils.delete_user(self.username, self.phone_number)
+        test_utils.create_user(self.username, self.password, self.phone_number)
+
+    def test_get(self):
+        response = requests.get(self.url)
+        self.assertEqual(response.status_code, settings.STATUS_200)
+
+    def test_post(self):
+
+        # no post data
+        response = requests.post(self.url, data={})
+        res = json.loads(response.text)
+        self.assertEqual(response.status_code, settings.STATUS_200)
+        self.assertEqual(res['info'], "Missing argument username")
+        self.assertEqual(res['status'], settings.STATUS_400)
+
+        # incomplete post data
+        response = requests.post(self.url, data={'username': self.username})
+        res = json.loads(response.text)
+        self.assertEqual(response.status_code, settings.STATUS_200)
+        self.assertEqual(res['info'], "Missing argument btn_action")
+        self.assertEqual(res['status'], settings.STATUS_400)
+
+        # complete post data
+        # case 1: Block the user
+        response = requests.post(self.url, data={'username': self.username, 'btn_action': 'Block'})
+        self.assertEqual(response.status_code, settings.STATUS_200)
+        query = "SELECT is_banned FROM users WHERE username=%s;"
+        variables = (self.username,)
+        result = QueryHandler.get_results(query, variables)
+        self.assertEqual(result[0]['is_banned'], True)
+
+        # case 2: Unblock the user
+        response = requests.post(self.url, data={'username': self.username, 'btn_action': 'Unblock'})
+        self.assertEqual(response.status_code, settings.STATUS_200)
+        query = "SELECT is_banned FROM users WHERE username=%s;"
+        variables = (self.username,)
+        result = QueryHandler.get_results(query, variables)
+        self.assertEqual(result[0]['is_banned'], False)
+
+
 if __name__ == '__main__':
     unittest.main()
