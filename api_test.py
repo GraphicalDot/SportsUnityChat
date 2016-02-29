@@ -763,7 +763,6 @@ class NearbyUsersWithSameInterestsTests(unittest.TestCase):
         self.delete_interests()
         self.data = {'username': 'test_4', 'password': 'pswd_4', 'lat': '0', 'lng': '0', 'radius': 5, 'apk_version': self.apk_version, 'udid': self.udid}
         response = requests.get(self.url, data=self.data)
-        from IPython import embed
         self.assert_response_status(response, settings.SUCCESS_RESPONSE, settings.STATUS_200, self.expected_result_dict)
 
     def tearDown(self):
