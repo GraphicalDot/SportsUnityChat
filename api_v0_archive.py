@@ -834,8 +834,8 @@ class Application(tornado.web.Application):
 
 
 def add_templates_for_tornado_watch(watched_files):
-    for file in watched_files:
-        tornado.autoreload.watch(settings.ADMIN_TEMPLATES_PATH + file)
+    for file_name in watched_files:
+        tornado.autoreload.watch(settings.ADMIN_TEMPLATES_PATH + file_name)
 
 
 if __name__ == "__main__":
