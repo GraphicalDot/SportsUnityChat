@@ -35,3 +35,6 @@ profile_pic_url = http://localhost:3000/profile_pic
 
 [nearby_users]
 was_online_limit=1800
+
+[tornado]
+listening_port=3000
