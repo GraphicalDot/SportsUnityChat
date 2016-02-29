@@ -229,12 +229,18 @@ class User:
         finally:
             return response, status
 
+    def check_if_user_blocked(self):
+        query = "SELECT is_banned FROM users WHERE phone_number=%s AND is_banned=True;"
+        variables = (self.phone_number,)
+        return True if QueryHandler.get_results(query, variables) else False
+
     def handle_registration(self):
         """
         Handles the registration of the user in the database
         """
         self._delete_registered()
-        response, status = self._register()
+        response, status = (settings.USER_FORBIDDEN_ERROR, settings.STATUS_403) if self.check_if_user_blocked() \
+            else self._register()
         return response, status
 
     def _delete_registered(self):
@@ -250,7 +256,9 @@ class User:
         """
         Registers the users in the database
         """
-        random_integer = random.randint(1000,9999)
+        # TODO: remove app testing numbers after the release
+        random_integer = settings.APP_TESTING_OTP[self.phone_number] \
+            if self.phone_number in settings.APP_TESTING_PHONE_NUMBERS else random.randint(1000,9999)
         expiration_time = int(time.time()) + int(config.get('registration', 'expiry_period_sec'))
 
         query = " INSERT INTO registered_users (phone_number, authorization_code, expiration_time) VALUES ( %s, %s, %s); "

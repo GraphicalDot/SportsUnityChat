@@ -28,42 +28,6 @@ tornado_listening_port =  int(config.get('tornado', 'listening_port'))
 tornado_local_address =  "http://localhost:%u" % tornado_listening_port
 
 
-def merge_dicts(dict_list):
-
-    '''Given two dicts, merge them into a new dict as a shallow copy.'''
-    z = dict_list[0].copy()
-    for x in range(1, len(dict_list)):
-        z.update(dict_list[x])
-    return z
-
-
-def delete_user_from_table(field, table, field_value):
-    query = " DELETE FROM " + table + " WHERE " + field + " = %s;"
-    variables = (field_value,)
-    QueryHandler.execute(query, variables)
-
-def create_user(username, password, phone_number):
-    query = " INSERT INTO users (username, password, phone_number) VALUES (%s,%s, %s);"
-    variables = (username, password, phone_number,)
-    QueryHandler.execute(query, variables)
-
-def delete_user(username = None, phone_number = None):
-    if username or phone_number:
-        query = " DELETE FROM users WHERE " + (" phone_number " if phone_number else " username ") + "= %s;"
-        variables = (phone_number if phone_number else username, )
-        QueryHandler.execute(query, variables)
-    else:
-        raise Exception
-
-def select_user(username = None, phone_number = None):
-    if username or phone_number:
-        query = " SELECT * FROM users WHERE " + (" phone_number " if phone_number else " username ") + "= %s;"
-        variables = (phone_number if phone_number else username, )
-        return QueryHandler.get_results(query, variables)
-    else:
-        raise Exception
-
-
 class UserTest(unittest.TestCase):
 
     def test_user_authentication(self):
@@ -72,7 +36,7 @@ class UserTest(unittest.TestCase):
         password = "password"
 
         test_utils.delete_user(username = username, phone_number=phone_number)
-        create_user(username, password, phone_number)
+        test_utils.create_user(username, password, phone_number)
 
         user = api_v0_archive.User(username = username, password = password)
 
@@ -93,6 +57,7 @@ class UserTest(unittest.TestCase):
 class CreationTest(AsyncHTTPTestCase):
     username = None
     _phone_number = config.get('tests', 'test_phone_number')
+    _password = 'password'
     _username = 'test'
     _auth_code = 'ASDFG'
     _registration_url = tornado_local_address + "/register?phone_number=" + str(_phone_number)
@@ -101,9 +66,8 @@ class CreationTest(AsyncHTTPTestCase):
 
     def setUp(self):
         super(CreationTest, self).setUp()
-        delete_user(username = self._username)
-        delete_user(username = self._phone_number)
-        test_utils.delete_registered_user(username=self._username, phone_number=self._phone_number)
+        test_utils.delete_user(username=self._username, phone_number=self._phone_number)
+        test_utils.delete_registered_user(phone_number=self._phone_number)
 
     def get_app(self):
         return api_v0_archive.Application()
@@ -121,12 +85,48 @@ class CreationTest(AsyncHTTPTestCase):
         record = QueryHandler.get_results(query, variables)
         self.assertEqual(len(record), 0)
 
-        # valid url params
+
+        # test for banned user with valid url
+        query = " INSERT INTO users (username, password, phone_number, is_banned) VALUES (%s,%s, %s, True);"
+        variables = (self._username, self._password, self._phone_number,)
+        QueryHandler.execute(query, variables)
+
         response = requests.get(self._registration_url + extra_params)
-        variables = (self._phone_number, )
-        record = QueryHandler.get_results(query, variables)
-        self.assertEqual(settings.STATUS_200, json.loads(response.text)['status'])
+        res = json.loads(response.text)
+        select_query = "SELECT * FROM registered_users WHERE phone_number = %s;"
+        select_variables = (self._phone_number,)
+        record = QueryHandler.get_results(select_query, select_variables)
+
+        self.assertEqual(len(record), 0)
+        self.assertEqual(res['status'], settings.STATUS_403)
+        self.assertEqual(res['info'], settings.USER_FORBIDDEN_ERROR)
+
+
+        # test for non-banned user with valid url
+        query = "UPDATE users SET is_banned=False WHERE phone_number=%s;"
+        variables = (self._phone_number,)
+        QueryHandler.execute(query, variables)
+        response = requests.get(self._registration_url + extra_params)
+        res = json.loads(response.text)
+        record = QueryHandler.get_results(select_query, select_variables)
+
         self.assertEqual(len(record), 1)
+        self.assertEqual(res['info'], settings.SUCCESS_RESPONSE)
+        self.assertEqual(res['status'], settings.STATUS_200)
+
+
+        # Testing Registration for App testing phone numbers
+        app_testing_registration_url = tornado_local_address + "/register?phone_number=" + settings.TESTING_NUMBER_2
+        response = requests.get(app_testing_registration_url + extra_params)
+        res = json.loads(response.text)
+        query = "SELECT authorization_code FROM registered_users WHERE phone_number=%s;"
+        variables = (settings.TESTING_NUMBER_2,)
+        result = QueryHandler.get_results(query, variables)
+
+        self.assertEqual(res['info'], settings.SUCCESS_RESPONSE)
+        self.assertEqual(res['status'], settings.STATUS_200)
+        self.assertEqual(len(result), 1)
+        self.assertEqual(result[0]['authorization_code'], str(settings.APP_TESTING_OTP[settings.TESTING_NUMBER_2]))
 
     def test_wrong_auth_code_failure(self):
 
@@ -139,8 +139,7 @@ class CreationTest(AsyncHTTPTestCase):
         self.assertEqual(res['info'], " Wrong or Expired Token ")
         self.assertEqual(res['status'], settings.STATUS_400)
         self.assertEqual(res['password'], None)
-        assert not select_user(self._phone_number)
-
+        assert not test_utils.select_user(self._phone_number)
 
     def test_user_creation(self):
 
@@ -153,7 +152,7 @@ class CreationTest(AsyncHTTPTestCase):
         # valid url params
         response = requests.get(self._creation_url + extra_params)
         res = json.loads(response.text)
-        record = select_user(phone_number = self._phone_number)
+        record = test_utils.select_user(phone_number = self._phone_number)
 
         self.assertEqual(res['status'], settings.STATUS_200)
         self.assertEqual(res['password'], record[0]['password'])
@@ -185,7 +184,7 @@ class CreationTest(AsyncHTTPTestCase):
 
         # invalid url params
         faulty_creation_url = tornado_local_address + "/create?phone_number=" + str(self._phone_number) \
-                    + "&auth_code=" + str(self._auth_code)
+                              + "&auth_code=" + str(self._auth_code)
         response = requests.get(faulty_creation_url)
         res = json.loads(response.text)
         self.assertEqual(res['status'], settings.STATUS_400)
@@ -212,7 +211,7 @@ class CreationTest(AsyncHTTPTestCase):
 #             self.username = 'test'
 #             self.password = 'password'
 
-#             delete_user(username = self.username)
+#             test_utils.delete_user(username = self.username)
 
 #             query = "INSERT INTO users (username, password) VALUES (%s, %s);"
 #             variables = (self.username, self.password,)
@@ -240,7 +239,7 @@ class CreationTest(AsyncHTTPTestCase):
 #     def setUp(self):
 #         super(ProfilePicServiceTest, self).setUp()
 #         try:
-#             create_user(username = self._username, password = self._password, phone_number = self._phone_number)
+#             test_utils.create_user(username = self._username, password = self._password, phone_number = self._phone_number)
 
 #             query = "INSERT INTO users (fb_id) VALUES (%s) WHERE username = %s;"
 #             variables = (self._username, config.get('tests', 'test_facebook_id'))
@@ -298,7 +297,7 @@ class InterestTest(AsyncHTTPTestCase):
         super(InterestTest, self).setUp()
         try:
             test_utils.delete_user(username = self._username, phone_number=self._phone_number)
-            create_user(username = self._username, password = self._phone_number, phone_number = self._phone_number)
+            test_utils.create_user(username = self._username, password = self._phone_number, phone_number = self._phone_number)
 
             query = " DELETE FROM users_interest WHERE username = %s;"
             variables = (self._username,)
@@ -506,9 +505,9 @@ class IOSSetUserDeviceIdTests(unittest.TestCase):
 
     def setUp(self):
         self.url = tornado_local_address + '/set_udid' + '?apk_version=v0.1&udid=TEST@UDID'
-        delete_user(username = self._username)
-        delete_user(phone_number = self._phone_number)
-        create_user(username = self._username, password = self._password, phone_number = self._phone_number)
+        test_utils.delete_user(username = self._username)
+        test_utils.delete_user(phone_number = self._phone_number)
+        test_utils.create_user(username = self._username, password = self._password, phone_number = self._phone_number)
 
     def test_validations(self):
         # self._username not provided
@@ -545,11 +544,11 @@ class ContactListTest(unittest.TestCase):
     _contact_list_payload = {'contacts': [_friend_phone_number, '123']}
 
     def setUp(self):
-        delete_user(phone_number = self._phone_number)
-        create_user(phone_number = self._phone_number, username = self._username, password = self._password)
+        test_utils.delete_user(phone_number = self._phone_number)
+        test_utils.create_user(phone_number = self._phone_number, username = self._username, password = self._password)
 
-        delete_user(phone_number = self._friend_phone_number)
-        create_user(phone_number = self._friend_phone_number, username = self._friend_username, password = self._friend_password)
+        test_utils.delete_user(phone_number = self._friend_phone_number)
+        test_utils.create_user(phone_number = self._friend_phone_number, username = self._friend_username, password = self._friend_password)
 
     def test_unauthenticated_contacts_retrieval(self):
         fraud_auth_payload = {'username': 'test', 'password': 'asfdas'}
@@ -570,8 +569,8 @@ class ContactListTest(unittest.TestCase):
         assert len(content['jids']) == 1
 
     def tearDown(self):
-        delete_user(phone_number = self._phone_number)
-        delete_user(phone_number = self._friend_phone_number)
+        test_utils.delete_user(phone_number = self._phone_number)
+        test_utils.delete_user(phone_number = self._friend_phone_number)
 
 
 class NearbyUsersWithSameInterestsTests(unittest.TestCase):
@@ -592,8 +591,8 @@ class NearbyUsersWithSameInterestsTests(unittest.TestCase):
             variables = (user[0], user[1], user[2], user[3], user[4], user[5])
             try:
                 QueryHandler.execute(query, variables)
-            except Exception as e:
-                raise e
+            except psycopg2.IntegrityError, e:
+                pass
 
     def create_interests(self):
         for interest in self.interests:
@@ -615,8 +614,8 @@ class NearbyUsersWithSameInterestsTests(unittest.TestCase):
                     query = "INSERT INTO users_interest(interest_id, username) VALUES(%s, %s);"
                     variables = (interest, key)
                     QueryHandler.execute(query, variables)
-        except Exception as e:
-            raise e
+        except psycopg2.IntegrityError, e:
+            pass
 
     def add_user_friends(self, friend):
 
@@ -629,7 +628,7 @@ class NearbyUsersWithSameInterestsTests(unittest.TestCase):
             pass
 
     def add_user_privacy_list(self):
-        delete_user_from_table('username', 'privacy_list', self.username)
+        test_utils.delete_user_from_table('username', 'privacy_list', self.username)
 
         query = "INSERT INTO privacy_list(username, name) values(%s, %s) RETURNING id;"
         variables = (self.username, self.user_privacy_list)
@@ -644,8 +643,8 @@ class NearbyUsersWithSameInterestsTests(unittest.TestCase):
             variables = (self.list_id, 'j', blocked + '@mm.io', 'd', 1, 't', 't', 't', 't', 't')
             try:
                 QueryHandler.execute(query, variables)
-            except Exception as e:
-                raise e
+            except psycopg2.IntegrityError, e:
+                pass
 
     def setUp(self):
         self.url = 'http://localhost:3000/get_nearby_users'
@@ -662,8 +661,8 @@ class NearbyUsersWithSameInterestsTests(unittest.TestCase):
         self.interests = ['test_interest_1', 'test_interest_2', 'test_interest_3', 'test_interest_4']
         self.interest_id = []
 
-        # self.delete_users()
-        # self.delete_interests()
+        self.delete_users()
+        self.delete_interests()
         self.create_test_users()
         self.create_interests()
         self.add_user_interests()
@@ -673,24 +672,18 @@ class NearbyUsersWithSameInterestsTests(unittest.TestCase):
 
     def delete_users(self):
         for user in self.users:
-            delete_user(username = user[0])
+            test_utils.delete_user(username = user[0])
 
     def delete_interests(self):
         for interest in self.interests:
             query = "DELETE FROM interest where interest_name=%s;"
             variables = (interest,)
-            try:
-                QueryHandler.execute(query, variables)
-            except Exception as e:
-                raise e
+            QueryHandler.execute(query, variables)
 
     def delete_user_friends(self):
         query = "DELETE FROM rosterusers WHERE username=%s;"
         variables = (self.username,)
-        try:
-            QueryHandler.execute(query, variables)
-        except Exception as e:
-            raise e
+        QueryHandler.execute(query, variables)
 
     def delete_user_privacy_list(self):
         query = "DELETE FROM privacy_list WHERE username=%s;"
