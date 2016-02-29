@@ -32,3 +32,6 @@ acl=public-read
 test_facebook_id=145634995501895
 test_phone_number=919560488236
 profile_pic_url = http://localhost:3000/profile_pic
+
+[nearby_users]
+was_online_limit=1800

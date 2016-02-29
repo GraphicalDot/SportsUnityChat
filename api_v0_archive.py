@@ -795,7 +795,7 @@ class Application(tornado.web.Application):
             (r"/register", RegistrationHandler),
             (r"/create", CreationHandler),
             (r"/set_location", SetLocationHandler),
-            (r"/retrieve_nearby_users", GetNearbyUsers),
+            (r"/get_nearby_users", GetNearbyUsers),
             (r"/fb_friends", FacebookHandler),
             (r"/football_notifications", FootballEvents),
             (r"/tennis_notifications", TennisEvents),

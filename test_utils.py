@@ -17,3 +17,9 @@ def create_user(username, password, phone_number=None):
         QueryHandler.execute(query, variables)
     except Exception as e:
         raise e
+
+
+def delete_registered_user(username=None, phone_number=None):
+    query = "DELETE FROM registered_users WHERE phone_number=%s OR username=%s;"
+    variables = (phone_number, username)
+    QueryHandler.execute(query, variables)

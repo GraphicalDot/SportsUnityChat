@@ -18,6 +18,7 @@ from shutil import copyfile
 from custom_error import BadAuthentication
 import api_v0_archive
 import settings
+import test_utils
 
 config = ConfigParser()
 config.read('config.py')
@@ -25,6 +26,7 @@ config.read('config.py')
 extra_params = '&apk_version=v0.1&udid=TEST@UDID'
 tornado_listening_port =  int(config.get('tornado', 'listening_port'))
 tornado_local_address =  "http://localhost:%u" % tornado_listening_port
+
 
 def merge_dicts(dict_list):
 
@@ -69,7 +71,7 @@ class UserTest(unittest.TestCase):
         username = "test"
         password = "password"
 
-        delete_user(username = username)
+        test_utils.delete_user(username = username, phone_number=phone_number)
         create_user(username, password, phone_number)
 
         user = api_v0_archive.User(username = username, password = password)
@@ -88,93 +90,74 @@ class UserTest(unittest.TestCase):
             pass
 
 
-
 class CreationTest(AsyncHTTPTestCase):
     username = None
     _phone_number = config.get('tests', 'test_phone_number')
     _username = 'test'
     _auth_code = 'ASDFG'
     _registration_url = tornado_local_address + "/register?phone_number=" + str(_phone_number)
-    _creation_url = "/create?phone_number=" + str(_phone_number) \
+    _creation_url = tornado_local_address + "/create?phone_number=" + str(_phone_number) \
                     + "&auth_code=" + str(_auth_code) + extra_params
 
     def setUp(self):
         super(CreationTest, self).setUp()
         delete_user(username = self._username)
         delete_user(username = self._phone_number)
+        test_utils.delete_registered_user(username=self._username, phone_number=self._phone_number)
 
     def get_app(self):
-        return api_v0_archive.make_app()
+        return api_v0_archive.Application()
 
     def test_user_registration(self):
 
         # Invalid url params
-        self.http_client.fetch(self.get_url(self._registration_url), self.stop)
-        response = self.wait(timeout=20)
-        res = json.loads(response.body)
-        self.assertEqual(res['info'], "Bad Request: Please provide 'apk_version' and 'udid'")
+        response = requests.get(self._registration_url)
+        res = json.loads(response.text)
+        self.assertEqual(res['info'], "Missing argument apk_version")
         self.assertEqual(res['status'], settings.STATUS_400)
 
-        query = " SELECT * FROM registered_users WHERE phone_number = %s "
+        query = "SELECT * FROM registered_users WHERE phone_number = %s;"
         variables = (self._phone_number,)
         record = QueryHandler.get_results(query, variables)
         self.assertEqual(len(record), 0)
 
         # valid url params
-        self.http_client.fetch(self.get_url(self._registration_url + extra_params), self.stop)
-        response = self.wait(timeout=20)
-
+        response = requests.get(self._registration_url + extra_params)
         variables = (self._phone_number, )
         record = QueryHandler.get_results(query, variables)
-        
-        assert record
-        self.assertEqual(settings.STATUS_200, json.loads(response.body)['status'])
+        self.assertEqual(settings.STATUS_200, json.loads(response.text)['status'])
+        self.assertEqual(len(record), 1)
 
     def test_wrong_auth_code_failure(self):
-        delete_user(self._phone_number)
-        query = " UPDATE registered_users SET authorization_code = '12345' " \
-                " WHERE phone_number = %s; "
-        variables = (self._phone_number,)
 
-        QueryHandler.execute(query, variables)
+        # first register the user
+        requests.get(self._registration_url + extra_params)
 
-        self.http_client.fetch(self.get_url(self._creation_url + extra_params), self.stop)
-        response = self.wait(timeout=20)
-        res = json.loads(response.body)
+        # create the user with wrong OTP
+        response = requests.get(self._creation_url + extra_params)
+        res = json.loads(response.text)
+        self.assertEqual(res['info'], " Wrong or Expired Token ")
         self.assertEqual(res['status'], settings.STATUS_400)
         self.assertEqual(res['password'], None)
-
         assert not select_user(self._phone_number)
-
-        assert json.loads(response.body).get('password' ,None) == None
-        self.assertNotEqual(json.loads(response.body)['status'], 200)
 
 
     def test_user_creation(self):
 
-        delete_user(phone_number = self._phone_number)
-
-        query = " DELETE FROM registered_users WHERE phone_number = %s; "
-        variables = (self._phone_number,)
-        QueryHandler.execute(query, variables)
-
-
+        # first register the user
         expiration_time = int(time.time()) + int(config.get('registration', 'expiry_period_sec'))
         query = " INSERT INTO registered_users (authorization_code, expiration_time, phone_number) VALUES ( %s, %s, %s); "
         variables = (self._auth_code, expiration_time, self._phone_number)
         QueryHandler.execute(query, variables)
 
         # valid url params
-        self.http_client.fetch(self.get_url(self._creation_url + extra_params), self.stop)
-        response = self.wait(timeout=20)
-        res = json.loads(response.body)
-
+        response = requests.get(self._creation_url + extra_params)
+        res = json.loads(response.text)
         record = select_user(phone_number = self._phone_number)
 
         self.assertEqual(res['status'], settings.STATUS_200)
         self.assertEqual(res['password'], record[0]['password'])
-        self.assertEqual(
-            json.loads(response.body)['username'], record[0]['username'])
+        self.assertEqual(res['username'], record[0]['username'])
         old_username = record[0]['username']
 
         query = " SELECT * FROM registered_users WHERE phone_number = %s; "
@@ -187,11 +170,9 @@ class CreationTest(AsyncHTTPTestCase):
         variables = (self._auth_code, expiration_time, self._phone_number)
         QueryHandler.execute(query, variables)
 
-        self.http_client.fetch(self.get_url(self._creation_url), self.stop)
-        response = self.wait(timeout=20)
-
-        self.assertEqual(
-            json.loads(response.body)['username'], old_username)
+        response = requests.get(self._creation_url)
+        res = json.loads(response.text)
+        self.assertEqual(res['username'], old_username)
 
         query = " SELECT * FROM registered_users WHERE phone_number = %s; "
         variables = (self._phone_number,)
@@ -203,12 +184,10 @@ class CreationTest(AsyncHTTPTestCase):
         QueryHandler.execute(query, variables)
 
         # invalid url params
-        faulty_creation_url = "/create?phone_number=" + str(self._phone_number) \
+        faulty_creation_url = tornado_local_address + "/create?phone_number=" + str(self._phone_number) \
                     + "&auth_code=" + str(self._auth_code)
-        self.http_client.fetch(self.get_url(faulty_creation_url), self.stop)
-        response = self.wait(timeout=20)
-        res = json.loads(response.body)
-
+        response = requests.get(faulty_creation_url)
+        res = json.loads(response.text)
         self.assertEqual(res['status'], settings.STATUS_400)
 
 
@@ -250,7 +229,7 @@ class CreationTest(AsyncHTTPTestCase):
 #         self.assertEqual(results[0]['username'], str.split(self._id, '@')[0])
 
 #     def get_app(self):
-#         return api_v0_archive.make_app()
+#         return api_v0_archive.Application()
 
 
 # class ProfilePicServiceTest(AsyncHTTPTestCase):
@@ -270,7 +249,7 @@ class CreationTest(AsyncHTTPTestCase):
 #             pass
 
 #     def get_app(self):
-#         return api_v0_archive.make_app()
+#         return api_v0_archive.Application()
 
 #     def test_profile_pic_updation(self):
 #         file_name = sys.argv[0]
@@ -304,7 +283,7 @@ class CreationTest(AsyncHTTPTestCase):
 #         self.assertEqual(200, s3_file_response.status_code)
 
 #     def tearDown(self):
-#         delete_user(username = self._username)
+#         pass
 
 
 class InterestTest(AsyncHTTPTestCase):
@@ -313,12 +292,12 @@ class InterestTest(AsyncHTTPTestCase):
     _phone_number = config.get('tests', 'test_phone_number')
 
     def get_app(self):
-        return api_v0_archive.make_app()
+        return api_v0_archive.Application()
 
     def setUp(self):
         super(InterestTest, self).setUp()
         try:
-            delete_user(username = self._username)
+            test_utils.delete_user(username = self._username, phone_number=self._phone_number)
             create_user(username = self._username, password = self._phone_number, phone_number = self._phone_number)
 
             query = " DELETE FROM users_interest WHERE username = %s;"
@@ -343,14 +322,13 @@ class InterestTest(AsyncHTTPTestCase):
     def test_storage(self):
         interests = ['interest_one', 'interest_two']
 
-        test_storage_url = "/set_user_interests?username=" + self._username\
+        test_storage_url = tornado_local_address + "/set_user_interests?username=" + self._username\
             + "".join(map(lambda interest: "&interests=" + interest, interests))
 
-        self.http_client.fetch(self.get_url(test_storage_url) + extra_params, self.stop)
-        response = self.wait(timeout=20)
-
+        response = requests.get(test_storage_url + extra_params)
+        res = json.loads(response.text)
         assert response
-        self.assertEqual(json.loads(response.body)['status'], settings.STATUS_200)
+        self.assertEqual(res['status'], settings.STATUS_200)
 
 
         query = "select users.username, string_agg(interest.interest_name, ' ,') as interests from users "\
@@ -365,14 +343,13 @@ class InterestTest(AsyncHTTPTestCase):
         assert record[0]['interests'] == "interest_one ,interest_two"
 
         interests = ['interest_one']
-        test_storage_url = "/set_user_interests?username=" + self._username\
+        test_storage_url = tornado_local_address + "/set_user_interests?username=" + self._username\
             + "".join(map(lambda interest: "&interests=" + interest, interests))
 
-        self.http_client.fetch(self.get_url(test_storage_url) + extra_params, self.stop)
-        response = self.wait(timeout=20)
-
+        response = requests.get(test_storage_url + extra_params)
+        res = json.loads(response.text)
         assert response
-        self.assertEqual(json.loads(response.body)['status'], settings.STATUS_200)
+        self.assertEqual(res['status'], settings.STATUS_200)
 
         query = "select users.username, string_agg(interest.interest_name, ' ,') as interests from users "\
             + " left outer join users_interest on (users.username = users_interest.username) "\
@@ -434,10 +411,10 @@ class MediaTest(AsyncHTTPTestCase):
 
         self.url = tornado_local_address + "/media?name=big.mp4" + extra_params
         response = requests.get(self.url)
-        assert response.content
+        self.assertEqual(response.status_code, settings.STATUS_200)
 
     def get_app(self):
-        return api_v0_archive.make_app()
+        return api_v0_archive.Application()
 
     def tearDown(self):
         pass
@@ -685,8 +662,8 @@ class NearbyUsersWithSameInterestsTests(unittest.TestCase):
         self.interests = ['test_interest_1', 'test_interest_2', 'test_interest_3', 'test_interest_4']
         self.interest_id = []
 
-        self.delete_users()
-        self.delete_interests()
+        # self.delete_users()
+        # self.delete_interests()
         self.create_test_users()
         self.create_interests()
         self.add_user_interests()
