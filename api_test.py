@@ -126,7 +126,7 @@ class CreationTest(AsyncHTTPTestCase):
         self.assertEqual(res['info'], settings.SUCCESS_RESPONSE)
         self.assertEqual(res['status'], settings.STATUS_200)
         self.assertEqual(len(result), 1)
-        self.assertEqual(result[0]['authorization_code'], str(settings.APP_TESING_OTP[settings.TESTING_NUMBER_2]))
+        self.assertEqual(result[0]['authorization_code'], str(settings.APP_TESTING_OTP[settings.TESTING_NUMBER_2]))
 
     def test_wrong_auth_code_failure(self):
 

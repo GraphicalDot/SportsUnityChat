@@ -257,7 +257,7 @@ class User:
         Registers the users in the database
         """
         # TODO: remove app testing numbers after the release
-        random_integer = settings.APP_TESING_OTP[self.phone_number] \
+        random_integer = settings.APP_TESTING_OTP[self.phone_number] \
             if self.phone_number in settings.APP_TESTING_PHONE_NUMBERS else random.randint(1000,9999)
         expiration_time = int(time.time()) + int(config.get('registration', 'expiry_period_sec'))
 
