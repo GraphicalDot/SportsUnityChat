@@ -29,7 +29,10 @@ config.read('config.py')
 
 def merge_body_arguments(request_handler_object):
     try:
-        request_handler_object.request.arguments.update(json.loads(request_handler_object.request.body))
+        body_argument = json.loads(request_handler_object.request.body)
+        listing_function = lambda x: x if type(x) == list else [str(x)] 
+        body_argument = {k: listing_function(v) for k, v in body_argument.iteritems()}
+        request_handler_object.request.arguments.update(body_argument)
         return request_handler_object.request.arguments
     except ValueError:
         return request_handler_object.request.arguments
