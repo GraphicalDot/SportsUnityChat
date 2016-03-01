@@ -8,7 +8,9 @@ from tornado.web import MissingArgumentError
 import time
 import uuid
 import tornado.autoreload
+import tornado.escape
 import tornado.ioloop
+import tornado.autoreload
 import tornado.web
 import random
 import tornado
@@ -22,17 +24,22 @@ from requests_toolbelt import MultipartDecoder, MultipartEncoder
 
 import base64
 from custom_error import BadAuthentication
+import admin_api
 config = ConfigParser.ConfigParser()
 config.read('config.py')
 
-
-class RequestHandler(tornado.web.RequestHandler):
-    def prepare(self):
-        self.request.arguments = merge_dicts([self.request.arguments, json.loads(self.request.body)])
-
+def merge_body_arguments(request_handler_object):
+    try:
+        body_argument = json.loads(request_handler_object.request.body)
+        listing_function = lambda x: x if type(x) == list else [str(x)]
+        body_argument = {k: listing_function(v) for k, v in body_argument.iteritems()}
+        request_handler_object.request.arguments.update(body_argument)
+        return request_handler_object.request.arguments
+    except ValueError:
+        return request_handler_object.request.arguments
 
 def check_udid_and_apk_version(request_handler_object):
-    request_handler_object.get_argument('apk_version') 
+    request_handler_object.get_argument('apk_version')
     request_handler_object.get_argument('udid')
 
 
@@ -223,12 +230,18 @@ class User:
         finally:
             return response, status
 
+    def check_if_user_blocked(self):
+        query = "SELECT is_banned FROM users WHERE phone_number=%s AND is_banned=True;"
+        variables = (self.phone_number,)
+        return True if QueryHandler.get_results(query, variables) else False
+
     def handle_registration(self):
         """
         Handles the registration of the user in the database
         """
         self._delete_registered()
-        response, status = self._register()
+        response, status = (settings.USER_FORBIDDEN_ERROR, settings.STATUS_403) if self.check_if_user_blocked() \
+            else self._register()
         return response, status
 
     def _delete_registered(self):
@@ -244,7 +257,9 @@ class User:
         """
         Registers the users in the database
         """
-        random_integer = random.randint(1000,9999)
+        # TODO: remove app testing numbers after the release
+        random_integer = settings.APP_TESTING_OTP[self.phone_number] \
+            if self.phone_number in settings.APP_TESTING_PHONE_NUMBERS else random.randint(1000,9999)
         expiration_time = int(time.time()) + int(config.get('registration', 'expiry_period_sec'))
 
         query = " INSERT INTO registered_users (phone_number, authorization_code, expiration_time) VALUES ( %s, %s, %s); "
@@ -441,8 +456,7 @@ class MediaHandler(tornado.web.RequestHandler):
         response = {}
         try:
             check_udid_and_apk_version(self)
-            file_name = self.request.headers['Checksum']
-            file_name = "media/" + file_name
+            file_name = "media/" + self.request.headers['Checksum']
             if not os.path.isfile(file_name):
                 media_file = open(file_name, 'w')
                 media_file.write(self.file_content)
@@ -450,7 +464,7 @@ class MediaHandler(tornado.web.RequestHandler):
             response['status'] =settings.STATUS_200
             response['info'] = 'Success'
         except MissingArgumentError, status:
-            response["info"] = status.log_message 
+            response["info"] = status.log_message
             response["status"] =settings.STATUS_400
         except Exception, e:
             response['status'] = settings.STATUS_500
@@ -459,26 +473,18 @@ class MediaHandler(tornado.web.RequestHandler):
             self.write(response)
 
     def get(self):
-        print 'inside get'
         try:
             response = {}
-            print 'hi 1'
             check_udid_and_apk_version(self)
-            print 'hi 2'
-            file_name = "media/" + self.get_arguments("name")[0]
-            print 'filename:', file_name
+            file_name = "media/" + self.get_argument("name")
             if os.path.isfile(file_name):
                 print 'inside if'
                 with open(file_name, 'r') as file_content:
-                    file_size = 0
                     while 1:
                         data = file_content.read(16384) # or some other nice-sized chunk
                         if not data:
                             break
-                        file_size += len(data)
                         self.write(data)
-                    self.request.headers['Content-Length', file_size]
-                    self.add_header('Content-Length', file_size)
                     file_content.close()
                     self.finish()
             else:
@@ -488,7 +494,7 @@ class MediaHandler(tornado.web.RequestHandler):
                 self.write(response)
         except MissingArgumentError, status:
             response["info"] = status.log_message 
-            response["status"] =settings.STATUS_400
+            response["status"] = settings.STATUS_400
         except Exception, e:
             response['status'] = settings.STATUS_500
             response['info'] = 'error is: %s' % e
@@ -552,43 +558,6 @@ class IOSMediaHandler(tornado.web.RequestHandler):
             response['info'] = " Error is: %s" % e
         finally:
             self.write(response)
-
-
-class GetNearbyUsers(tornado.web.RequestHandler):
-    def get(self):
-        response = {}
-        try:
-            check_udid_and_apk_version(self)
-            self.radius = self.get_argument('radius')
-            self.lat = self.get_argument('lat')
-            self.lng = self.get_argument('lng')
-            users = self.get_nearby_users()
-            response['status'] =settings.STATUS_200
-            response['info'] = 'Success'
-            response['users'] = users
-        except MissingArgumentError, status:
-            response["info"] = status.log_message 
-            response["status"] =settings.STATUS_400
-        except Exception, e:
-            response['status'] = settings.STATUS_500
-            response['info'] = 'Error: %s' % e
-        finally:
-            self.write(response)
-
-
-    def get_nearby_users(self):
-        query = "SELECT users.username, earth_distance(ll_to_earth(%s, %s),"\
-            + " ll_to_earth(users.lat, users.lng)) as distance, users.lat AS lat, users.lng AS lng "\
-            + ", string_agg(interest.interest_name, ' ,') as interests "\
-            + " FROM users  "\
-            + " left outer join users_interest on (users.username = users_interest.username) "\
-            + " left outer join interest on (users_interest.interest_id = interest.interest_id)"\
-            + " WHERE earth_box(ll_to_earth(%s, %s),  %s) @> ll_to_earth(users.lat, users.lng) AND  "\
-            + " is_available = True "\
-            + " GROUP BY users.username ORDER BY distance ASC;"
-        variables = (self.lat, self.lng, self.lat, self.lng, self.radius)
-        records = QueryHandler.get_results(query, variables)
-        return records
 
 
 class UserInterestHandler(tornado.web.RequestHandler):
@@ -687,7 +656,7 @@ class CricketEvents(tornado.web.RequestHandler):
             NotificationAdapter(event, "Cricket").notify()
 
 
-class ContactJidsHandler(RequestHandler):
+class ContactJidsHandler(tornado.web.RequestHandler):
     """
     This class handles the retrival of jids in the contact list
     of the user
@@ -715,11 +684,12 @@ class ContactJidsHandler(RequestHandler):
 
     def post(self):
         response = {}
+        self.request.arguments = merge_body_arguments(self)
         try:
             check_udid_and_apk_version(self)
-            username = self.request.arguments['username']
-            password = self.request.arguments['password']
-            contacts = self.request.arguments['contacts'] 
+            username = self.get_argument('username')
+            password = self.get_argument('password')
+            contacts = self.get_arguments('contacts')
             assert type(contacts) == list 
             contacts = map(lambda x: str(x), contacts)
             user = User(username = username, password = password)
@@ -749,25 +719,127 @@ class ContactJidsHandler(RequestHandler):
             self.write(response)
 
 
-def make_app():
-    return tornado.web.Application([
-                                       (r"/register", RegistrationHandler),
-                                       (r"/create", CreationHandler),
-                                       (r"/set_location", SetLocationHandler),
-                                       (r"/retrieve_nearby_users", GetNearbyUsers),
-                                       (r"/fb_friends", FacebookHandler),
-                                       (r"/football_notifications", FootballEvents),
-                                       (r"/tennis_notifications", TennisEvents),
-                                       (r"/media", MediaHandler),
-                                       (r"/media_present", MediaPresentHandler),
-                                       (r"/media_multipart", IOSMediaHandler),
-                                       (r"/cricket_notifications", CricketEvents),
-                                       (r"/set_user_interests", UserInterestHandler),
-                                       (r"/set_udid", IOSSetUserDeviceId),
-                                       (r"/get_contact_jids", ContactJidsHandler),
-                                       ],
-                                   autoreload = True,
-                                   )
+class GetNearbyUsers(tornado.web.RequestHandler):
+
+    def get_nearby_users(self):
+        query = "WITH uinterest AS "\
+            + "      ( "\
+            + "            SELECT array_agg(interest.interest_name) AS uinterest FROM interest, users_interest  "\
+            + "            WHERE users_interest.username = %s AND users_interest.interest_id = interest.interest_id "\
+            + "      ),"\
+            + " banned_users AS "\
+            + "      ("\
+            + "            SELECT split_part(privacy_list_data.value, '@', 1) AS bjids "\
+            + "            FROM privacy_list_data, privacy_list "\
+            + "            WHERE privacy_list.username = %s "\
+            + "                  AND privacy_list.id = privacy_list_data.id "\
+            + "                  AND privacy_list_data.action = 'd' "\
+            + "                  AND privacy_list_data.value IS NOT NULL "\
+            + "      )"\
+            + " SELECT DISTINCT ON (users.username) "\
+            + "      users.username , "\
+            + "      earth_distance(ll_to_earth(%s, %s), ll_to_earth(users.lat, users.lng)) as distance, "\
+            + "      users.lat AS lat, "\
+            + "      users.lng AS lng, "\
+            + "      array_intersect(array_agg(interest.interest_name), uinterest.uinterest) as interests, "\
+            + "      CASE WHEN EXISTS (SELECT 1 from rosterusers WHERE username = %s "\
+            + "         AND users.username = split_part(rosterusers.jid, '@', 1)) "\
+            + "      THEN 'friends' "\
+            + "      ELSE 'anonymous' "\
+            + "      END AS friendship_status "\
+            + "      FROM uinterest, users "\
+            + "      LEFT OUTER JOIN users_interest on (users.username = users_interest.username) "\
+            + "      LEFT OUTER JOIN interest on (users_interest.interest_id = interest.interest_id)"\
+            + " WHERE earth_box(ll_to_earth(%s, %s),  %s) @> ll_to_earth(users.lat, users.lng)  "\
+            + "      AND CASE WHEN isnumeric(last_seen) THEN last_seen::float ELSE 0 END >=  %s "\
+            + "      AND users.username != %s "\
+            + "      AND users.username NOT IN  "\
+            + "      ("\
+            + "      ( SELECT bjids FROM banned_users)"\
+            + "      )"\
+            + " GROUP BY  friendship_status, users.username, uinterest.uinterest  "\
+            + " ORDER BY users.username, friendship_status DESC;"
+        variables = (self.username,
+                self.username,
+                self.lat,
+                self.lng,
+                self.username,
+                self.lat,
+                self.lng,
+                self.radius,
+                int(time.time() - self.was_online_limit),
+                self.username
+        )
+        records = QueryHandler.get_results(query, variables)
+        return records
+
+    def get(self):
+        response = {}
+        self.request.arguments = merge_body_arguments(self)
+        try:
+            check_udid_and_apk_version(self)
+            self.username = str(self.get_argument('username'))
+            self.password = str(self.get_argument('password'))
+            user = User(username = self.username, password = self.password)
+            user.authenticate()
+            self.was_online_limit = int(config.get('nearby_users', 'was_online_limit'))
+            self.radius = self.get_argument('radius')
+            self.lat = self.get_argument('lat')
+            self.lng = self.get_argument('lng')
+            nearby_users = self.get_nearby_users()
+            response['users'] = nearby_users
+            response['info'] = settings.SUCCESS_RESPONSE
+            response['status'] = settings.STATUS_200
+        except BadAuthentication, status:
+            response["info"] = status.log_message
+            response["status"] = settings.STATUS_400
+        except MissingArgumentError, status:
+            response["info"] = status.log_message
+            response["status"] = settings.STATUS_400
+        except Exception as e:
+            response['info'] = "Error: %s" % e
+            response['status'] = settings.STATUS_500
+        finally:
+            self.write(response)
+
+
+class Application(tornado.web.Application):
+    def __init__(self):
+        handlers = [
+            (r"/register", RegistrationHandler),
+            (r"/create", CreationHandler),
+            (r"/set_location", SetLocationHandler),
+            (r"/get_nearby_users", GetNearbyUsers),
+            (r"/fb_friends", FacebookHandler),
+            (r"/football_notifications", FootballEvents),
+            (r"/tennis_notifications", TennisEvents),
+            (r"/media", MediaHandler),
+            (r"/media_present", MediaPresentHandler),
+            (r"/media_multipart", IOSMediaHandler),
+            (r"/cricket_notifications", CricketEvents),
+            (r"/set_user_interests", UserInterestHandler),
+            (r"/set_udid", IOSSetUserDeviceId),
+            (r"/get_contact_jids", ContactJidsHandler),
+
+            (r"/admin", admin_api.AdminPage),
+            (r"/get_users", admin_api.AdminSelectUsers),
+            (r"/create_user", admin_api.AdminCreateUser),
+            (r"/update_user", admin_api.AdminUpdateUser),
+            (r"/delete_user", admin_api.AdminDeleteUser),
+            (r"/block_user", admin_api.AdminBlockUser),
+
+        ]
+        settings = dict(
+            static_path=os.path.join(os.path.dirname(__file__), "static"),
+            autoescape=None
+        )
+        tornado.web.Application.__init__(self, handlers, **settings)
+
+
+def add_templates_for_tornado_watch(watched_files):
+    for file_name in watched_files:
+        tornado.autoreload.watch(settings.ADMIN_TEMPLATES_PATH + file_name)
+
 
 
 def start_cron():
@@ -789,10 +861,12 @@ def start_cron():
 
 
 if __name__ == "__main__":
-    app = make_app()
+    app = Application()
     start_cron()
     options.log_file_prefix  = "tornado_log"
     enable_pretty_logging(options=options)
-    tornado.autoreload.watch('remove_old_media_cron.py')
     app.listen(int(config.get('tornado', 'listening_port')))
+    tornado.autoreload.start()
+    tornado.autoreload.watch('remove_old_media_cron.py')
+    add_templates_for_tornado_watch(settings.ADMIN_TEMPLATES)
     tornado.ioloop.IOLoop.current().start()

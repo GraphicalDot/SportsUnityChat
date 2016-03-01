@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <title>SportsUnity Admin Create User Page</title>
+        <link rel="stylesheet" href="/static/css/bootstrap/css/bootstrap.css"/>
+        <link rel="stylesheet" href="/static/css/admin.css"/>
+    </head>
+    <body>
+        <div class="container jumbotron">
+            <div class="row">
+                <div class="navbar navbar-default text-center page-header navbar-heading">
+                    <h3 class="navbar-h3">SportsUnity Admin Create User</h3>
+                </div>
+                <div class="col-md-1"></div>
+                <div class="col-md-10 content-wrap">
+                    <form action="{{ request.path }}" method="post" class="form-horizontal">
+                        <div class="form-group row">
+                            <label for="username" class="col-sm-2 form-control-label">Username</label>
+                            <div class="col-sm-8">
+                                <input type="text" name="username" class="form-control" placeholder="Enter Username" required/>
+                            </div>
+                        </div>
+                        <div class="form-group row">
+                            <label for="password" class="col-sm-2 form-control-label">Password</label>
+                            <div class="col-sm-8">
+                                <input type="password" name="password" class="form-control" placeholder="Enter Password" required/>
+                            </div>
+                        </div>
+                        <div class="form-group row">
+                            <label for="lat" class="col-sm-2 form-control-label">Latitude</label>
+                            <div class="col-sm-8">
+                                <input type="text" name="lat" class="form-control" placeholder="Enter some float/integer as latitude" required/>
+                            </div>
+                        </div>
+                        <div class="form-group row">
+                            <label for="lng" class="col-sm-2 form-control-label">Longitude</label>
+                            <div class="col-sm-8">
+                                <input type="text" name="lng" class="form-control" placeholder="Enter some float/integer as longitude" required/>
+                            </div>
+                        </div>
+                        <div class="form-group row">
+                            <label for="fb_id" class="col-sm-2 form-control-label">Facebook ID</label>
+                            <div class="col-sm-8">
+                                <input type="number" name="fb_id" class="form-control" placeholder="Enter user's facebook id (integer)" required/>
+                            </div>
+                        </div>
+                        <div class="form-group row">
+                            <label for="fb_name" class="col-sm-2 form-control-label">Facebook Name</label>
+                            <div class="col-sm-8">
+                                <input type="text" name="fb_name" class="form-control" placeholder="Enter user's facebook name" required/>
+                            </div>
+                        </div>
+                        <div class="form-group row">
+                            <label for="apple_udid" class="col-sm-2 form-control-label">Apple UDID</label>
+                            <div class="col-sm-8">
+                                <input type="text" name="apple_udid" class="form-control" placeholder="Enter UDID if ios user" required/>
+                            </div>
+                        </div>
+                        <div class="form-group row">
+                            <label for="phone_number" class="col-sm-2 form-control-label">Phone Number</label>
+                            <div class="col-sm-8">
+                                <input type="text" name="phone_number" class="form-control" placeholder="Enter User's Phone Number" required/>
+                            </div>
+                        </div>
+                        <div class="form-group row">
+                            <div class="col-sm-offset-2 col-sm-10">
+                                <button type="submit" class="btn btn-primary">Create User</button>
+                            </div>
+                        </div>
+                        {% module xsrf_form_html() %}
+                    </form>
+
+                </div>
+                <div class="col-md-1"></div>
+            </div>
+        </div>
+    </body>
+</html>
