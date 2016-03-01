@@ -5,23 +5,22 @@ from tornado.options import options
 import magic
 import settings
 from tornado.web import MissingArgumentError
-import time
-import uuid
-import tornado.escape
-import tornado.ioloop
-import tornado.autoreload
-import tornado.web
-import random
-import tornado
-import requests
-import os
+import utils
+import base64
+import ConfigParser
 import facebook
 import json
-import ConfigParser
-import base64
-from requests_toolbelt import MultipartDecoder, MultipartEncoder
-
-import base64
+import os
+import random
+import requests
+import time
+import tornado
+import tornado.ioloop
+import tornado.autoreload
+import tornado.escape
+import tornado.web
+import uuid
+from requests_toolbelt import MultipartDecoder
 from custom_error import BadAuthentication
 import admin_api
 config = ConfigParser.ConfigParser()
@@ -30,7 +29,7 @@ config.read('config.py')
 def merge_body_arguments(request_handler_object):
     try:
         body_argument = json.loads(request_handler_object.request.body)
-        listing_function = lambda x: x if type(x) == list else [str(x)] 
+        listing_function = lambda x: x if type(x) == list else [str(x)]
         body_argument = {k: listing_function(v) for k, v in body_argument.iteritems()}
         request_handler_object.request.arguments.update(body_argument)
         return request_handler_object.request.arguments
@@ -171,7 +170,7 @@ class User:
         """
         try: 
             self._generate_password()
-            query = " UPDATE users SET password = %s WHERE username = %s; " 
+            query = " UPDATE users SET password = %s WHERE username = %s; "
             variables = (self.password, self.username)
             QueryHandler.execute(query, variables)
             response, status = "Success", settings.STATUS_200
@@ -265,34 +264,9 @@ class User:
         variables = (self.phone_number, random_integer, expiration_time)
         try:
             QueryHandler.execute(query, variables)
-            return self._send_message(random_integer)
+            return utils.send_message(number=self.phone_number, message=settings.OTP_MESSAGE.format(random_integer))
         except Exception, e:
             return " Error while sending message : % s" % e, settings.STATUS_500
-
-    def _send_message(self, random_integer):
-        """
-        Sends the otp token to the user
-        """
-        number = self.phone_number
-        message = config.get('database','message') + "  " + str(random_integer)
-        payload = {
-            'method': 'SendMessage',
-            'send_to': str.strip(number),
-            'msg': str.strip(message),
-            'msg_type': 'TEXT',
-            'userid': config.get('database','gupshup_id'),
-            'auth_scheme': 'plain',
-            'password': config.get('database','gupshup_password'),
-            'v': '1.1',
-            'format': 'text',
-        }
-        response = requests.get(config.get('database','message_gateway'), params=payload)
-        response = str.split(str(response.text),'|')
-        if str.strip(str.lower(response[0])) == "success":
-            return "Success",settings.STATUS_200
-        else:
-            error = response[2]
-            return error, 500
 
 
 class FacebookHandler(tornado.web.RequestHandler):
@@ -371,7 +345,7 @@ class RegistrationHandler(tornado.web.RequestHandler):
     Parameters:- 
         phone_number -- phone number of the user to be registered
     Response:-
-        {'info': 'Success', 'status':settings.STATUS_200} if successfully registered 
+        {'info': 'Success', 'status':settings.STATUS_200} if successfully registered
         {'info': 'Error [Error]', 'status': 500} if not successfully registered 
     """
     def get(self):
@@ -383,7 +357,7 @@ class RegistrationHandler(tornado.web.RequestHandler):
             response['info'], response['status'] = user.handle_registration()
         except MissingArgumentError, status:
             response["info"] = status.log_message 
-            response["status"] =settings.STATUS_400   
+            response["status"] =settings.STATUS_400
         except Exception, e:
             response['info'] = " Error: %s " % e
             response['status'] = settings.STATUS_500
@@ -394,16 +368,16 @@ class RegistrationHandler(tornado.web.RequestHandler):
 class CreationHandler(tornado.web.RequestHandler):
     """
     Handles the creation of the user.
-    Query Parameters:- 
+    Query Parameters:-
         phone_number -- phone number of the user to be registered
         auth_code -- auth code otp sent to the user
     Response:-
         {'info': 'Success', 'status': 200
-        , 'username': [username], 'password': [password]} if successfully registered 
+        , 'username': [username], 'password': [password]} if successfully registered
         {'info': 'Wrong or Expired Token', 'status': 400
         , 'username': null, 'password': null} if wrong auth code
-        {'info': 'Error [Error]', 'status': 500} if not successfully registered 
-        {'info': 'Error [Error]', 'status': 500} if not successfully registered 
+        {'info': 'Error [Error]', 'status': 500} if not successfully registered
+        {'info': 'Error [Error]', 'status': 500} if not successfully registered
     """
     def get(self):
         response = {}
@@ -632,6 +606,46 @@ class IOSSetUserDeviceId(tornado.web.RequestHandler):
             self.write(response)
 
 
+class SendAppInvitation(tornado.web.RequestHandler):
+    """
+    Sends invitation invite from app user to any of its contacts.
+    """
+
+    def data_validation(self, app_user, invited_user):
+        query = "SELECT * FROM users WHERE username=%s;"
+        variables = (app_user,)
+        result = QueryHandler.get_results(query, variables)
+        if not result:
+            return ("Bad Request: User is not Registered!", settings.STATUS_400)
+
+        query = "SELECT * FROM users WHERE phone_number=%s;"
+        variables = (invited_user,)
+        return ("Bad Request: Invited User is Already Registered!", settings.STATUS_400) \
+            if QueryHandler.get_results(query, variables) else ('Valid', settings.STATUS_200)
+
+    def post(self):
+        response = {}
+        try:
+            app_user = str(self.get_argument('user'))
+            invited_user = str(self.get_argument('invited_user')).strip()
+
+            # data validation
+            response['info'], response['status'] = self.data_validation(app_user, invited_user)
+
+            if response['status'] not in settings.STATUS_ERROR_LIST:
+                message = settings.APP_INVITATION_MESSAGE.format(app_user)
+                response['info'], response['status'] = utils.send_message(invited_user, message)
+
+        except MissingArgumentError, status:
+            response['info'] = status.log_message
+            response['status'] = settings.STATUS_400
+        except Exception as e:
+            response['info'] = 'Error: %s' % e
+            response['status'] = settings.STATUS_500
+        finally:
+            self.write(response)
+
+
 class FootballEvents(tornado.web.RequestHandler):
     def post(self):
         event = tornado.escape.json_decode(self.request.body)
@@ -657,17 +671,17 @@ class ContactJidsHandler(tornado.web.RequestHandler):
     """
     This class handles the retrival of jids in the contact list
     of the user
-    Methods : 
+    Methods :
         get :
-            :params 
+            :params
                 username => username
                 password => password
                 apk_version and udid
-                contacts => a list of all the contacts in the users phone                 
-            :response 
+                contacts => a list of all the contacts in the users phone
+            :response
                 :success => {'status':200, 'info': 'Success', 'jids': [List of jids]}
-                :failure => {'status': 404, 'info': ' Bad Authentication Info'} in case of bad authentication          
-                :failure => {'status': 400, 'info': ' MissingArgumentError'} in case of missing arguments          
+                :failure => {'status': 404, 'info': ' Bad Authentication Info'} in case of bad authentication
+                :failure => {'status': 400, 'info': ' MissingArgumentError'} in case of missing arguments
                 :failure => {'status': 500, 'info': 'Error [Error message]'} in case of internal server error
     """
 
@@ -687,7 +701,7 @@ class ContactJidsHandler(tornado.web.RequestHandler):
             username = self.get_argument('username')
             password = self.get_argument('password')
             contacts = self.get_arguments('contacts')
-            assert type(contacts) == list 
+            assert type(contacts) == list
             contacts = map(lambda x: str(x), contacts)
             user = User(username = username, password = password)
             user.authenticate()
@@ -698,16 +712,16 @@ class ContactJidsHandler(tornado.web.RequestHandler):
             else:
                 response['jids'] = self.get_contacts_jids(username, contacts)
         except BadAuthentication, status:
-            response["info"] = status.log_message 
+            response["info"] = status.log_message
             response["status"] = settings.STATUS_404
         except KeyError, status:
-            response["info"] = " Missing %e" % status.message  
-            response["status"] = settings.STATUS_400            
+            response["info"] = " Missing %e" % status.message
+            response["status"] = settings.STATUS_400
         except MissingArgumentError, status:
-            response["info"] = status.log_message 
+            response["info"] = status.log_message
             response["status"] = settings.STATUS_400
         except AssertionError:
-            response["info"] = "Bad contacts value type" 
+            response["info"] = "Bad contacts value type"
             response["status"] = settings.STATUS_400
         except Exception as e:
             response['info'] = "Error: %s" % e
@@ -817,6 +831,7 @@ class Application(tornado.web.Application):
             (r"/set_user_interests", UserInterestHandler),
             (r"/set_udid", IOSSetUserDeviceId),
             (r"/get_contact_jids", ContactJidsHandler),
+            (r"/send_app_invite", SendAppInvitation),
 
             (r"/admin", admin_api.AdminPage),
             (r"/get_users", admin_api.AdminSelectUsers),

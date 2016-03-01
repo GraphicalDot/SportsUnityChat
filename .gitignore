@@ -2,3 +2,4 @@
 media/*
 .gitignore
 config.py
+tornado_log
