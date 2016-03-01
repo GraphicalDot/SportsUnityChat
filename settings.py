@@ -41,3 +41,8 @@ APP_TESTING_OTP = {
     TESTING_NUMBER_2: 456,
     TESTING_NUMBER_3: 789
 }
+
+# SINFINI message gateway
+SINFINI_MESSAGE_GATEWAY = 'http://global.sinfini.com/api/v3/index.php'
+SINFINI_API_KEY = 'Af6abd876814a943833e2f4d8e2e28afd'
+SINFINI_SENDER_ID = 'INFINI'

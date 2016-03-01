@@ -4,9 +4,6 @@ host=masterdb
 user=aakarshi
 password=aakarshi
 message=Welcome to Sports Unity App. Your authorization code is  
-gupshup_id=2000147230
-gupshup_password=6u71LGpxDq
-message_gateway=http://enterprise.smsgupshup.com/GatewayAPI/rest
 facebook_token=CAACEdEose0cBADRXtnHDSZBkQ1f7MHUdKgZAgw2IEbLMVB3JZCKEtkisAZAJsy6scLQalznWmrSz08PCQRLgEBKmDsbKza6M1dZCiKZB7TZAfzY8OZC1HsVFEV5d6rWZB4IBDIp5ZCVLTHj87pB0hrQJJ1qMgZAueWnO8zzJRs91MHDkZAXobvtWL9U0cUx1NyJWnjf0EjFH1T3rjwZDZD
 
 [registration]

@@ -276,23 +276,19 @@ class User:
         number = self.phone_number
         message = config.get('database','message') + "  " + str(random_integer)
         payload = {
-            'method': 'SendMessage',
-            'send_to': str.strip(number),
-            'msg': str.strip(message),
-            'msg_type': 'TEXT',
-            'userid': config.get('database','gupshup_id'),
-            'auth_scheme': 'plain',
-            'password': config.get('database','gupshup_password'),
-            'v': '1.1',
-            'format': 'text',
+            'method': 'sms',
+            'api_key': settings.SINFINI_API_KEY,
+            'message': message.strip(),
+            'sender': settings.SINFINI_SENDER_ID,
+            'to': str.strip(number),
+            'format': 'json',
+            'custom': '1,2',
+            'flash': '0'
         }
-        response = requests.get(config.get('database','message_gateway'), params=payload)
-        response = str.split(str(response.text),'|')
-        if str.strip(str.lower(response[0])) == "success":
-            return "Success",settings.STATUS_200
-        else:
-            error = response[2]
-            return error, 500
+        response = requests.get(settings.SINFINI_MESSAGE_GATEWAY, params=payload)
+        json_response = response.json()
+        return (settings.SUCCESS_RESPONSE, settings.STATUS_200) if json_response['status'] == 'OK' \
+            else (json_response['message'], settings.STATUS_500)
 
 
 class FacebookHandler(tornado.web.RequestHandler):
