@@ -7,6 +7,7 @@ import settings
 from tornado.web import MissingArgumentError
 import time
 import uuid
+import tornado.autoreload
 import tornado.ioloop
 import tornado.web
 import random
@@ -458,11 +459,16 @@ class MediaHandler(tornado.web.RequestHandler):
             self.write(response)
 
     def get(self):
+        print 'inside get'
         try:
             response = {}
+            print 'hi 1'
             check_udid_and_apk_version(self)
+            print 'hi 2'
             file_name = "media/" + self.get_arguments("name")[0]
+            print 'filename:', file_name
             if os.path.isfile(file_name):
+                print 'inside if'
                 with open(file_name, 'r') as file_content:
                     file_size = 0
                     while 1:
@@ -476,6 +482,7 @@ class MediaHandler(tornado.web.RequestHandler):
                     file_content.close()
                     self.finish()
             else:
+                print 'inside else'
                 response['info'] = 'Not Found'
                 response['status'] = settings.STATUS_400
                 self.write(response)
@@ -762,9 +769,30 @@ def make_app():
                                    autoreload = True,
                                    )
 
+
+def start_cron():
+    print 'inside start cron'
+    from crontab import CronTab
+
+    cron = CronTab(user=True)
+    # cron_job = cron.new(command='{} {} > {} 2>&1'.format(settings.LOCAL_PYTHON_PATH, settings.LOCAL_REMOVE_MEDIA_COMMAND,
+    #                                                      settings.LOCAL_LOG_FILE_PATH), user='root')
+    # cron_job = cron.new(command='*/2 * * * * /usr/bin/python /home/mama20/Desktop/sportunity/SportsUnityChat/remove_old_media_cron.py > /home/mama20/cron_log.log 2>&1', user='root')
+    cron_job = cron.new(command='*/2 * * * * /usr/bin/python /home/ubuntu/chat_api/remove_old_media_cron.py > /home/ubuntu/chat_api/cron_log.log 2>&1', user='root')
+    cron_job.minute.every(2)
+    cron_job.enable()
+    cron.write()
+    if cron.render():
+        print 'inside if'
+        print cron.render()
+        return True
+
+
 if __name__ == "__main__":
     app = make_app()
+    start_cron()
     options.log_file_prefix  = "tornado_log"
     enable_pretty_logging(options=options)
+    tornado.autoreload.watch('remove_old_media_cron.py')
     app.listen(int(config.get('tornado', 'listening_port')))
     tornado.ioloop.IOLoop.current().start()

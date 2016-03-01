@@ -6,15 +6,26 @@ import time
 
 
 def remove_old_media():
-    media_path = os.path.dirname(os.path.abspath(__file__)) + '/media/'
-    for file in os.listdir(media_path):
-        file_path = media_path + file
-        (mode, ino, dev, nlink, uid, gid, size, atime, mtime, ctime) = os.stat(file_path)
-        file_creation_time = datetime.datetime.fromtimestamp(ctime)
-        current_time = datetime.datetime.now()
-        relativde_td = dateutil.relativedelta.relativedelta (current_time, file_creation_time)
-        if relativde_td.hours >= 6:
-            os.remove(file_path)
+    print 'inside remove old media'
+    print 'path:', os.path.abspath(__file__)
+    try:
+        media_path = os.path.dirname(os.path.abspath(__file__)) + '/media/'
+        print 'media path::', media_path
+        print 'files::::', os.listdir(media_path)
+        for file in os.listdir(media_path):
+            print 'inside for'
+            file_path = media_path + file
+            (mode, ino, dev, nlink, uid, gid, size, atime, mtime, ctime) = os.stat(file_path)
+            file_creation_time = datetime.datetime.fromtimestamp(ctime)
+            current_time = datetime.datetime.now()
+            relativde_td = dateutil.relativedelta.relativedelta (current_time, file_creation_time)
+            if relativde_td.minutes >= 2:
+                print 'inside if'
+                os.remove(file_path)
+            # if relativde_td.hours >= 6:
+            #     os.remove(file_path)
+    except Exception as e:
+        raise e
 
 
 if __name__ == "__main__":
