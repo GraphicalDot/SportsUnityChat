@@ -123,7 +123,7 @@ vii) Start ejabberd service using this command: ejabberdctl start
 
 Note: Logs for ejabberd could be seen using: vi /var/logs/ejabberd/ejabberd.log or tail -f /var/logs/ejabberd/ejabberd.log
 
-
+Also install sudo apt-get install postgresql-contrib libpq-dev
 
 
 ** TESTING **
