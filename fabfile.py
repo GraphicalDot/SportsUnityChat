@@ -66,15 +66,18 @@ def pull_and_deploy():
                 run("sudo git fetch --all")
                 run("sudo git checkout -f " + BRANCH)
                 run("sudo git pull origin " + BRANCH)
-                run(virtual_environment+"/bin/pip install -r requirement.txt")
-                run("sudo mv config_example.py config.py")
 
         else:
             run("sudo git clone https://github.com/kaali-python/"+ REPO_NAME + ".git")
             with cd(repo_dir):
                 run("sudo git checkout -f " + BRANCH)
-                run(virtual_environment+"/bin/pip install -r requirement.txt")
-                run("sudo mv config_example.py config.py")
+        
+        with cd(repo_dir):
+            run(virtual_environment+"/bin/pip install -r requirement.txt")
+            run("sudo mv config_example.py config.py")
+            run("sudo  touch tornado_log ")
+            run(" sudo chmod 777 tornado_log ")
+            run(" sudo chmod 777 media ")
         run("sudo zdaemon -p 'python api_v0_archive.py' -d stop")
         run("sudo zdaemon -p 'python api_v0_archive.py' -d start")
 
