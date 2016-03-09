@@ -14,6 +14,7 @@ import time
 env.hosts = open('hosts', 'r').readlines()
 VIRTUAL_ENVIRONMENT = "/home/{0}/VirtualEnvironment"
 REPO_NAME = "SportsUnityChat"
+BRANCH = "satish_fab_deployer"
 @task
 def remote_host():
     env.key_filename = "/home/madbrain/Downloads/staging_server.pem"
@@ -63,13 +64,15 @@ def pull_and_deploy():
                 if not repo_url in response:
                     response = run("sudo git remote set-url origin " + repo_url)
                 run("sudo git fetch --all")
-                run("sudo git checkout -f satish_fab_deployer")
+                run("sudo git checkout -f " + BRANCH)
+                run("sudo git pull origin " + BRANCH)
                 run(virtual_environment+"/bin/pip install -r requirement.txt")
                 run("sudo mv config_example.py config.py")
+
         else:
             run("sudo git clone https://github.com/kaali-python/"+ REPO_NAME + ".git")
             with cd(repo_dir):
-                run("sudo git checkout -f satish_fab_deployer")
+                run("sudo git checkout -f " + BRANCH)
                 run(virtual_environment+"/bin/pip install -r requirement.txt")
                 run("sudo mv config_example.py config.py")
         run("sudo zdaemon -p 'python api_v0_archive.py' -d stop")
