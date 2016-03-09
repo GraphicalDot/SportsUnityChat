@@ -4,9 +4,9 @@ from boto.s3.key import Key
 import psycopg2
 import psycopg2.extras
 import ConfigParser
+import os
 config = ConfigParser.ConfigParser()
-config.read('config.py')
-
+config.read(os.path.join(os.path.abspath(os.path.dirname(__file__)), 'config.py'))
 
 class QueryHandler:
     @classmethod
