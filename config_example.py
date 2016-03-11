@@ -3,8 +3,6 @@ database=test_database
 host=masterdb
 user=aakarshi
 password=aakarshi
-message=Welcome to Sports Unity App. Your authorization code is  
-facebook_token=CAACEdEose0cBADRXtnHDSZBkQ1f7MHUdKgZAgw2IEbLMVB3JZCKEtkisAZAJsy6scLQalznWmrSz08PCQRLgEBKmDsbKza6M1dZCiKZB7TZAfzY8OZC1HsVFEV5d6rWZB4IBDIp5ZCVLTHj87pB0hrQJJ1qMgZAueWnO8zzJRs91MHDkZAXobvtWL9U0cUx1NyJWnjf0EjFH1T3rjwZDZD
 
 [registration]
 expiry_period_sec=1800
@@ -18,12 +16,6 @@ node=princely_musings
 
 [xmpp]
 domain=@mm.io
-
-[amazon]
-amazon_access_key=AKIAJBDUSAQY2QTMKXIA
-amazon_secret_key=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
-profile_pics_bucket=sports_unity_profile_pics
-acl=public-read
 
 [tests]
 test_facebook_id=145634995501895
