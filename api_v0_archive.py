@@ -5,6 +5,7 @@ from tornado.options import options
 import magic
 import settings
 from tornado.web import MissingArgumentError
+from psycopg2 import IntegrityError
 import utils
 import base64
 import ConfigParser
@@ -587,7 +588,7 @@ class IOSSetUserDeviceId(tornado.web.RequestHandler):
 
             user = User(password = password, username = username)
             user.authenticate()
-            query = "UPDATE users SET apple_udid=%s WHERE username=%s;"
+            query = "UPDATE users SET apple_token=%s WHERE username=%s;"
             variables = (udid, username)
             QueryHandler.execute(query, variables)
 
@@ -813,6 +814,140 @@ class GetNearbyUsers(tornado.web.RequestHandler):
         finally:
             self.write(response)
 
+class RegisterMatchHandler(tornado.web.RequestHandler):
+    """
+    This class handles the registration of a match for a jid
+    """
+    def set_user_match(self):
+        query = " INSERT INTO users_matches (username, match_id) VALUES (%s, %s);"
+        variables = (self.username, self.match_id)
+        QueryHandler.execute(query, variables)
+
+    def post(self):
+        response = {}
+        try:
+            check_udid_and_apk_version(self)
+            self.request.arguments = merge_body_arguments(self)
+            self.username = str(self.get_argument('username'))
+            self.password = str(self.get_argument('password'))
+            user = User(username = self.username, password = self.password)
+            user.authenticate()
+            self.match_id = str(self.get_argument('match_id'))
+            self.set_user_match()
+            response["info"], response["status"] = settings.SUCCESS_RESPONSE, settings.STATUS_200
+        except BadAuthentication, status:
+            response["info"] = status.log_message
+            response["status"] = settings.STATUS_400
+        except MissingArgumentError, status:
+            response["info"] = status.log_message
+            response["status"] = settings.STATUS_400
+        except IntegrityError, status:
+            response["info"] = " Specified Match does not exists or has been already subscribed to"
+            response["status"] = settings.STATUS_400
+        except Exception, e:
+            response['info'] = "Error: %s" % e
+            response["status"] = settings.STATUS_500
+        finally:
+            self.write(response)
+
+class UnRegisterMatchHandler(tornado.web.RequestHandler):
+    """
+    This class handles the registration of a match for a jid
+    """
+    def remove_user_match(self):
+        query = "  DELETE FROM users_matches WHERE users_matches.username = %s AND users_matches.match_id = %s;"
+        variables = (self.username, self.match_id)
+        QueryHandler.execute(query, variables)
+
+    def post(self):
+        response = {}
+        try:
+            check_udid_and_apk_version(self)
+            self.request.arguments = merge_body_arguments(self)
+            self.username = str(self.get_argument('username'))
+            self.password = str(self.get_argument('password'))
+            user = User(username = self.username, password = self.password)
+            user.authenticate()
+            self.match_id = str(self.get_argument('match_id'))
+            self.remove_user_match()
+            response["info"], response["status"] = settings.SUCCESS_RESPONSE, settings.STATUS_200
+        except BadAuthentication, status:
+            response["info"] = status.log_message
+            response["status"] = settings.STATUS_400
+        except MissingArgumentError, status:
+            response["info"] = status.log_message
+            response["status"] = settings.STATUS_400
+        except Exception, e:
+            response['info'] = "Error: %s" % e
+            response["status"] = settings.STATUS_500
+        finally:
+            self.write(response)
+            
+class AndroidSetUserDeviceToken(tornado.web.RequestHandler):
+    """
+    This class handles the registration of a match for a jid
+    """
+    def set_android_device_token(self):
+        query = "  UPDATE users SET android_token = %s, device_id = %s WHERE username = %s;"
+        variables = ( self.token, self.udid, self.username)
+        QueryHandler.execute(query, variables)
+
+    def post(self):
+        response = {}
+        try:
+            check_udid_and_apk_version(self)
+            self.request.arguments = merge_body_arguments(self)
+            self.username = str(self.get_argument('username'))
+            self.password = str(self.get_argument('password'))
+            user = User(username = self.username, password = self.password)
+            user.authenticate()
+            self.udid = str(self.get_argument('udid'))
+            self.token = str(self.get_argument('token'))
+            self.set_android_device_token()
+            response["info"], response["status"] = settings.SUCCESS_RESPONSE, settings.STATUS_200
+        except BadAuthentication, status:
+            response["info"] = status.log_message
+            response["status"] = settings.STATUS_400
+        except MissingArgumentError, status:
+            response["info"] = status.log_message
+            response["status"] = settings.STATUS_400
+        except Exception, e:
+            response['info'] = "Error: %s" % e
+            response["status"] = settings.STATUS_500
+        finally:
+            self.write(response)
+
+class AndroidRemoveUserDeviceId(tornado.web.RequestHandler):
+    """
+    This class handles the registration of a match for a jid
+    """
+    def set_android_device_token(self):
+        query = "  UPDATE users SET android_token = null WHERE username = %s;"
+        variables = ( self.username,)
+        QueryHandler.execute(query, variables)
+
+    def post(self):
+        response = {}
+        try:
+            check_udid_and_apk_version(self)
+            self.request.arguments = merge_body_arguments(self)
+            self.username = str(self.get_argument('username'))
+            self.password = str(self.get_argument('password'))
+            user = User(username = self.username, password = self.password)
+            user.authenticate()
+            self.set_android_device_token()
+            response["info"], response["status"] = settings.SUCCESS_RESPONSE, settings.STATUS_200
+        except BadAuthentication, status:
+            response["info"] = status.log_messages
+            response["status"] = settings.STATUS_400
+        except MissingArgumentError, status:
+            response["info"] = status.log_message
+            response["status"] = settings.STATUS_400
+        except Exception, e:
+            response['info'] = "Error: %s" % e
+            response["status"] = settings.STATUS_500
+        finally:
+            self.write(response)
 
 class Application(tornado.web.Application):
     def __init__(self):
@@ -829,9 +964,13 @@ class Application(tornado.web.Application):
             (r"/media_multipart", IOSMediaHandler),
             (r"/cricket_notifications", CricketEvents),
             (r"/set_user_interests", UserInterestHandler),
-            (r"/set_udid", IOSSetUserDeviceId),
+            (r"/set_ios_udid", IOSSetUserDeviceId),
             (r"/get_contact_jids", ContactJidsHandler),
             (r"/send_app_invite", SendAppInvitation),
+            (r"/user_register_match", RegisterMatchHandler),
+            (r"/user_unregister_match", UnRegisterMatchHandler),
+            (r"/set_android_token", AndroidSetUserDeviceToken),
+            (r"/remove_android_token", AndroidRemoveUserDeviceId),
 
             (r"/admin", admin_api.AdminPage),
             (r"/get_users", admin_api.AdminSelectUsers),
