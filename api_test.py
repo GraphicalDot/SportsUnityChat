@@ -615,15 +615,21 @@ class NearbyUsersWithSameInterestsTests(unittest.TestCase):
         except psycopg2.IntegrityError, e:
             pass
 
-    def add_user_friends(self, friend):
+    def add_roster_entry(self, friend, subscription = 'B'):
 
         query = "INSERT INTO rosterusers(username, jid, nick, subscription, ask, askmessage, server) VALUES" \
                 "(%s, %s, %s, %s, %s, %s, %s);"
-        variables = (self.username, friend, 't5', 'B', '', 'N', 'N')
+        variables = (self.username, friend, 't5', subscription, '', 'N', 'N')
         try:
             QueryHandler.execute(query, variables)
         except psycopg2.IntegrityError as e:
             pass
+
+    def update_roster_entry(self, friend, subscription):
+        query = "UPDATE rosterusers SET subscription = %s " \
+                "WHERE username = %s AND jid = %s;"
+        variables = (subscription, self.username, friend)
+        QueryHandler.execute(query, variables)
 
     def add_user_privacy_list(self):
         test_utils.delete_user_from_table('username', 'privacy_list', self.username)
@@ -664,7 +670,7 @@ class NearbyUsersWithSameInterestsTests(unittest.TestCase):
         self.create_test_users()
         self.create_interests()
         self.add_user_interests()
-        self.add_user_friends('test_5@mm.io')
+        self.add_roster_entry('test_5@mm.io')
         self.add_user_privacy_list()
         self.set_blocked_contacts_for_user()
 
@@ -703,15 +709,7 @@ class NearbyUsersWithSameInterestsTests(unittest.TestCase):
             assert modified_user_interest_dict == expected_result
 
 
-    def test_get(self):
-        # case 1: when 'test_2' was online 1 hour back
-        self.expected_result_dict = {"friends": {"test_5": ["test_interest_2", "test_interest_1"]},
-                                     "anonymous": {"test_6": ["test_interest_2"], "test_2": ["test_interest_2"]}}
-        self.data = {'username': 'test_4', 'password': 'pswd_4', 'lat': '0.0', 'lng': '0.0', 'radius': 5, 'apk_version': self.apk_version, 'udid': self.udid}
-        response = requests.get(self.url, data=self.data)
-        self.assert_response_status(response, settings.SUCCESS_RESPONSE, settings.STATUS_200, self.expected_result_dict)
-
-
+    def test_get_nearby_users(self):
         # case 2: when 'test_2' was online 2 hours back
         query = "UPDATE users SET last_seen=%s WHERE username='test_2';"
         QueryHandler.execute(query, (time.time() - 7200,))
@@ -722,29 +720,77 @@ class NearbyUsersWithSameInterestsTests(unittest.TestCase):
         user_dict = {}
         self.assert_response_status(response, settings.SUCCESS_RESPONSE, settings.STATUS_200, self.expected_result_dict)
 
+        # case 1: when 'test_2' was online 15 minutes back
+        query = "UPDATE users SET last_seen=%s WHERE username='test_2';"
+        QueryHandler.execute(query, (time.time() - 900,))
+        self.expected_result_dict = {"friends": {"test_5": ["test_interest_2", "test_interest_1"]},
+                                     "anonymous": {"test_6": ["test_interest_2"], "test_2": ["test_interest_2"]}}
+        self.data = {'username': 'test_4', 'password': 'pswd_4', 'lat': '0.0', 'lng': '0.0', 'radius': 5, 'apk_version': self.apk_version, 'udid': self.udid}
+        response = requests.get(self.url, data=self.data)
+        self.assert_response_status(response, settings.SUCCESS_RESPONSE, settings.STATUS_200, self.expected_result_dict)
+
 
         # case 3: when 'test_6' is also a friend
-        self.add_user_friends('test_6@mm.io')
+        self.add_roster_entry('test_6@mm.io')
         self.expected_result_dict = {"friends": {"test_6": ["test_interest_2"],
-                                                 "test_5": ["test_interest_2", "test_interest_1"]}, "anonymous": {}}
+                                                 "test_5": ["test_interest_2", "test_interest_1"]}, 
+                                    "anonymous": {"test_2": ["test_interest_2"]}}
         self.data = {'username': 'test_4', 'password': 'pswd_4', 'lat': '0.0', 'lng': '0.0', 'radius': 5, 'apk_version': self.apk_version, 'udid': self.udid}
         response = requests.get(self.url, data=self.data)
         self.assert_response_status(response, settings.SUCCESS_RESPONSE, settings.STATUS_200, self.expected_result_dict)
 
+        # case 4: when 'test_2' has roster entry for none (not a friend)
+        self.add_roster_entry('test_2@mm.io', subscription = 'N')
+        response = requests.get(self.url, data=self.data)
+        self.expected_result_dict = {"friends": {"test_6": ["test_interest_2"],
+                                                 "test_5": ["test_interest_2", "test_interest_1"]}, 
+                                    "anonymous": {"test_2": ["test_interest_2"]}}
+        self.assert_response_status(response, settings.SUCCESS_RESPONSE, settings.STATUS_200, self.expected_result_dict)
 
-        # case 4: when user has NO friends
+        #case 5: when 'test_2' has a both way subscription 
+        self.update_roster_entry('test_2@mm.io', subscription = 'B')
+        response = requests.get(self.url, data=self.data)
+        self.expected_result_dict = {"friends": {"test_6": ["test_interest_2"],
+                                                 "test_5": ["test_interest_2", "test_interest_1"],
+                                                 "test_2": ["test_interest_2"]}, 
+                                    "anonymous": {}}
+        self.assert_response_status(response, settings.SUCCESS_RESPONSE, settings.STATUS_200, self.expected_result_dict)
+
+
+        #case 6: when 'test_2' has a 'F' and 
+        self.update_roster_entry('test_2@mm.io', subscription = 'F')
+        response = requests.get(self.url, data=self.data)
+        self.expected_result_dict = {"friends": {"test_6": ["test_interest_2"],
+                                                 "test_5": ["test_interest_2", "test_interest_1"]}, 
+                                    "anonymous": {"test_2": ["test_interest_2"]}}
+        self.assert_response_status(response, settings.SUCCESS_RESPONSE, settings.STATUS_200, self.expected_result_dict)
+
+        # case 7: when 'test_2' has a 'T' subscription
+        self.update_roster_entry('test_2@mm.io', subscription = 'T')
+        response = requests.get(self.url, data=self.data)
+        self.assert_response_status(response, settings.SUCCESS_RESPONSE, settings.STATUS_200, self.expected_result_dict)
+        
+        # case 6: when user has NO friends
         self.delete_user_friends()
-        self.expected_result_dict = {"friends": {}, "anonymous": {"test_6": ["test_interest_2"], "test_5": ["test_interest_2", "test_interest_1"]}}
+        self.expected_result_dict = {"friends": {}, 
+                                    "anonymous": {"test_6": ["test_interest_2"], 
+                                                "test_5": ["test_interest_2", "test_interest_1"],
+                                                "test_2": ["test_interest_2"]}}
         self.data = {'username': 'test_4', 'password': 'pswd_4', 'lat': '0.0', 'lng': '0.0', 'radius': 5, 'apk_version': self.apk_version, 'udid': self.udid}
         response = requests.get(self.url, data=self.data)
         self.assert_response_status(response, settings.SUCCESS_RESPONSE, settings.STATUS_200, self.expected_result_dict)
 
 
-        # case 5: when no banned users
+        # case 7: when no banned users
         query = "UPDATE users SET last_seen=%s WHERE username='test_1';"
         QueryHandler.execute(query, (time.time(),))
         self.delete_user_privacy_list()
-        self.expected_result_dict = {"friends": {}, "anonymous": {"test_6": ["test_interest_2"], "test_5": ["test_interest_2", "test_interest_1"], "test_1": ["test_interest_1"]}}
+        self.expected_result_dict = {"friends": {}, 
+                                    "anonymous": {
+                                        "test_6": ["test_interest_2"], 
+                                        "test_5": ["test_interest_2", "test_interest_1"], 
+                                        "test_1": ["test_interest_1"],
+                                        "test_2": ["test_interest_2"]}}
         self.data = {'username': 'test_4', 'password': 'pswd_4', 'lat': '0.0', 'lng': '0.0', 'radius': 5, 'apk_version': self.apk_version, 'udid': self.udid}
         response = requests.get(self.url, data=self.data)
         self.assert_response_status(response, settings.SUCCESS_RESPONSE, settings.STATUS_200, self.expected_result_dict)
