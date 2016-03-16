@@ -575,7 +575,7 @@ class UserInterestHandler(tornado.web.RequestHandler):
             self.write(response)
 
 
-cios_lass IOSSetUserDeviceId(tornado.web.RequestHandler):
+class IOSSetUserDeviceId(tornado.web.RequestHandler):
 
     def post(self):
         response = {}
