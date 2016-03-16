@@ -755,7 +755,7 @@ class GetNearbyUsers(tornado.web.RequestHandler):
             + "      users.lng AS lng, "\
             + "      array_intersect(array_agg(interest.interest_name), uinterest.uinterest) as interests, "\
             + "      CASE WHEN EXISTS (SELECT 1 from rosterusers WHERE username = %s "\
-            + "         AND users.username = split_part(rosterusers.jid, '@', 1)) "\
+            + "         AND users.username = split_part(rosterusers.jid, '@', 1) AND subscription = 'B') "\
             + "      THEN 'friends' "\
             + "      ELSE 'anonymous' "\
             + "      END AS friendship_status "\
