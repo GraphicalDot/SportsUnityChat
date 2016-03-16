@@ -575,7 +575,7 @@ class UserInterestHandler(tornado.web.RequestHandler):
             self.write(response)
 
 
-class IOSSetUserDeviceId(tornado.web.RequestHandler):
+cios_lass IOSSetUserDeviceId(tornado.web.RequestHandler):
 
     def post(self):
         response = {}
@@ -829,7 +829,7 @@ class Application(tornado.web.Application):
             (r"/media_multipart", IOSMediaHandler),
             (r"/cricket_notifications", CricketEvents),
             (r"/set_user_interests", UserInterestHandler),
-            (r"/set_udid", IOSSetUserDeviceId),
+            (r"/set_ios_udid", IOSSetUserDeviceId),
             (r"/get_contact_jids", ContactJidsHandler),
             (r"/send_app_invite", SendAppInvitation),
 

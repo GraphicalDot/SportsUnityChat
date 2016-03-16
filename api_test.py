@@ -24,6 +24,7 @@ config = ConfigParser()
 config.read('config.py')
 
 extra_params = '&apk_version=v0.1&udid=TEST@UDID'
+extra_params_dict = {apk_version : 'v0.1', udid = "test_udid"}
 tornado_listening_port =  int(config.get('tornado', 'listening_port'))
 tornado_local_address =  "http://localhost:%u" % tornado_listening_port
 
@@ -502,7 +503,7 @@ class IOSSetUserDeviceIdTests(unittest.TestCase):
         assert json.loads(response.content)['status'] == expected_status
 
     def setUp(self):
-        self.url = tornado_local_address + '/set_udid' + '?apk_version=v0.1&udid=TEST@UDID'
+        self.url = tornado_local_address + '/set_ios_udid' + '?apk_version=v0.1&udid=TEST@UDID'
         test_utils.delete_user(username = self._username)
         test_utils.delete_user(phone_number = self._phone_number)
         test_utils.create_user(username = self._username, password = self._password, phone_number = self._phone_number)
@@ -528,6 +529,9 @@ class IOSSetUserDeviceIdTests(unittest.TestCase):
         response = requests.post(self.url, data=self.data)
         self.assert_status_info(response, settings.STATUS_200)
 
+        record = test_utils.select_user(username = self._username)[0]
+        assert record
+        assert record['apple_udid']
 
 class ContactListTest(unittest.TestCase):
     _username = 'test'
@@ -810,6 +814,85 @@ class SendAppInvitationTest(unittest.TestCase):
         self.assertEqual(res['info'], settings.SUCCESS_RESPONSE)
         self.assertEqual(res['status'], settings.STATUS_200)
 
+class MatchPushNotificationTest(unittest.TestCase):
+    _register_url = "/user_register_match"
+    _unregister_url = "/user_unregister_match"
+    _username = "test"
+    _phone_number = "911"
+    _password = "test"
+    _match = "test_match"
+    _match_id = "000"
+    def delete_users_match(self):
+        query = "DELETE FROM users_match WHERE users_matches.username = %s AND users_matches._match_id = %s FROM users_match;"
+        variables = (self._username, self._match_id,)
+        QueryHandler.execute(query, variables)
+        
+    def insert_match(self):
+        query = "INSERT INTO matches (id, name) VALUES (%s, %s);"
+        variables = (self._match_id, self._match)
+        QueryHandler.execute(query, variables)
+
+
+    def setUp(self):
+        test_utils.delete_user(username = self._username)
+        test_utils.create_user(username = self._username, password = self._password, phone_number = self._phone_number)
+        delete_users_match()
+        insert_match()
+
+    def test_register_and_unregister_match(self):
+        payload = {'user': self._username, 'password': self._password, 'match_id': self._match_id}
+        response = json.loads(requests.get(self._register_url, json=payload).content)
+        assert response['status'] == settings.STATUS_200
+
+        query = " SELECT * FROM users_matches WHERE users_match.username = %s AND users_matches.match_id = %s;"
+        variables = (self._username, self._match_id,)
+        record = QueryHandler.get_results(query, variables)[0]
+        assert record
+        assert record['username'] == self._username
+        assert record['match_id'] == self._match_id
+
+        response = json.loads(requests.get(self._unregister_url, json=payload).content)
+        assert response['status'] == settings.STATUS_200
+
+        query = " SELECT * FROM users_matches WHERE users_match.username = %s AND users_matches.match_id = %s;"
+        variables = (self._username, self._match_id,)
+        record = QueryHandler.get_results(query, variables)
+        assert not record
+    
+    def tearDown(self):
+        test_utils.delete_user(username = self._username)
+        delete_users_match()
+
+
+class SetAndroidDeviceTokenTest(unittest.TestCase):
+    _set_url = "/set_android_token"
+    _unset_url = "/unset_android_token"
+    _username = "test"
+    _phone_number = "911"
+    _password = "test"
+    _token = "test_token"
+    def getUp()
+        test_utils.delete_user(username = self._username)
+        test_utils.create_user(username = self._username, password = self._password, phone_number = self._phone_number)
+
+    def test_set_unset_token(self):
+        payload = {'user': self._username, 'password': self._password, 'token': self._match_id}
+        payload.update(extra_params_dict)
+        response = json.loads(requests.get(self._set_url, json=payload).content)
+        assert response['status'] == settings.STATUS_200
+
+        record = test_utils.select_user(username = self._username)[0]
+        assert record['username'] == self._username
+        assert record['android_udid'] == self._token
+        assert record['device_id'] == extra_params_dict['udid']
+
+        payload = {'user': self._username, 'password': self._password}
+        payload.update(extra_params_dict)
+        response = json.loads(requests.get(self._unset_url, json=payload).content)
+        record = test_utils.select_user(username = self._username)[0]
+        assert record['username'] == self._username
+        assert not record['android_udid']
+        assert record['device_id']        
 
 if __name__ == '__main__':
     unittest.main()
