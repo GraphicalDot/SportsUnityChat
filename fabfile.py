@@ -14,11 +14,8 @@ import time
 env.hosts = open('hosts', 'r').readlines()
 VIRTUAL_ENVIRONMENT = "/home/{0}/VirtualEnvironment"
 REPO_NAME = "SportsUnityChat"
-BRANCH = "satish_fab_deployer"
-@task
-def remote_host():
-    env.key_filename = "/home/madbrain/Downloads/staging_server.pem"
-    env.warn_only = True
+BRANCH = "master"
+env.key_filename = "/home/kaali/Downloads/staging_server.pem"
 
 @task
 def basic_setup():
@@ -78,8 +75,9 @@ def pull_and_deploy():
             run("sudo  touch tornado_log ")
             run(" sudo chmod 777 tornado_log ")
             run(" sudo chmod 777 media ")
-        run("sudo zdaemon -p 'python api_v0_archive.py' -d stop")
-        run("sudo zdaemon -p 'python api_v0_archive.py' -d start")
+        run("sudo touch big.mp4")
+        run("sudo zdaemon -p 'python api_v0_archive.py' -z " + repo_dir + " -d stop")
+        run("sudo zdaemon -p 'python api_v0_archive.py' -z " + repo_dir + " -d start")
 
 
 def run_tests():
