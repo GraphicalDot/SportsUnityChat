@@ -14,6 +14,7 @@ SUCCESS_RESPONSE = "Success"
 MISSING_APK_AND_UDID_ERROR = "Bad Request: Please provide 'apk_version' and 'udid'"
 BAD_AUTHENTICATION_ERROR = " Bad Authentication Info"
 USER_FORBIDDEN_ERROR = "Forbidden: The user is BLOCKED!"
+BAD_INFO_ERROR = " Bad Info Supplied for {}"
 
 # admin templates path
 ADMIN_TEMPLATES_PATH = 'admin_templates/'
