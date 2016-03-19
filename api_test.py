@@ -589,7 +589,7 @@ class NearbyUsersWithSameInterestsTests(unittest.TestCase):
 
     def create_test_users(self):
         for user in self.users:
-            query = "INSERT INTO users(username, password, phone_number, lat, lng, last_seen, is_available) values(%s, %s, %s, %s, %s, %s, True);"
+            query = "INSERT INTO users(username, password, phone_number, lat, lng, last_seen, is_available, show_location) values(%s, %s, %s, %s, %s, %s, True, True);"
             variables = (user[0], user[1], user[2], user[3], user[4], user[5])
             try:
                 QueryHandler.execute(query, variables)
@@ -760,8 +760,28 @@ class NearbyUsersWithSameInterestsTests(unittest.TestCase):
                                     "anonymous": {}}
         self.assert_response_status(response, settings.SUCCESS_RESPONSE, settings.STATUS_200, self.expected_result_dict)
 
+        # case 6: when 'test_2' has disabled his location
+        self.expected_result_dict = {"friends": {"test_6": ["test_interest_2"],
+                                                 "test_5": ["test_interest_2", "test_interest_1"]}, 
+                                    "anonymous": {}}
+        query = " UPDATE users SET show_location = FALSE WHERE username = %s;"
+        variables = ('test_2',)
+        QueryHandler.execute(query, variables)
+        response = requests.get(self.url, data=self.data)
+        self.assert_response_status(response, settings.SUCCESS_RESPONSE, settings.STATUS_200, self.expected_result_dict)
 
-        #case 6: when 'test_2' has a 'F' and 
+        #case 7: when 'test_2' has enabled his location
+        self.expected_result_dict = {"friends": {"test_6": ["test_interest_2"],
+                                                 "test_5": ["test_interest_2", "test_interest_1"],
+                                                 "test_2": ["test_interest_2"]}, 
+                                    "anonymous": {}}
+        query = " UPDATE users SET show_location = TRUE WHERE username = %s;"
+        variables = ('test_2',)
+        QueryHandler.execute(query, variables)
+        response = requests.get(self.url, data=self.data)
+        self.assert_response_status(response, settings.SUCCESS_RESPONSE, settings.STATUS_200, self.expected_result_dict)
+
+        #case 8: when 'test_2' has a 'F' subscription
         self.update_roster_entry('test_2@mm.io', subscription = 'F')
         response = requests.get(self.url, data=self.data)
         self.expected_result_dict = {"friends": {"test_6": ["test_interest_2"],
@@ -769,12 +789,13 @@ class NearbyUsersWithSameInterestsTests(unittest.TestCase):
                                     "anonymous": {"test_2": ["test_interest_2"]}}
         self.assert_response_status(response, settings.SUCCESS_RESPONSE, settings.STATUS_200, self.expected_result_dict)
 
-        # case 7: when 'test_2' has a 'T' subscription
+        # case 9: when 'test_2' has a 'T' subscription
         self.update_roster_entry('test_2@mm.io', subscription = 'T')
         response = requests.get(self.url, data=self.data)
         self.assert_response_status(response, settings.SUCCESS_RESPONSE, settings.STATUS_200, self.expected_result_dict)
         
-        # case 6: when user has NO friends
+
+        # case 10: when user has NO friends
         self.delete_user_friends()
         self.expected_result_dict = {"friends": {}, 
                                     "anonymous": {"test_6": ["test_interest_2"], 
@@ -785,7 +806,7 @@ class NearbyUsersWithSameInterestsTests(unittest.TestCase):
         self.assert_response_status(response, settings.SUCCESS_RESPONSE, settings.STATUS_200, self.expected_result_dict)
 
 
-        # case 7: when no banned users
+        # case 11: when no banned users
         query = "UPDATE users SET last_seen=%s WHERE username='test_1';"
         QueryHandler.execute(query, (time.time(),))
         self.delete_user_privacy_list()
@@ -950,6 +971,39 @@ class SetAndroidDeviceTokenTest(unittest.TestCase):
         assert record['username'] == self._username
         assert not record['android_token']
         assert record['device_id']        
+
+    def tearDown(self):
+        test_utils.delete_user(username = self._username)
+
+class SetLocationPrivacyTest(unittest.TestCase):
+    _set_location_privacy_url = tornado_local_address + "/set_location_privacy"
+    _username = "test"
+    _phone_number = "911"
+    _password = "test"
+    _token = "test_token"
+    
+    def setUp(self):
+        test_utils.delete_user(username = self._username)
+        test_utils.create_user(username = self._username, password = self._password, phone_number = self._phone_number)
+
+    def test_show_location_status(self):
+        payload = {"username": self._username, "password": self._password, "show_location_status": "true"}
+        payload.update(extra_params_dict)
+        response = json.loads(requests.post(self._set_location_privacy_url, data=payload).content)
+        assert response['status'] == settings.STATUS_200
+
+        record = test_utils.select_user(username = self._username)[0]
+        assert record['username'] == self._username
+        assert record['show_location']
+
+        payload = {'username': self._username, 'password': self._password, "show_location_status": "false"}
+        payload.update(extra_params_dict)
+        response = json.loads(requests.post(self._set_location_privacy_url, data=payload).content)
+        assert response['status'] == settings.STATUS_200
+
+        record = test_utils.select_user(username = self._username)[0]
+        assert record['username'] == self._username
+        assert not record['show_location']
 
     def tearDown(self):
         test_utils.delete_user(username = self._username)

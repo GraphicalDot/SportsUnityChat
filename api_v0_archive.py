@@ -22,7 +22,7 @@ import tornado.escape
 import tornado.web
 import uuid
 from requests_toolbelt import MultipartDecoder
-from custom_error import BadAuthentication
+from custom_error import BadAuthentication, BadInfoSuppliedError
 import admin_api
 config = ConfigParser.ConfigParser()
 config.read('config.py')
@@ -769,6 +769,7 @@ class GetNearbyUsers(tornado.web.RequestHandler):
             + "      ("\
             + "      ( SELECT bjids FROM banned_users)"\
             + "      )"\
+            + "      AND users.show_location = True"\
             + " GROUP BY  friendship_status, users.username, uinterest.uinterest  "\
             + " ORDER BY users.username, friendship_status DESC;"
         variables = (self.username,
@@ -921,7 +922,7 @@ class AndroidRemoveUserDeviceId(tornado.web.RequestHandler):
     """
     This class handles the registration of a match for a jid
     """
-    def set_android_device_token(self):
+    def remove_android_device_token(self):
         query = "  UPDATE users SET android_token = null WHERE username = %s;"
         variables = ( self.username,)
         QueryHandler.execute(query, variables)
@@ -935,12 +936,47 @@ class AndroidRemoveUserDeviceId(tornado.web.RequestHandler):
             self.password = str(self.get_argument('password'))
             user = User(username = self.username, password = self.password)
             user.authenticate()
-            self.set_android_device_token()
+            self.remove_android_device_token()
             response["info"], response["status"] = settings.SUCCESS_RESPONSE, settings.STATUS_200
         except BadAuthentication, status:
             response["info"] = status.log_messages
             response["status"] = settings.STATUS_400
         except MissingArgumentError, status:
+            response["info"] = status.log_message
+            response["status"] = settings.STATUS_400
+        except Exception, e:
+            response['info'] = "Error: %s" % e
+            response["status"] = settings.STATUS_500
+        finally:
+            self.write(response)
+
+class LocationPrivacyHandler(tornado.web.RequestHandler):
+    def set_location_privacy(self):
+        query = " UPDATE users SET show_location = %s WHERE username = %s;"
+        variables = (self.show_location_status, self.username,)
+        QueryHandler.execute(query, variables)
+
+    def post(self):
+        response = {}
+        try:
+            check_udid_and_apk_version(self)
+            self.request.arguments = merge_body_arguments(self)
+            self.username = str(self.get_argument('username'))
+            self.password = str(self.get_argument('password'))
+            self.show_location_status = str(self.get_argument('show_location_status'))
+            if not self.show_location_status in ["true", "false"]:
+                raise BadInfoSuppliedError("location_status")
+            user = User(username = self.username, password = self.password)
+            user.authenticate()
+            self.set_location_privacy()
+            response["info"], response["status"] = settings.SUCCESS_RESPONSE, settings.STATUS_200
+        except BadAuthentication, status:
+            response["info"] = status.log_messages
+            response["status"] = settings.STATUS_400
+        except MissingArgumentError, status:
+            response["info"] = status.log_message
+            response["status"] = settings.STATUS_400
+        except BadInfoSuppliedError, status:
             response["info"] = status.log_message
             response["status"] = settings.STATUS_400
         except Exception, e:
@@ -971,6 +1007,7 @@ class Application(tornado.web.Application):
             (r"/user_unregister_match", UnRegisterMatchHandler),
             (r"/set_android_token", AndroidSetUserDeviceToken),
             (r"/remove_android_token", AndroidRemoveUserDeviceId),
+            (r"/set_location_privacy", LocationPrivacyHandler),
 
             (r"/admin", admin_api.AdminPage),
             (r"/get_users", admin_api.AdminSelectUsers),
