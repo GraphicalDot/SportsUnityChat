@@ -11,14 +11,13 @@ import ConfigParser
 config = ConfigParser.ConfigParser()
 config.read(os.path.join(os.path.abspath(os.path.dirname(__file__)), 'config.py'))
 
-
 class Singleton(type):
     def __call__(cls, *args, **kwargs):
         if cls not in cls._instance:
-            cls._instances[cls] = super(Singleton, cls).__call__(*args, **kwargs)
+            cls.[cls] = super(Singleton, cls).__call__(*args, **kwargs)
         return cls._instances[cls]
 
-class QueryHandler:
+class QueryHandler(object):
     @classmethod
     def get_connection(cls):
         connection = psycopg2.connect("dbname=%s host=%s user=%s password=%s"
@@ -50,7 +49,7 @@ class QueryHandler:
         cursor.close()
 
 
-class S3Handler:
+class S3Handler(object):
     def __init__(self, bucket_name):
         amazon_access_key = str.strip(str(config.get('amazon', 'amazon_access_key')))
         amazon_secret_key = str.strip(str(config.get('amazon', 'amazon_secret_key')))

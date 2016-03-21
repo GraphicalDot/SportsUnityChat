@@ -987,15 +987,13 @@ class LocationPrivacyHandler(tornado.web.RequestHandler):
             self.write(response)
 
 class PushNotificationHandler(tornado.web.RequestHandler):
-
     def post(self):
         response = {}
         try:
             self.request.arguments = merge_body_arguments(self)
-            self.sport = str(self.get_argument('sport'))
-            self.event = str(self.get_argument('event'))
-            self.match_id = str(self.get_argument('match_id'))
-
+            event = str(self.get_argument('event'))
+            match_id = str(self.get_argument('match_id'))
+            NotificationHandler(match_id, event).notify()
             response["info"], response["status"] = settings.SUCCESS_RESPONSE, settings.STATUS_200
         except MissingArgumentError, status:
             response["info"] = status.log_message

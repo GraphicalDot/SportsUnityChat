@@ -1019,6 +1019,8 @@ class PushNotifcationsTest(unittest.TestCase):
     def test_notify_event(self):
         payload = {"sport": self._sport_code, "event": self._event_code, "match_id": self._match_id}
         response = json.loads(requests.post(self._push_notification_url, data=payload).content)
+        from IPython import embed
+        embed()
         assert response['status'] == settings.STATUS_200
 
 if __name__ == '__main__':
