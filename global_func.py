@@ -3,10 +3,20 @@ from boto.s3.connection import S3Connection
 from boto.s3.key import Key
 import psycopg2
 import psycopg2.extras
-import ConfigParser
+from apns import APNs, Payload
 import os
+from gcm import GCM
+import time
+import ConfigParser
 config = ConfigParser.ConfigParser()
 config.read(os.path.join(os.path.abspath(os.path.dirname(__file__)), 'config.py'))
+
+
+class Singleton(type):
+    def __call__(cls, *args, **kwargs):
+        if cls not in cls._instance:
+            cls._instances[cls] = super(Singleton, cls).__call__(*args, **kwargs)
+        return cls._instances[cls]
 
 class QueryHandler:
     @classmethod
