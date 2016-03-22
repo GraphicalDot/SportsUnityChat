@@ -18,5 +18,5 @@ def send_message(number, message):
     }
     response = requests.get(settings.SINFINI_MESSAGE_GATEWAY, params=payload)
     json_response = response.json()
-    return (settings.SUCCESS_RESPONSE, settings.STATUS_200) if json_response['status'] == 'OK' \
+    return (settings.SUCCESS_RESPONSE, settings.STATUS_200, json_response) if json_response['status'] == 'OK' \
         else (json_response['message'], settings.STATUS_500)

@@ -110,24 +110,10 @@ class CreationTest(AsyncHTTPTestCase):
         response = requests.get(self._registration_url + extra_params)
         res = json.loads(response.text)
         record = QueryHandler.get_results(select_query, select_variables)
-
         self.assertEqual(len(record), 1)
+        assert record[0]['gateway_response']
         self.assertEqual(res['info'], settings.SUCCESS_RESPONSE)
         self.assertEqual(res['status'], settings.STATUS_200)
-
-
-        # Testing Registration for App testing phone numbers
-        app_testing_registration_url = tornado_local_address + "/register?phone_number=" + settings.TESTING_NUMBER_2
-        response = requests.get(app_testing_registration_url + extra_params)
-        res = json.loads(response.text)
-        query = "SELECT authorization_code FROM registered_users WHERE phone_number=%s;"
-        variables = (settings.TESTING_NUMBER_2,)
-        result = QueryHandler.get_results(query, variables)
-
-        self.assertEqual(res['info'], settings.SUCCESS_RESPONSE)
-        self.assertEqual(res['status'], settings.STATUS_200)
-        self.assertEqual(len(result), 1)
-        self.assertEqual(result[0]['authorization_code'], str(settings.APP_TESTING_OTP[settings.TESTING_NUMBER_2]))
 
     def test_wrong_auth_code_failure(self):
 
@@ -871,45 +857,45 @@ class NearbyUsersWithSameInterestsTests(unittest.TestCase):
         self.delete_user_privacy_list()
 
 
-class SendAppInvitationTest(unittest.TestCase):
-    _url = None
-    _unregistered_user = '910000000000'
-    _registered_user = '911111111111'
-    _invited_user = '912222222222'
-    _password = 'password'
+# class SendAppInvitationTest(unittest.TestCase):
+#     _url = None
+#     _unregistered_user = '910000000000'
+#     _registered_user = '911111111111'
+#     _invited_user = '912222222222'
+#     _password = 'password'
 
-    def setUp(self):
-        self._url = tornado_local_address + '/send_app_invite' + '?apk_version=v0.1&udid=TEST@UDID'
-        test_utils.delete_user(phone_number=self._unregistered_user)
-        test_utils.delete_user(phone_number=self._registered_user)
-        test_utils.delete_user(phone_number=self._invited_user)
-        test_utils.create_user(username=self._registered_user, password=self._password, phone_number=self._registered_user)
+#     def setUp(self):
+#         self._url = tornado_local_address + '/send_app_invite' + '?apk_version=v0.1&udid=TEST@UDID'
+#         test_utils.delete_user(phone_number=self._unregistered_user)
+#         test_utils.delete_user(phone_number=self._registered_user)
+#         test_utils.delete_user(phone_number=self._invited_user)
+#         test_utils.create_user(username=self._registered_user, password=self._password, phone_number=self._registered_user)
 
-    def test_validation(self):
+#     def test_validation(self):
 
-        # incomplete post data
-        response = requests.post(self._url, data={})
-        res = json.loads(response.text)
-        self.assertEqual(res['info'], "Missing argument user")
-        self.assertEqual(res['status'], settings.STATUS_400)
+#         # incomplete post data
+#         response = requests.post(self._url, data={})
+#         res = json.loads(response.text)
+#         self.assertEqual(res['info'], "Missing argument user")
+#         self.assertEqual(res['status'], settings.STATUS_400)
 
-        # user not registered
-        response = requests.post(self._url, data={'user': self._unregistered_user, 'invited_user': self._invited_user})
-        res = json.loads(response.text)
-        self.assertEqual(res['info'], "Bad Request: User is not Registered!")
-        self.assertEqual(res['status'], settings.STATUS_400)
+#         # user not registered
+#         response = requests.post(self._url, data={'user': self._unregistered_user, 'invited_user': self._invited_user})
+#         res = json.loads(response.text)
+#         self.assertEqual(res['info'], "Bad Request: User is not Registered!")
+#         self.assertEqual(res['status'], settings.STATUS_400)
 
-        # invited user already registered
-        response = requests.post(self._url, data={'user': self._registered_user, 'invited_user': self._registered_user})
-        res = json.loads(response.text)
-        self.assertEqual(res['info'], "Bad Request: Invited User is Already Registered!")
-        self.assertEqual(res['status'], settings.STATUS_400)
+#         # invited user already registered
+#         response = requests.post(self._url, data={'user': self._registered_user, 'invited_user': self._registered_user})
+#         res = json.loads(response.text)
+#         self.assertEqual(res['info'], "Bad Request: Invited User is Already Registered!")
+#         self.assertEqual(res['status'], settings.STATUS_400)
 
-        # valid post request
-        response = requests.post(self._url, data={'user': self._registered_user, 'invited_user': self._invited_user})
-        res = json.loads(response.text)
-        self.assertEqual(res['info'], settings.SUCCESS_RESPONSE)
-        self.assertEqual(res['status'], settings.STATUS_200)
+#         # valid post request
+#         response = requests.post(self._url, data={'user': self._registered_user, 'invited_user': self._invited_user})
+#         res = json.loads(response.text)
+#         self.assertEqual(res['info'], settings.SUCCESS_RESPONSE)
+#         self.assertEqual(res['status'], settings.STATUS_200)
 
 class MatchPushNotificationTest(unittest.TestCase):
     _register_url = tornado_local_address + "/user_register_match"

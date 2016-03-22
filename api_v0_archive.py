@@ -256,15 +256,15 @@ class User:
         """
         Registers the users in the database
         """
-        # TODO: remove app testing numbers after the release
         random_integer = random.randint(1000,9999)
         expiration_time = int(time.time()) + int(config.get('registration', 'expiry_period_sec'))
 
-        query = " INSERT INTO registered_users (phone_number, authorization_code, expiration_time) VALUES ( %s, %s, %s); "
-        variables = (self.phone_number, random_integer, expiration_time)
         try:
+            status_info, status_code, gateway_response = utils.send_message(number=self.phone_number, message=settings.OTP_MESSAGE.format(random_integer))
+            query = " INSERT INTO registered_users (phone_number, authorization_code, expiration_time, gateway_response) VALUES ( %s, %s, %s, %s); "
+            variables = (self.phone_number, random_integer, expiration_time, str(gateway_response))
             QueryHandler.execute(query, variables)
-            return utils.send_message(number=self.phone_number, message=settings.OTP_MESSAGE.format(random_integer))
+            return status_info, status_code
         except Exception, e:
             return " Error while sending message : % s" % e, settings.STATUS_500
 
