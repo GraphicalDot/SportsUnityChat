@@ -257,8 +257,7 @@ class User:
         Registers the users in the database
         """
         # TODO: remove app testing numbers after the release
-        random_integer = settings.APP_TESTING_OTP[self.phone_number] \
-            if self.phone_number in settings.APP_TESTING_PHONE_NUMBERS else random.randint(1000,9999)
+        random_integer = random.randint(1000,9999)
         expiration_time = int(time.time()) + int(config.get('registration', 'expiry_period_sec'))
 
         query = " INSERT INTO registered_users (phone_number, authorization_code, expiration_time) VALUES ( %s, %s, %s); "
@@ -546,26 +545,44 @@ class UserInterestHandler(tornado.web.RequestHandler):
                 :success => {'status':settings.STATUS_200, 'info': 'Success'}
                 :failure => {'status': 500, 'info': 'Error [Error message]'}     
     """
-    def get(self):
+    def get_user_interests(self):
+        query = " SELECT interest_id FROM users_interest WHERE username = %s;"
+        variables = (self.username,)
+        return QueryHandler.get_results(query, variables)
+
+    def insert_user_interest(self, new_interests):
+        query = "INSERT INTO users_interest (interest_id, username) "\
+            " (SELECT interest_id, %s FROM interest WHERE "\
+            + " OR ".join(map( lambda interest: "interest_id = '" + interest + "'" , new_interests))\
+            + ");"         
+        variables = (self.username, )
+        QueryHandler.execute(query, variables)
+
+    def delete_user_interest(self, interests):
+        query = " DELETE FROM users_interest WHERE "\
+        +   "username = %s AND ( " + " OR ".join(["interest_id = %s "]*len(interests)) + " );"
+        variables = [self.username] + interests
+        QueryHandler.execute(query, variables)
+
+    def post(self):
         response = {}
         try:
+            self.request.arguments = merge_body_arguments(self)
             check_udid_and_apk_version(self)
-            username = self.get_argument('username')
+            self.username = self.get_argument('username')
+            self.password = self.get_argument('password')
             interests = self.request.arguments['interests']
-            interests = map(lambda interest: interest.lower(), interests)
+            user = User(username = self.username, password = self.password)
+            user.authenticate()
 
-            query = " DELETE FROM users_interest WHERE username = %s;"
-            variables = (username,)
-            QueryHandler.execute(query, variables)            
-
-            query = "INSERT INTO users_interest (interest_id, username) "\
-                " (SELECT interest_id, %s FROM interest WHERE "\
-                + " OR ".join(map( lambda interest: "interest_name = '" + interest + "'" , interests))\
-                + ");"         
-            variables = (username, )
-            QueryHandler.execute(query, variables)
-            response['status'] =settings.STATUS_200
+            interests_record = self.get_user_interests()
+            new_interests = [interest for interest in interests if interest not in map(lambda x: x['interest_id'], interests_record)] 
+            self.insert_user_interest(new_interests)
+            response['status'] = settings.STATUS_200
             response['info'] = "Success"
+        except BadAuthentication, status:
+            response["info"] = status.log_message 
+            response["status"] =settings.STATUS_400
         except MissingArgumentError, status:
             response["info"] = status.log_message 
             response["status"] =settings.STATUS_400
@@ -574,6 +591,33 @@ class UserInterestHandler(tornado.web.RequestHandler):
             response['info'] = "Error: %s " % e
         finally:
             self.write(response)
+
+    def delete(self):
+        response = {}
+        try:
+            self.request.arguments = merge_body_arguments(self)
+            check_udid_and_apk_version(self)
+            self.username = self.get_argument('username')
+            self.password = self.get_argument('password')
+            user = User(username = self.username, password = self.password)
+            user.authenticate()
+            interests = self.request.arguments['interests']
+
+            self.delete_user_interest(interests)
+
+            response['status'] =settings.STATUS_200
+            response['info'] = "Success"
+        except BadAuthentication, status:
+            response["info"] = status.log_message 
+            response["status"] =settings.STATUS_400
+        except MissingArgumentError, status:
+            response["info"] = status.log_message 
+            response["status"] =settings.STATUS_400
+        except Exception, e:
+            response['status'] = settings.STATUS_500
+            response['info'] = "Error: %s " % e
+        finally:
+            self.write(response)        
 
 
 class IOSSetUserDeviceId(tornado.web.RequestHandler):
