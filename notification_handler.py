@@ -20,9 +20,9 @@ class ApnsHandler(object):
         key_file = config.get('apns', 'key_file')
         self.apns = apns.APNs(use_sandbox=True, cert_file=cert_file, key_file=key_file, enhanced=True)
 
-    def send_notifications(self, users, event):
+    def send_notifications(self, users, payload):
         frame = apns.Frame()
-        payload = apns.Payload(alert = str(event), sound="default", badge=1)
+        payload = apns.Payload(alert = str(payload), sound="default", badge=1)
         for idx, user in enumerate(users):
             if user['apple_token']:
                 identifier = idx + 1
@@ -43,12 +43,12 @@ class GCMHandler:
         response = self.gcm.json_request(registration_ids = users_tokens, data=event)
 
 class NotificationHandler:
-    def __init__(self, match_id, event):
+    def __init__(self, match_id, payload):
         self.match_id = match_id
-        self.event = event
+        self.payload = payload
     
     def notify(self):
-        threading.Thread(group = None, target = self.handle_notification, name = None, args = (self.match_id, self.event)).start()
+        threading.Thread(group = None, target = self.handle_notification, name = None, args = (self.match_id, self.payload)).start()
 
     def get_subscribing_users(self, match_id):
         query = " SELECT android_token, apple_token FROM users, users_matches"\
@@ -56,7 +56,7 @@ class NotificationHandler:
         variables = (match_id,)
         return QueryHandler.get_results(query, variables)
 
-    def handle_notification(self, match_id, event):
+    def handle_notification(self, match_id, payload):
         subscribing_users = self.get_subscribing_users(match_id)
-        ApnsHandler().send_notifications(subscribing_users, event)
-        GCMHandler().send_notifications(subscribing_users, event)
+        ApnsHandler().send_notifications(subscribing_users, payload)
+        GCMHandler().send_notifications(subscribing_users, payload)

@@ -991,9 +991,10 @@ class PushNotificationHandler(tornado.web.RequestHandler):
         response = {}
         try:
             self.request.arguments = merge_body_arguments(self)
+            payload = self.request.body
             event = str(self.get_argument('event'))
             match_id = str(self.get_argument('match_id'))
-            NotificationHandler(match_id, event).notify()
+            NotificationHandler(match_id, payload).notify()
             response["info"], response["status"] = settings.SUCCESS_RESPONSE, settings.STATUS_200
         except MissingArgumentError, status:
             response["info"] = status.log_message
