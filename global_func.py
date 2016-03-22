@@ -11,12 +11,6 @@ import ConfigParser
 config = ConfigParser.ConfigParser()
 config.read(os.path.join(os.path.abspath(os.path.dirname(__file__)), 'config.py'))
 
-class Singleton(type):
-    def __call__(cls, *args, **kwargs):
-        if cls not in cls._instance:
-            cls.[cls] = super(Singleton, cls).__call__(*args, **kwargs)
-        return cls._instances[cls]
-
 class QueryHandler(object):
     @classmethod
     def get_connection(cls):
