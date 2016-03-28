@@ -1032,9 +1032,10 @@ class PushNotifcationsTest(unittest.TestCase):
     _sport_code = "1"
     _event_code = "1"
     _match_id = "1"
+    _league_id = "1"
 
     def test_notify_event(self):
-        payload = {"s": self._sport_code, "e": self._event_code, "m": self._match_id, "tt": "test", "bt": "test"}
+        payload = {"s": self._sport_code, "e": self._event_code, "m": self._match_id, "tt": "test", "bt": "test", "l": self._league_id}
         response = json.loads(requests.post(self._push_notification_url, data=payload).content)
         assert response['status'] == settings.STATUS_200
 

@@ -1037,7 +1037,9 @@ class PushNotificationHandler(tornado.web.RequestHandler):
             self.request.arguments = merge_body_arguments(self)
             payload = self.request.body
             match_id = str(self.get_argument('m'))
-            NotificationHandler(match_id, payload).notify()
+            league_id = str(self.get_argument('l'))
+            league_match_id = match_id.strip() + "|" + league_id.strip()
+            NotificationHandler(league_match_id, payload).notify()
             response["info"], response["status"] = settings.SUCCESS_RESPONSE, settings.STATUS_200
         except MissingArgumentError, status:
             response["info"] = status.log_message
