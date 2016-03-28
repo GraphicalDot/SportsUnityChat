@@ -33,4 +33,4 @@ cert_file='cert.pem'
 key_file='key.pem'
 
 [gcm]
-api_key=''
+api_key='AIzaSyCju4rjZbSFLMFdijEr4IcIljeAS395Ikk'

@@ -3,12 +3,15 @@ from boto.s3.connection import S3Connection
 from boto.s3.key import Key
 import psycopg2
 import psycopg2.extras
-import ConfigParser
+from apns import APNs, Payload
 import os
+from gcm import GCM
+import time
+import ConfigParser
 config = ConfigParser.ConfigParser()
 config.read(os.path.join(os.path.abspath(os.path.dirname(__file__)), 'config.py'))
 
-class QueryHandler:
+class QueryHandler(object):
     @classmethod
     def get_connection(cls):
         connection = psycopg2.connect("dbname=%s host=%s user=%s password=%s"
@@ -40,7 +43,7 @@ class QueryHandler:
         cursor.close()
 
 
-class S3Handler:
+class S3Handler(object):
     def __init__(self, bucket_name):
         amazon_access_key = str.strip(str(config.get('amazon', 'amazon_access_key')))
         amazon_secret_key = str.strip(str(config.get('amazon', 'amazon_secret_key')))

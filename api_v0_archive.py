@@ -24,6 +24,7 @@ import uuid
 from requests_toolbelt import MultipartDecoder
 from custom_error import BadAuthentication, BadInfoSuppliedError
 import admin_api
+from notification_handler import NotificationHandler
 config = ConfigParser.ConfigParser()
 config.read('config.py')
 
@@ -1029,6 +1030,24 @@ class LocationPrivacyHandler(tornado.web.RequestHandler):
         finally:
             self.write(response)
 
+class PushNotificationHandler(tornado.web.RequestHandler):
+    def post(self):
+        response = {}
+        try:
+            self.request.arguments = merge_body_arguments(self)
+            payload = self.request.body
+            match_id = str(self.get_argument('m'))
+            NotificationHandler(match_id, payload).notify()
+            response["info"], response["status"] = settings.SUCCESS_RESPONSE, settings.STATUS_200
+        except MissingArgumentError, status:
+            response["info"] = status.log_message
+            response["status"] = settings.STATUS_400
+        except Exception, e:
+            response['info'] = "Error: %s" % e
+            response["status"] = settings.STATUS_500
+        finally:
+            self.write(response)
+
 class Application(tornado.web.Application):
     def __init__(self):
         handlers = [
@@ -1052,6 +1071,7 @@ class Application(tornado.web.Application):
             (r"/set_android_token", AndroidSetUserDeviceToken),
             (r"/remove_android_token", AndroidRemoveUserDeviceId),
             (r"/set_location_privacy", LocationPrivacyHandler),
+            (r"/notify_event", PushNotificationHandler),
 
             (r"/admin", admin_api.AdminPage),
             (r"/get_users", admin_api.AdminSelectUsers),

@@ -1,3 +1,5 @@
+##TO-DO Refactor this file
+
 import hashlib
 import json
 import magic
@@ -1023,6 +1025,25 @@ class SetLocationPrivacyTest(unittest.TestCase):
 
     def tearDown(self):
         test_utils.delete_user(username = self._username)
+
+class PushNotifcationsTest(unittest.TestCase):
+    _push_notification_url = tornado_local_address + "/notify_event"
+    _sport_code = "1"
+    _event_code = "1"
+    _match_id = "1"
+
+    def test_notify_event(self):
+        payload = {"s": self._sport_code, "e": self._event_code, "m": self._match_id, "tt": "test", "bt": "test"}
+        response = json.loads(requests.post(self._push_notification_url, data=payload).content)
+        assert response['status'] == settings.STATUS_200
+
+class ApnsHandlerTest(unittest.TestCase):
+	def test_singleton(self):
+		from notification_handler import ApnsHandler
+		class_1 = ApnsHandler()
+		class_2 = ApnsHandler()
+		assert id(class_1) == id(class_2)
+
 
 if __name__ == '__main__':
     unittest.main()
