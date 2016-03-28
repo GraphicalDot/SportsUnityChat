@@ -27,3 +27,10 @@ was_online_limit=1800
 
 [tornado]
 listening_port=3000
+
+[apns]
+cert_file='cert.pem'
+key_file='key.pem'
+
+[gcm]
+api_key='AIzaSyCju4rjZbSFLMFdijEr4IcIljeAS395Ikk'
