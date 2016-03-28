@@ -50,6 +50,7 @@ def deploy():
 
 def pull_and_deploy():
     virtual_environment = VIRTUAL_ENVIRONMENT.format(env["user"])
+    virtual_environment_python = virtual_environment + "/bin/python"
     repo_dir = "/home/{0}".format(env["user"]) + "/" + REPO_NAME + "/"
     repo_url = "https://github.com/kaali-python/"+ REPO_NAME + ".git"
     with prefix(". "+virtual_environment+ "/bin/activate"):
@@ -76,11 +77,13 @@ def pull_and_deploy():
             run(" sudo chmod 777 tornado_log ")
             run(" sudo chmod 777 media ")
             run("sudo touch big.mp4")
-            run("sudo zdaemon -p 'python api_v0_archive.py' -z " + repo_dir + " -d stop")
-            run("sudo zdaemon -p 'python api_v0_archive.py' -z " + repo_dir + " -d start")
+            run("sudo zdaemon -p '" + virtual_environment_python + " api_v0_archive.py' -z " + repo_dir + " -d stop")
+            run("sudo zdaemon -p '" + virtual_environment_python + " api_v0_archive.py' -z " + repo_dir + " -d start")
 
 
 def run_tests():
     repo_dir = "/home/{0}".format(env["user"]) + "/" + REPO_NAME + "/"
-    with cd(repo_dir):
-        run(" python api_test.py ")
+    virtual_environment = VIRTUAL_ENVIRONMENT.format(env["user"])
+    with prefix(". "+virtual_environment+ "/bin/activate"):
+        with cd(repo_dir):
+            run(" python api_test.py ")

@@ -48,5 +48,5 @@ SINFINI_MESSAGE_GATEWAY = 'http://global.sinfini.com/api/v3/index.php'
 SINFINI_API_KEY = 'A8e2b6ece6237e5ebc6a0631e51e4ec43'
 SINFINI_SENDER_ID = 'SPORTU'
 
-OTP_MESSAGE = 'Welcome to Sports Unity App. Your authorization code is {}'
+OTP_MESSAGE = 'Welcome to Sports Unity. Your authorization code is {}'
 APP_INVITATION_MESSAGE = 'Hi! {} has invited you to join SportsUnity App.'
