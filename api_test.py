@@ -507,47 +507,8 @@ class IOSMediaHandlerTests(unittest.TestCase):
             os.remove('media/' + file)
 
 
-class IOSSetUserDeviceIdTests(unittest.TestCase):
 
-    _username = 'test'
-    _password = 'password'
-    _phone_number = config.get('tests', 'test_phone_number')
 
-    def assert_status_info(self, response, expected_status):
-        res = json.loads(response.content)
-        assert response.status_code == settings.STATUS_200
-        assert json.loads(response.content)['status'] == expected_status
-
-    def setUp(self):
-        self.url = tornado_local_address + '/set_ios_udid' + '?apk_version=v0.1&udid=TEST@UDID'
-        test_utils.delete_user(username = self._username)
-        test_utils.delete_user(phone_number = self._phone_number)
-        test_utils.create_user(username = self._username, password = self._password, phone_number = self._phone_number)
-
-    def test_validations(self):
-        # self._username not provided
-        self.data = {'token': 'AAAAAAAA'}
-        response = requests.post(self.url, data=self.data)
-        self.assert_status_info(response, settings.STATUS_400)
-
-        # udid token not provided
-        self.data = {'user': self._username}
-        response = requests.post(self.url, data=self.data)
-        self.assert_status_info(response, settings.STATUS_400)
-
-        # self._username is not registered
-        self.data = {'user': '910000000000', 'token': 'AAAAAA'}
-        response = requests.post(self.url, data=self.data)
-        self.assert_status_info(response, settings.STATUS_400)
-
-    def test_post(self):
-        self.data = {'user': self._username, 'token': 'AAAAAA', 'password': self._password}
-        response = requests.post(self.url, data=self.data)
-        self.assert_status_info(response, settings.STATUS_200)
-
-        record = test_utils.select_user(username = self._username)[0]
-        assert record
-        assert record['apple_token'] == self.data['token']
 
 class ContactListTest(unittest.TestCase):
     _username = 'test'
@@ -682,11 +643,11 @@ class NearbyUsersWithSameInterestsTests(unittest.TestCase):
                       ('test_4', 'pswd_4', 'test_4', 0.0, 0.0, self.epoch_time),
                       ('test_5', 'pswd_5', 'test_5', 0.0000010, 0.0000010, self.epoch_time + 75),
                       ('test_6', 'pswd_6', 'test_6', 0.0, 0.0, self.epoch_time + 1000)]
-       	self.interests = [{'name':'test_interest_1', 'id': 'test_1'},
-    					{'name':'test_interest_2', 'id': 'test_2'},
-    					{'name':'test_interest_3', 'id': 'test_3'},
-    					{'name':'test_interest_4', 'id': 'test_4'}]
-	self.interest_id = []
+        self.interests = [{'name':'test_interest_1', 'id': 'test_1'},
+                        {'name':'test_interest_2', 'id': 'test_2'},
+                        {'name':'test_interest_3', 'id': 'test_3'},
+                        {'name':'test_interest_4', 'id': 'test_4'}]
+        self.interest_id = []
         self.delete_users()
         self.delete_interests()
         self.create_test_users()
@@ -957,19 +918,44 @@ class MatchPushNotificationTest(unittest.TestCase):
         self.delete_match()
 
 
-class SetAndroidDeviceTokenTest(unittest.TestCase):
-    _set_url = tornado_local_address + "/set_android_token"
-    _unset_url = tornado_local_address + "/remove_android_token"
+
+class SetDeviceTokenReturnUserMatchesTest(object):
     _username = "test"
     _phone_number = "911"
     _password = "test"
     _token = "test_token"
-    
+    _match = "test_match"
+    _match_id = "000"
+
+    def delete_users_match(self):
+        query = "DELETE FROM users_matches WHERE users_matches.username = %s AND users_matches.match_id = %s;"
+        variables = (self._username, self._match_id,)
+        QueryHandler.execute(query, variables)
+        
+    def insert_match(self):
+        query = "INSERT INTO matches (id, name) VALUES (%s, %s);"
+        variables = (self._match_id, self._match)
+        QueryHandler.execute(query, variables)
+
+    def delete_match(self):
+        query = " DELETE FROM matches WHERE id = %s;"
+        variables = (self._match_id,)
+        QueryHandler.execute(query, variables)
+
+    def set_user_match(self):
+        query = " INSERT INTO users_matches (username, match_id) VALUES (%s, %s);"
+        variables = (self._username, self._match_id)
+        QueryHandler.execute(query, variables)
+
     def setUp(self):
         test_utils.delete_user(username = self._username)
         test_utils.create_user(username = self._username, password = self._password, phone_number = self._phone_number)
+        self.delete_users_match()
+        self.delete_match()
+        self.insert_match()
+        self.set_user_match()
 
-    def test_set_unset_token(self):
+    def test_set_unset_token_and_return_user_matches(self):
         payload = {"username": self._username, "password": self._password, "token": self._token}
         payload.update(extra_params_dict)
         response = json.loads(requests.post(self._set_url, data=payload).content)
@@ -977,21 +963,37 @@ class SetAndroidDeviceTokenTest(unittest.TestCase):
 
         record = test_utils.select_user(username = self._username)[0]
         assert record['username'] == self._username
-        assert record['android_token'] == self._token
+        assert record[self._token_name] == self._token
+        assert len(response["match_ids"]) == 1
+        assert response["match_ids"][0] == self._match_id
         assert record['device_id'] == extra_params_dict['udid']
 
-        payload = {'username': self._username, 'password': self._password}
-        payload.update(extra_params_dict)
-        response = json.loads(requests.post(self._unset_url, data=payload).content)
-        assert response['status'] == settings.STATUS_200
+        if self._unset_url:
+            payload = {'username': self._username, 'password': self._password}
+            payload.update(extra_params_dict)
+            response = json.loads(requests.post(self._unset_url, data=payload).content)
+            assert response['status'] == settings.STATUS_200
 
-        record = test_utils.select_user(username = self._username)[0]
-        assert record['username'] == self._username
-        assert not record['android_token']
-        assert record['device_id']        
+            record = test_utils.select_user(username = self._username)[0]
+            assert record['username'] == self._username
+            assert not record[self._token_name]
+            assert record['device_id']        
 
     def tearDown(self):
         test_utils.delete_user(username = self._username)
+        self.delete_users_match()
+        self.delete_match()
+
+class SetAndroidDeviceTokenReturnUserMatchesTest(SetDeviceTokenReturnUserMatchesTest, unittest.TestCase, ):
+    _set_url = tornado_local_address + "/set_android_token_and_return_user_matches"
+    _unset_url = tornado_local_address + "/remove_android_token"
+    _token_name = "android_token"
+    
+
+class IOSSetUserDeviceIdReturnUserMatchesTests(SetDeviceTokenReturnUserMatchesTest, unittest.TestCase):
+    _set_url = tornado_local_address + "/set_ios_token_and_return_user_matches"
+    _unset_url = None
+    _token_name = "apple_token"
 
 class SetLocationPrivacyTest(unittest.TestCase):
     _set_location_privacy_url = tornado_local_address + "/set_location_privacy"
@@ -1027,7 +1029,7 @@ class SetLocationPrivacyTest(unittest.TestCase):
         test_utils.delete_user(username = self._username)
 
 class PushNotifcationsTest(unittest.TestCase):
-    #TO-DO Write test for user retrieval 
+    #TO-DO Write test for users retrieval 
     _push_notification_url = tornado_local_address + "/notify_event"
     _sport_code = "1"
     _event_code = "1"

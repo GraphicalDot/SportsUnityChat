@@ -621,23 +621,29 @@ class UserInterestHandler(tornado.web.RequestHandler):
             self.write(response)        
 
 
-class IOSSetUserDeviceId(tornado.web.RequestHandler):
+class IOSSetUserDeviceTokenReturnsUsersMatches(tornado.web.RequestHandler):
+
+    def set_ios_token_and_return_user_matches(self): 
+        query = " WITH updated AS (UPDATE users SET apple_token=%s, device_id = %s WHERE username=%s) "\
+        +   "SELECT users_matches.match_id FROM users_matches WHERE users_matches.username = %s;"
+        variables = (self.token, self.udid, self.username, self.username)
+        return QueryHandler.get_results(query, variables)
 
     def post(self):
         response = {}
         try:
             check_udid_and_apk_version(self)
-            username = str(self.get_argument('user'))
-            password = str(self.get_argument('password'))
-            udid = str(self.get_argument('token'))
-
-            user = User(password = password, username = username)
+            self.username = str(self.get_argument('username'))
+            self.password = str(self.get_argument('password'))
+            self.token = str(self.get_argument('token'))
+            self.udid = str(self.get_argument('udid'))
+            user = User(password = self.password, username = self.username)
             user.authenticate()
-            query = "UPDATE users SET apple_token=%s WHERE username=%s;"
-            variables = (udid, username)
-            QueryHandler.execute(query, variables)
 
-            response['info'] = "Success"
+            users_matches = self.set_ios_token_and_return_user_matches()
+            response['match_ids'] = map(lambda x: x['match_id'], users_matches)
+
+            response['info'] = settings.SUCCESS_RESPONSE
             response['status'] =settings.STATUS_200
         except BadAuthentication, status:
             response["info"] = status.log_message 
@@ -692,25 +698,25 @@ class SendAppInvitation(tornado.web.RequestHandler):
             self.write(response)
 
 
-class FootballEvents(tornado.web.RequestHandler):
-    def post(self):
-        event = tornado.escape.json_decode(self.request.body)
-        if event:
-            NotificationAdapter(event, "Football").notify()
+# class FootballEvents(tornado.web.RequestHandler):
+#     def post(self):
+#         event = tornado.escape.json_decode(self.request.body)
+#         if event:
+#             NotificationAdapter(event, "Football").notify()
 
 
-class TennisEvents(tornado.web.RequestHandler):
-    def post(self):
-        event = tornado.escape.json_decode(self.request.body)
-        if event:
-            NotificationAdapter(event, "Tennis").notify()
+# class TennisEvents(tornado.web.RequestHandler):
+#     def post(self):
+#         event = tornado.escape.json_decode(self.request.body)
+#         if event:
+#             NotificationAdapter(event, "Tennis").notify()
 
 
-class CricketEvents(tornado.web.RequestHandler):
-    def post(self):
-        event = tornado.escape.json_decode(self.request.body)
-        if event:
-            NotificationAdapter(event, "Cricket").notify()
+# class CricketEvents(tornado.web.RequestHandler):
+#     def post(self):
+#         event = tornado.escape.json_decode(self.request.body)
+#         if event:
+#             NotificationAdapter(event, "Cricket").notify()
 
 
 class ContactJidsHandler(tornado.web.RequestHandler):
@@ -929,14 +935,15 @@ class UnRegisterMatchHandler(tornado.web.RequestHandler):
         finally:
             self.write(response)
             
-class AndroidSetUserDeviceToken(tornado.web.RequestHandler):
+class AndroidSetUserDeviceTokenReturnsUsersMatches(tornado.web.RequestHandler):
     """
     This class handles the registration of a match for a jid
     """
-    def set_android_device_token(self):
-        query = "  UPDATE users SET android_token = %s, device_id = %s WHERE username = %s;"
-        variables = ( self.token, self.udid, self.username)
-        QueryHandler.execute(query, variables)
+    def set_android_device_token_returning_user_matches(self):
+        query = " WITH updated AS (UPDATE users SET android_token = %s, device_id = %s WHERE username = %s) "\
+            + " SELECT users_matches.match_id FROM users_matches WHERE users_matches.username = %s ;"
+        variables = (self.token, self.udid, self.username, self.username)
+        return QueryHandler.get_results(query, variables)
 
     def post(self):
         response = {}
@@ -949,7 +956,8 @@ class AndroidSetUserDeviceToken(tornado.web.RequestHandler):
             user.authenticate()
             self.udid = str(self.get_argument('udid'))
             self.token = str(self.get_argument('token'))
-            self.set_android_device_token()
+            users_matches = self.set_android_device_token_returning_user_matches()
+            response['match_ids'] = map(lambda x: x['match_id'], users_matches)
             response["info"], response["status"] = settings.SUCCESS_RESPONSE, settings.STATUS_200
         except BadAuthentication, status:
             response["info"] = status.log_message
@@ -1058,28 +1066,28 @@ class Application(tornado.web.Application):
             (r"/set_location", SetLocationHandler),
             (r"/get_nearby_users", GetNearbyUsers),
             (r"/fb_friends", FacebookHandler),
-            (r"/football_notifications", FootballEvents),
-            (r"/tennis_notifications", TennisEvents),
+            # (r"/football_notifications", FootballEvents),
+            # (r"/tennis_notifications", TennisEvents),
             (r"/media", MediaHandler),
             (r"/media_present", MediaPresentHandler),
             (r"/media_multipart", IOSMediaHandler),
-            (r"/cricket_notifications", CricketEvents),
+            # (r"/cricket_notifications", CricketEvents),
             (r"/set_user_interests", UserInterestHandler),
-            (r"/set_ios_udid", IOSSetUserDeviceId),
+            (r"/set_ios_token_and_return_user_matches", IOSSetUserDeviceTokenReturnsUsersMatches),
             (r"/get_contact_jids", ContactJidsHandler),
             (r"/send_app_invite", SendAppInvitation),
             (r"/user_register_match", RegisterMatchHandler),
             (r"/user_unregister_match", UnRegisterMatchHandler),
-            (r"/set_android_token", AndroidSetUserDeviceToken),
+            (r"/set_android_token_and_return_user_matches", AndroidSetUserDeviceTokenReturnsUsersMatches),
             (r"/remove_android_token", AndroidRemoveUserDeviceId),
             (r"/set_location_privacy", LocationPrivacyHandler),
             (r"/notify_event", PushNotificationHandler),
 
-            (r"/admin", admin_api.AdminPage),
-            (r"/get_users", admin_api.AdminSelectUsers),
-            (r"/create_user", admin_api.AdminCreateUser),
-            (r"/update_user", admin_api.AdminUpdateUser),
-            (r"/delete_user", admin_api.AdminDeleteUser),
+            # (r"/admin", admin_api.AdminPage),
+            # (r"/get_users", admin_api.AdminSelectUsers),
+            # (r"/create_user", admin_api.AdminCreateUser),
+            # (r"/update_user", admin_api.AdminUpdateUser),
+            # (r"/delete_user", admin_api.AdminDeleteUser),
             (r"/block_user", admin_api.AdminBlockUser),
 
         ]
