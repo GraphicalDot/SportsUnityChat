@@ -21,6 +21,7 @@ from custom_error import BadAuthentication
 import api_v0_archive
 import settings
 import test_utils
+import copy
 
 config = ConfigParser()
 config.read('config.py')
@@ -111,24 +112,10 @@ class CreationTest(AsyncHTTPTestCase):
         response = requests.get(self._registration_url + extra_params)
         res = json.loads(response.text)
         record = QueryHandler.get_results(select_query, select_variables)
-
         self.assertEqual(len(record), 1)
+        assert record[0]['gateway_response']
         self.assertEqual(res['info'], settings.SUCCESS_RESPONSE)
         self.assertEqual(res['status'], settings.STATUS_200)
-
-
-        # Testing Registration for App testing phone numbers
-        app_testing_registration_url = tornado_local_address + "/register?phone_number=" + settings.TESTING_NUMBER_2
-        response = requests.get(app_testing_registration_url + extra_params)
-        res = json.loads(response.text)
-        query = "SELECT authorization_code FROM registered_users WHERE phone_number=%s;"
-        variables = (settings.TESTING_NUMBER_2,)
-        result = QueryHandler.get_results(query, variables)
-
-        self.assertEqual(res['info'], settings.SUCCESS_RESPONSE)
-        self.assertEqual(res['status'], settings.STATUS_200)
-        self.assertEqual(len(result), 1)
-        self.assertEqual(result[0]['authorization_code'], str(settings.APP_TESTING_OTP[settings.TESTING_NUMBER_2]))
 
     def test_wrong_auth_code_failure(self):
 
@@ -287,52 +274,50 @@ class CreationTest(AsyncHTTPTestCase):
 #         pass
 
 
-class InterestTest(AsyncHTTPTestCase):
+class InterestTest(unittest.TestCase):
     _username = 'test'
     _password = 'password'
     _phone_number = config.get('tests', 'test_phone_number')
-
+    _interests = [{"name": "interest_one", 'id': " test_1"}, 
+    			{"name": "interest_two", 'id': "test_2"}, 
+    			{"name": "interest_three", 'id': "test_3"}]
+    _payload = {'username': _username, 'password': _password}
+    _test_storage_url = tornado_local_address + "/set_user_interests"
     def get_app(self):
         return api_v0_archive.Application()
 
     def setUp(self):
-        super(InterestTest, self).setUp()
-        try:
-            test_utils.delete_user(username = self._username, phone_number=self._phone_number)
-            test_utils.create_user(username = self._username, password = self._phone_number, phone_number = self._phone_number)
+        test_utils.delete_user(username = self._username, phone_number=self._phone_number)
+        test_utils.create_user(username = self._username, password = self._password, phone_number = self._phone_number)
+        
 
-            query = " DELETE FROM users_interest WHERE username = %s;"
-            variables = (self._username,)
-            QueryHandler.execute(query, variables)
-        except psycopg2.IntegrityError:
-            pass
+        query = " DELETE FROM users_interest WHERE username = %s;"
+        variables = (self._username,)
+        QueryHandler.execute(query, variables)
 
-        try:
-            interests = ['interest_one', 'interest_two']
-            query = " DELETE FROM interest WHERE "\
-                " interest_name = 'interest_one' OR interest_name = 'interest_two';"
-            variables = ()
-            QueryHandler.execute(query, variables)
+        query = " DELETE FROM interest WHERE "\
+        +  " OR ".join([" interest_id = %s "] * len(self._interests)) + ";"
+        variables = map(lambda interest: interest['id'], self._interests)
+        QueryHandler.execute(query, variables)
 
-            interests = ['interest_one', 'interest_two']
-            query = "INSERT INTO interest (interest_name) VALUES ('interest_one'), ('interest_two');"
-            QueryHandler.execute(query, ())
-        except psycopg2.IntegrityError, e:
-            pass
+        query = "INSERT INTO interest (interest_id, interest_name) VALUES " + ",".join(["(%s, %s)"] * len(self._interests))
+        QueryHandler.execute(query, 
+    						[self._interests[0]['id'], self._interests[0]['name'], 
+    						self._interests[1]['id'], self._interests[1]['name'],
+    						self._interests[2]['id'], self._interests[2]['name']]
+        					)
 
     def test_storage(self):
-        interests = ['interest_one', 'interest_two']
-
-        test_storage_url = tornado_local_address + "/set_user_interests?username=" + self._username\
-            + "".join(map(lambda interest: "&interests=" + interest, interests))
-
-        response = requests.get(test_storage_url + extra_params)
+    	payload = copy.copy(self._payload)
+    	payload.update({'interests': map(lambda interest: interest['id'], self._interests[:2])})
+    	payload.update(extra_params_dict)
+        response = requests.post(self._test_storage_url, data = payload)
         res = json.loads(response.text)
         assert response
+
         self.assertEqual(res['status'], settings.STATUS_200)
 
-
-        query = "select users.username, string_agg(interest.interest_name, ' ,') as interests from users "\
+        query = "select users.username, array_agg(interest.interest_name) as interests from users "\
             + " left outer join users_interest on (users.username = users_interest.username) "\
             + " left outer join interest on (users_interest.interest_id = interest.interest_id)"\
             + " WHERE users.username = %s group by users.username;"
@@ -340,18 +325,18 @@ class InterestTest(AsyncHTTPTestCase):
         record = QueryHandler.get_results(query, variables)
         assert record
         assert record[0]['username']
-        assert record[0]['interests'] == "interest_one ,interest_two"
+        assert record[0]['interests'] == map(lambda interest: interest['name'], self._interests[:2])
 
-        interests = ['interest_one']
-        test_storage_url = tornado_local_address + "/set_user_interests?username=" + self._username\
-            + "".join(map(lambda interest: "&interests=" + interest, interests))
+    	payload = copy.copy(self._payload)
+    	payload.update({'interests': map(lambda interest: interest['id'], self._interests[2:])})
+    	payload.update(extra_params_dict)
 
-        response = requests.get(test_storage_url + extra_params)
+        response = requests.post(self._test_storage_url, data = payload)
         res = json.loads(response.text)
         assert response
         self.assertEqual(res['status'], settings.STATUS_200)
 
-        query = "select users.username, string_agg(interest.interest_name, ' ,') as interests from users "\
+        query = "select users.username, array_agg(interest.interest_name) as interests from users "\
             + " left outer join users_interest on (users.username = users_interest.username) "\
             + " left outer join interest on (users_interest.interest_id = interest.interest_id)"\
             + " WHERE users.username = %s group by users.username;"
@@ -360,10 +345,39 @@ class InterestTest(AsyncHTTPTestCase):
 
         assert record
         assert record[0]['username']
-        self.assertEqual(record[0]['interests'], "interest_one")
+        assert record[0]['interests'] == map(lambda interest: interest['name'], self._interests)
+
+    def test_delete_interest(self):
+    	payload = copy.copy(self._payload)
+    	payload.update({'interests': map(lambda interest: interest['id'], self._interests)})
+    	payload.update(extra_params_dict)
+        response = requests.post(self._test_storage_url, data = payload)
+
+    	payload = copy.copy(self._payload)
+    	payload.update({'interests': map(lambda interest: interest['id'], self._interests[2:])})
+    	payload.update(extra_params_dict)
+        response = requests.delete(self._test_storage_url, data = payload)
+        res = json.loads(response.text)
+        assert response
+        assert res['status'] == settings.STATUS_200
+
+        query = "select users.username, array_agg(interest.interest_name) as interests from users "\
+            + " left outer join users_interest on (users.username = users_interest.username) "\
+            + " left outer join interest on (users_interest.interest_id = interest.interest_id)"\
+            + " WHERE users.username = %s group by users.username;"
+        variables = (self._username,)
+        record = QueryHandler.get_results(query, variables)
+
+        assert record
+        assert record[0]['username']
+        assert record[0]['interests'] == map(lambda interest: interest['name'], self._interests[:2])
 
     def tearDown(self):
-        pass
+        query = " DELETE FROM interest WHERE "\
+            +  " OR ".join([" interest_id = %s "] * len(self._interests)) + ";"
+        variables = map(lambda interest: interest['id'], self._interests)
+        QueryHandler.execute(query, variables)
+        test_utils.delete_user(username = self._username, phone_number=self._phone_number)
 
 
 class MediaTest(AsyncHTTPTestCase):
@@ -600,8 +614,8 @@ class NearbyUsersWithSameInterestsTests(unittest.TestCase):
 
     def create_interests(self):
         for interest in self.interests:
-            query = "INSERT INTO interest(interest_name) values(%s) RETURNING interest_id;"
-            variables = (interest,)
+            query = "INSERT INTO interest(interest_id, interest_name) values(%s, %s) RETURNING interest_id;"
+            variables = (interest['id'],interest['name'],)
             result = QueryHandler.get_results(query, variables)
             self.interest_id.append(result[0]['interest_id'])
         self.users_interests = {'test_1': [self.interest_id[0], self.interest_id[2]],
@@ -668,9 +682,11 @@ class NearbyUsersWithSameInterestsTests(unittest.TestCase):
                       ('test_4', 'pswd_4', 'test_4', 0.0, 0.0, self.epoch_time),
                       ('test_5', 'pswd_5', 'test_5', 0.0000010, 0.0000010, self.epoch_time + 75),
                       ('test_6', 'pswd_6', 'test_6', 0.0, 0.0, self.epoch_time + 1000)]
-        self.interests = ['test_interest_1', 'test_interest_2', 'test_interest_3', 'test_interest_4']
-        self.interest_id = []
-
+       	self.interests = [{'name':'test_interest_1', 'id': 'test_1'},
+    					{'name':'test_interest_2', 'id': 'test_2'},
+    					{'name':'test_interest_3', 'id': 'test_3'},
+    					{'name':'test_interest_4', 'id': 'test_4'}]
+	self.interest_id = []
         self.delete_users()
         self.delete_interests()
         self.create_test_users()
@@ -686,8 +702,8 @@ class NearbyUsersWithSameInterestsTests(unittest.TestCase):
 
     def delete_interests(self):
         for interest in self.interests:
-            query = "DELETE FROM interest where interest_name=%s;"
-            variables = (interest,)
+            query = "DELETE FROM interest where interest_id=%s;"
+            variables = (interest['id'],)
             QueryHandler.execute(query, variables)
 
     def delete_user_friends(self):
@@ -843,45 +859,45 @@ class NearbyUsersWithSameInterestsTests(unittest.TestCase):
         self.delete_user_privacy_list()
 
 
-class SendAppInvitationTest(unittest.TestCase):
-    _url = None
-    _unregistered_user = '910000000000'
-    _registered_user = '911111111111'
-    _invited_user = '912222222222'
-    _password = 'password'
+# class SendAppInvitationTest(unittest.TestCase):
+#     _url = None
+#     _unregistered_user = '910000000000'
+#     _registered_user = '911111111111'
+#     _invited_user = '912222222222'
+#     _password = 'password'
 
-    def setUp(self):
-        self._url = tornado_local_address + '/send_app_invite' + '?apk_version=v0.1&udid=TEST@UDID'
-        test_utils.delete_user(phone_number=self._unregistered_user)
-        test_utils.delete_user(phone_number=self._registered_user)
-        test_utils.delete_user(phone_number=self._invited_user)
-        test_utils.create_user(username=self._registered_user, password=self._password, phone_number=self._registered_user)
+#     def setUp(self):
+#         self._url = tornado_local_address + '/send_app_invite' + '?apk_version=v0.1&udid=TEST@UDID'
+#         test_utils.delete_user(phone_number=self._unregistered_user)
+#         test_utils.delete_user(phone_number=self._registered_user)
+#         test_utils.delete_user(phone_number=self._invited_user)
+#         test_utils.create_user(username=self._registered_user, password=self._password, phone_number=self._registered_user)
 
-    def test_validation(self):
+#     def test_validation(self):
 
-        # incomplete post data
-        response = requests.post(self._url, data={})
-        res = json.loads(response.text)
-        self.assertEqual(res['info'], "Missing argument user")
-        self.assertEqual(res['status'], settings.STATUS_400)
+#         # incomplete post data
+#         response = requests.post(self._url, data={})
+#         res = json.loads(response.text)
+#         self.assertEqual(res['info'], "Missing argument user")
+#         self.assertEqual(res['status'], settings.STATUS_400)
 
-        # user not registered
-        response = requests.post(self._url, data={'user': self._unregistered_user, 'invited_user': self._invited_user})
-        res = json.loads(response.text)
-        self.assertEqual(res['info'], "Bad Request: User is not Registered!")
-        self.assertEqual(res['status'], settings.STATUS_400)
+#         # user not registered
+#         response = requests.post(self._url, data={'user': self._unregistered_user, 'invited_user': self._invited_user})
+#         res = json.loads(response.text)
+#         self.assertEqual(res['info'], "Bad Request: User is not Registered!")
+#         self.assertEqual(res['status'], settings.STATUS_400)
 
-        # invited user already registered
-        response = requests.post(self._url, data={'user': self._registered_user, 'invited_user': self._registered_user})
-        res = json.loads(response.text)
-        self.assertEqual(res['info'], "Bad Request: Invited User is Already Registered!")
-        self.assertEqual(res['status'], settings.STATUS_400)
+#         # invited user already registered
+#         response = requests.post(self._url, data={'user': self._registered_user, 'invited_user': self._registered_user})
+#         res = json.loads(response.text)
+#         self.assertEqual(res['info'], "Bad Request: Invited User is Already Registered!")
+#         self.assertEqual(res['status'], settings.STATUS_400)
 
-        # valid post request
-        response = requests.post(self._url, data={'user': self._registered_user, 'invited_user': self._invited_user})
-        res = json.loads(response.text)
-        self.assertEqual(res['info'], settings.SUCCESS_RESPONSE)
-        self.assertEqual(res['status'], settings.STATUS_200)
+#         # valid post request
+#         response = requests.post(self._url, data={'user': self._registered_user, 'invited_user': self._invited_user})
+#         res = json.loads(response.text)
+#         self.assertEqual(res['info'], settings.SUCCESS_RESPONSE)
+#         self.assertEqual(res['status'], settings.STATUS_200)
 
 class MatchPushNotificationTest(unittest.TestCase):
     _register_url = tornado_local_address + "/user_register_match"
