@@ -1027,6 +1027,7 @@ class SetLocationPrivacyTest(unittest.TestCase):
         test_utils.delete_user(username = self._username)
 
 class PushNotifcationsTest(unittest.TestCase):
+    #TO-DO Write test for user retrieval 
     _push_notification_url = tornado_local_address + "/notify_event"
     _sport_code = "1"
     _event_code = "1"
