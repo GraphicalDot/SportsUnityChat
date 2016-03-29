@@ -18,7 +18,7 @@ class ApnsHandler(object):
     def __init__(self):
         cert_file = config.get('apns', 'cert_file')
         key_file = config.get('apns', 'key_file')
-        self.apns = apns.APNs(use_sandbox=True, cert_file=cert_file, key_file=key_file, enhanced=True)
+        self.apns = apns.APNs(cert_file=cert_file, key_file=key_file, enhanced=True)
 
     def send_notifications(self, users, payload):
         frame = apns.Frame()
