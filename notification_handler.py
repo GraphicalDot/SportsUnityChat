@@ -1,5 +1,6 @@
 import os
 from global_func import QueryHandler
+import time
 import threading
 import ConfigParser
 config = ConfigParser.ConfigParser()
