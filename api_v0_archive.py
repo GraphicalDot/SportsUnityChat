@@ -866,7 +866,7 @@ class GetNearbyUsers(tornado.web.RequestHandler):
         finally:
             self.write(response)
 
-class RegisterMatchHandler(tornado.web.RequestHandler):
+class RegisterUserMatchHandler(tornado.web.RequestHandler):
     """
     This class handles the registration of a match for a jid
     """
@@ -902,7 +902,7 @@ class RegisterMatchHandler(tornado.web.RequestHandler):
         finally:
             self.write(response)
 
-class UnRegisterMatchHandler(tornado.web.RequestHandler):
+class UnRegisterUserMatchHandler(tornado.web.RequestHandler):
     """
     This class handles the registration of a match for a jid
     """
@@ -1058,6 +1058,30 @@ class PushNotificationHandler(tornado.web.RequestHandler):
         finally:
             self.write(response)
 
+class RegisterMatchHandler(tornado.web.RequestHandler):
+    def insert_match(self, match):
+        query = "INSERT INTO matches (id, name) VALUES (%s, %s);"
+        variables = (match["name"], match["id"],)
+        try:
+            QueryHandler.execute(query, variables)
+        except IntegrityError:
+            pass
+            
+
+    def post(self):
+        response = {}
+        try:
+            self.request.arguments = merge_body_arguments(self)
+            matches = self.request.arguments["matches"]
+            for match in matches:
+                self.insert_match(match)
+            response["info"], response["status"] = settings.SUCCESS_RESPONSE, settings.STATUS_200
+        except Exception, e:
+            response['info'] = "Error: %s" % e
+            response["status"] = settings.STATUS_500
+        finally:
+            self.write(response)            
+
 class Application(tornado.web.Application):
     def __init__(self):
         handlers = [
@@ -1076,12 +1100,13 @@ class Application(tornado.web.Application):
             (r"/set_ios_token_and_return_user_matches", IOSSetUserDeviceTokenReturnsUsersMatches),
             (r"/get_contact_jids", ContactJidsHandler),
             (r"/send_app_invite", SendAppInvitation),
-            (r"/user_register_match", RegisterMatchHandler),
-            (r"/user_unregister_match", UnRegisterMatchHandler),
+            (r"/user_register_match", RegisterUserMatchHandler),
+            (r"/user_unregister_match", UnRegisterUserMatchHandler),
             (r"/set_android_token_and_return_user_matches", AndroidSetUserDeviceTokenReturnsUsersMatches),
             (r"/remove_android_token", AndroidRemoveUserDeviceId),
             (r"/set_location_privacy", LocationPrivacyHandler),
             (r"/notify_event", PushNotificationHandler),
+            (r"/register_match", RegisterMatchHandler),
 
             # (r"/admin", admin_api.AdminPage),
             # (r"/get_users", admin_api.AdminSelectUsers),

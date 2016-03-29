@@ -1048,6 +1048,33 @@ class ApnsHandlerTest(unittest.TestCase):
 		class_2 = ApnsHandler()
 		assert id(class_1) == id(class_2)
 
+class RegisterMatch(unittest.TestCase):
+    _url = tornado_local_address + "/register_match"
+    _matches_1 = [{"name": "test_1", "id": "test_1"}, {"name": "test_2", "id": "test_2"}]
+    _matches_2 = [{"name": "test_1", "id": "test_1"}, {"name": "test_3", "id": "test_3"}]
+
+    def test_match_registration(self):
+        payload = {"matches": self._matches_1}
+        response = json.loads(requests.post(self._url, data=json.dumps(payload)).content)
+        assert response["status"] == 200
+
+        match_1_ids = set(map(lambda x: x["id"], self._matches_1))
+        query = "SELECT id FROM matches;"
+        results = QueryHandler.get_results(query, ())
+        assert match_1_ids.issubset(set(map(lambda x: x["id"], results)))
+
+        payload = {"matches": self._matches_2}
+        response = json.loads(requests.post(self._url, data=json.dumps(payload)).content)
+        assert response["status"] == 200
+
+        match_1_2_ids = set(map(lambda x: x["id"], self._matches_1 + self._matches_2))
+        query = "SELECT id FROM matches;"
+        results = QueryHandler.get_results(query, ())
+        assert match_1_2_ids.issubset(set(map(lambda x: x["id"], results)))
+
+    def tearDown(self):
+        query = " DELETE FROM matches WHERE id IN ('test_1', 'test_2', 'test_3');"
+        QueryHandler.execute(query, ())
 
 if __name__ == '__main__':
     unittest.main()
