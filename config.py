@@ -29,8 +29,8 @@ listening_port=3000
 was_online_limit=1800
 
 [apns]
-cert_file='cert.pem'
-key_file='key.pem'
+cert_file='priv/prod_cert.pem'
+key_file='priv/prod_key.pem'
 
 [gcm]
 api_key='AIzaSyCju4rjZbSFLMFdijEr4IcIljeAS395Ikk'

@@ -1,5 +1,4 @@
 ##TO-DO Refactor this file
-
 import hashlib
 import json
 import magic
@@ -19,6 +18,7 @@ from requests_toolbelt import MultipartEncoder
 from shutil import copyfile
 from custom_error import BadAuthentication
 import api_v0_archive
+from user import User
 import settings
 import test_utils
 import copy
@@ -42,10 +42,10 @@ class UserTest(unittest.TestCase):
         test_utils.delete_user(username = username, phone_number=phone_number)
         test_utils.create_user(username, password, phone_number)
 
-        user = api_v0_archive.User(username = username, password = password)
+        user = User(username = username, password = password)
 
         fraud_password = 'test'
-        fraud_user = api_v0_archive.User(username, fraud_password)
+        fraud_user = User(username, fraud_password)
 
         try:
             user.authenticate()
