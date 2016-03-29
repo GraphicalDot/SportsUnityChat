@@ -1106,7 +1106,7 @@ class Application(tornado.web.Application):
             (r"/remove_android_token", AndroidRemoveUserDeviceId),
             (r"/set_location_privacy", LocationPrivacyHandler),
             (r"/notify_event", PushNotificationHandler),
-            (r"/register_match", RegisterMatchHandler),
+            (r"/register_matches", RegisterMatchHandler),
 
             # (r"/admin", admin_api.AdminPage),
             # (r"/get_users", admin_api.AdminSelectUsers),

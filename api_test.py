@@ -1049,7 +1049,7 @@ class ApnsHandlerTest(unittest.TestCase):
 		assert id(class_1) == id(class_2)
 
 class RegisterMatch(unittest.TestCase):
-    _url = tornado_local_address + "/register_match"
+    _url = tornado_local_address + "/register_matches"
     _matches_1 = [{"name": "test_1", "id": "test_1"}, {"name": "test_2", "id": "test_2"}]
     _matches_2 = [{"name": "test_1", "id": "test_1"}, {"name": "test_3", "id": "test_3"}]
 
