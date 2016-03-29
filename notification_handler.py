@@ -5,6 +5,7 @@ import ConfigParser
 config = ConfigParser.ConfigParser()
 config.read(os.path.join(os.path.abspath(os.path.dirname(__file__)), 'config.py'))
 import apns
+from gcm import GCM
 
 class ApnsHandler(object):
     _instance = None
@@ -39,7 +40,8 @@ class GCMHandler:
     def send_notifications(self, users, event):
         users_tokens = []
         for user in users:
-            if users['android_token']: users_tokens.append(users['android_token'])
+            if user['android_token']: 
+                users_tokens.append(user['android_token'])
         response = self.gcm.json_request(registration_ids = users_tokens, data=event)
 
 class NotificationHandler:

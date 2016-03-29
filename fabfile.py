@@ -15,7 +15,7 @@ env.hosts = open('hosts', 'r').readlines()
 VIRTUAL_ENVIRONMENT = "/home/{0}/VirtualEnvironment"
 REPO_NAME = "SportsUnityChat"
 BRANCH = "master"
-env.key_filename = "/home/kaali/Downloads/testing_xmpp.pem"
+env.key_filename = "/home/kaali/Downloads/staging_server.pem"
 
 @task
 def basic_setup():
@@ -39,6 +39,25 @@ def basic_setup():
     run("virtualenv VirtualEnvironment --no-site-packages")
     run("sudo chown -R "+env["user"]+":"+env["user"]+" "+virtual_environment)
     run("sudo chmod -R a+rX "+virtual_environment)
+
+
+def sshagent_run(cmd):
+    """
+    Helper function.
+    Runs a command with SSH agent forwarding enabled.
+    
+    Note:: Fabric (and paramiko) can't forward your SSH agent. 
+    This helper uses your system's ssh to do so.
+    """
+
+    for h in env.hosts:
+        try:
+            # catch the port number to pass to ssh
+            host, port = h.split(':')
+            local('ssh -p %s -A %s "%s"' % (port, host, cmd))
+        except ValueError:
+            local('ssh -A %s "%s"' % (h, cmd))
+
 
 @task
 def deploy():
