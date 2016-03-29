@@ -877,9 +877,9 @@ class RegisterUserMatchHandler(tornado.web.RequestHandler):
 
     def post(self):
         response = {}
+        self.request.arguments = merge_body_arguments(self)
         try:
             check_udid_and_apk_version(self)
-            self.request.arguments = merge_body_arguments(self)
             self.username = str(self.get_argument('username'))
             self.password = str(self.get_argument('password'))
             user = User(username = self.username, password = self.password)
@@ -913,9 +913,9 @@ class UnRegisterUserMatchHandler(tornado.web.RequestHandler):
 
     def post(self):
         response = {}
+        self.request.arguments = merge_body_arguments(self)
         try:
             check_udid_and_apk_version(self)
-            self.request.arguments = merge_body_arguments(self)
             self.username = str(self.get_argument('username'))
             self.password = str(self.get_argument('password'))
             user = User(username = self.username, password = self.password)
@@ -948,8 +948,8 @@ class AndroidSetUserDeviceTokenReturnsUsersMatches(tornado.web.RequestHandler):
     def post(self):
         response = {}
         try:
-            check_udid_and_apk_version(self)
             self.request.arguments = merge_body_arguments(self)
+            check_udid_and_apk_version(self)
             self.username = str(self.get_argument('username'))
             self.password = str(self.get_argument('password'))
             user = User(username = self.username, password = self.password)
@@ -983,8 +983,8 @@ class AndroidRemoveUserDeviceId(tornado.web.RequestHandler):
     def post(self):
         response = {}
         try:
-            check_udid_and_apk_version(self)
             self.request.arguments = merge_body_arguments(self)
+            check_udid_and_apk_version(self)
             self.username = str(self.get_argument('username'))
             self.password = str(self.get_argument('password'))
             user = User(username = self.username, password = self.password)
@@ -1012,8 +1012,8 @@ class LocationPrivacyHandler(tornado.web.RequestHandler):
     def post(self):
         response = {}
         try:
-            check_udid_and_apk_version(self)
             self.request.arguments = merge_body_arguments(self)
+            check_udid_and_apk_version(self)
             self.username = str(self.get_argument('username'))
             self.password = str(self.get_argument('password'))
             self.show_location_status = str(self.get_argument('show_location_status'))
