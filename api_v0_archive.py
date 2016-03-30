@@ -404,7 +404,7 @@ class UserInterestHandler(BaseRequestHandler):
     def insert_user_interest(self, new_interests):
         query = "INSERT INTO users_interest (interest_id, username) "\
             " (SELECT interest_id, %s FROM interest WHERE "\
-            + " OR ".join(map( lambda interest: "interest_id = '" + interest + "'" , new_interests))\
+            + " OR ".join(map( lambda interest: "interest_id = '" + str(interest) + "'" , new_interests))\
             + ");"         
         variables = (self.username, )
         QueryHandler.execute(query, variables)
