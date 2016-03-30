@@ -56,8 +56,13 @@ class BaseRequestHandler(tornado.web.RequestHandler):
 
     def write_error(self, status_code, **kwargs):
         response = {}
-        response["info"] = kwargs['exc_info'][1].log_message
+        try:
+            response["info"] = kwargs['exc_info'][1].log_message
+        except:
+            response["info"] = kwargs['exc_info'][1].message
+
         error = kwargs['exc_info'][0]
+
         if error == BadInfoSuppliedError:
             response["status"] = settings.STATUS_400
         elif error == MissingArgumentError:
@@ -73,7 +78,6 @@ class BaseRequestHandler(tornado.web.RequestHandler):
             response["status"] = settings.STATUS_500
         self.write(response)
 
-        
 
 class SetLocationHandler(BaseRequestHandler):
     # TO-DO Write tests for this class
@@ -381,10 +385,13 @@ class UserInterestHandler(BaseRequestHandler):
     stored beforehand.
 
     Methods : 
-        get :
+        post :
             :params 
                 username => username 
                 interests => list of interests like interests=football&interests=cricket 
+                password => password
+                apk_version 
+                udid
             :response 
                 :success => {'status':settings.STATUS_200, 'info': 'Success'}
                 :failure => {'status': 500, 'info': 'Error [Error message]'}     
@@ -709,10 +716,9 @@ class PushNotificationHandler(tornado.web.RequestHandler):
     def post(self):
         response = {}
         try:
-            self.request.arguments = merge_body_arguments(self)
-            payload = self.request.body
-            match_id = str(self.get_argument('m'))
-            league_id = str(self.get_argument('l'))
+            payload = json.loads(self.request.body)
+            match_id = str(payload['m'])
+            league_id = str(payload['l'])
             league_match_id = match_id.strip() + "|" + league_id.strip()
             NotificationHandler(league_match_id, payload).notify()
             response["info"], response["status"] = settings.SUCCESS_RESPONSE, settings.STATUS_200
@@ -730,6 +736,7 @@ class RegisterMatchHandler(tornado.web.RequestHandler):
         query = "INSERT INTO matches (id, name) VALUES (%s, %s);"
         variables = (match["id"], match["name"],)
         try:
+
             QueryHandler.execute(query, variables)
         except IntegrityError:
             pass
