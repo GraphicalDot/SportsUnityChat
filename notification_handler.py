@@ -43,8 +43,9 @@ class GCMHandler:
         for user in users:
             if user['android_token']: 
                 users_tokens.append(user['android_token'])
-        response = self.gcm.json_request(registration_ids = users_tokens, data=event)
-        self.handle_response(response)
+        if users_tokens:
+            response = self.gcm.json_request(registration_ids = users_tokens, data=event)
+            self.handle_response(response)
 
     def handle_response(response):
         #TO-DO Handle response from gcm
