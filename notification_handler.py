@@ -44,6 +44,11 @@ class GCMHandler:
             if user['android_token']: 
                 users_tokens.append(user['android_token'])
         response = self.gcm.json_request(registration_ids = users_tokens, data=event)
+        self.handle_response(response)
+
+    def handle_response(response):
+        #TO-DO Handle response from gcm
+        pass
 
 class NotificationHandler:
     def __init__(self, match_id, payload):

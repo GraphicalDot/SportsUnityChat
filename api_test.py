@@ -1073,8 +1073,9 @@ class RegisterMatch(unittest.TestCase):
         assert match_1_2_ids.issubset(set(map(lambda x: x["id"], results)))
 
     def tearDown(self):
-        query = " DELETE FROM matches WHERE id IN ('test_1', 'test_2', 'test_3');"
-        QueryHandler.execute(query, ())
+        query = " DELETE FROM matches WHERE id IN (%s);"
+        ids = ",".join(list(set(map(lambda x: x['id'], self._matches_1 + self._matches_2))))  
+        QueryHandler.execute(query, (ids,))
 
 if __name__ == '__main__':
     unittest.main()
