@@ -728,7 +728,7 @@ class PushNotificationHandler(tornado.web.RequestHandler):
 class RegisterMatchHandler(tornado.web.RequestHandler):
     def insert_match(self, match):
         query = "INSERT INTO matches (id, name) VALUES (%s, %s);"
-        variables = (match["name"], match["id"],)
+        variables = (match["id"], match["name"],)
         try:
             QueryHandler.execute(query, variables)
         except IntegrityError:

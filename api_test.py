@@ -1050,8 +1050,8 @@ class ApnsHandlerTest(unittest.TestCase):
 
 class RegisterMatch(unittest.TestCase):
     _url = tornado_local_address + "/register_matches"
-    _matches_1 = [{"name": "test_1", "id": "test_1"}, {"name": "test_2", "id": "test_2"}]
-    _matches_2 = [{"name": "test_1", "id": "test_1"}, {"name": "test_3", "id": "test_3"}]
+    _matches_1 = [{"name": "test_1", "id": "id_1"}, {"name": "test_2", "id": "id_2"}]
+    _matches_2 = [{"name": "test_1", "id": "id_1"}, {"name": "test_3", "id": "id_3"}]
 
     def test_match_registration(self):
         payload = {"matches": self._matches_1}
