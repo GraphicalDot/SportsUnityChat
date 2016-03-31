@@ -24,7 +24,11 @@ class ApnsHandler(object):
 
     def send_notifications(self, users, payload):
         frame = apns.Frame()
-        payload = apns.Payload(alert = str(payload), sound="default", badge=1)
+        top_text = payload("tt")
+        payload.pop("tt", None)
+        bottom_text = payload("bt")
+        payload.pop("bt", None)
+        payload = apns.Payload(alert = display_text, badge=1, sound = default, custom=payload)
         for idx, user in enumerate(users):
             if user['apple_token']:
                 identifier = idx + 1
