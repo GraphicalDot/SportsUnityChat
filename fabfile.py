@@ -15,7 +15,9 @@ env.hosts = open('hosts', 'r').readlines()
 VIRTUAL_ENVIRONMENT = "/home/{0}/VirtualEnvironment"
 REPO_NAME = "SportsUnityChat"
 BRANCH = "master"
-env.key_filename = "/home/kaali/Downloads/staging_server.pem"
+env.key_filename = "/home/kaali/Downloads/testing_xmpp.pem"
+# env.key_filename = "/home/kaali/Downloads/staging_server.pem"
+
 
 @task
 def basic_setup():
@@ -36,6 +38,8 @@ def basic_setup():
     run("sudo apt-get install -y python-virtualenv")
     run("sudo apt-get install -y tor")
     run("sudo apt-get install -y git")
+    run("sudo apt-get install -y apt-get install libffi-dev libssl-dev")
+    
     run("virtualenv VirtualEnvironment --no-site-packages")
     run("sudo chown -R "+env["user"]+":"+env["user"]+" "+virtual_environment)
     run("sudo chmod -R a+rX "+virtual_environment)
