@@ -1,6 +1,7 @@
 import os
 from global_func import QueryHandler
 import time
+import copy
 import threading
 import ConfigParser
 config = ConfigParser.ConfigParser()
@@ -22,7 +23,8 @@ class ApnsHandler(object):
         key_file = config.get('apns', 'key_file')
         self.apns = apns.APNs(cert_file=cert_file, key_file=key_file, enhanced=True)
 
-    def send_notifications(self, users, payload):
+    def send_notifications(self, users, event):
+        payload = copy.deepcopy(event)
         frame = apns.Frame()
         top_text = payload["tt"]
         payload.pop("tt", None)
@@ -53,7 +55,7 @@ class GCMHandler:
             response = self.gcm.json_request(registration_ids = users_tokens, data=payload)
             self.handle_response(response)
 
-    def handle_response(response):
+    def handle_response(self, response):
         print response
         #TO-DO Handle response from gcm
         pass
