@@ -24,9 +24,9 @@ class ApnsHandler(object):
 
     def send_notifications(self, users, payload):
         frame = apns.Frame()
-        top_text = payload("tt")
+        top_text = payload["tt"]
         payload.pop("tt", None)
-        bottom_text = payload("bt")
+        bottom_text = payload["bt"]
         payload.pop("bt", None)
         payload = apns.Payload(alert = display_text, badge=1, sound = default, custom=payload)
         for idx, user in enumerate(users):
