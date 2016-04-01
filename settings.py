@@ -15,7 +15,7 @@ MISSING_APK_AND_UDID_ERROR = "Bad Request: Please provide 'apk_version' and 'udi
 BAD_AUTHENTICATION_ERROR = " Bad Authentication Info"
 USER_FORBIDDEN_ERROR = "Forbidden: The user is BLOCKED!"
 BAD_INFO_ERROR = " Bad Info Supplied for {}"
-
+INTERNAL_SERVER_ERROR = "Internal server error"
 # admin templates path
 ADMIN_TEMPLATES_PATH = 'admin_templates/'
 ADMIN_TEMPLATES = [
