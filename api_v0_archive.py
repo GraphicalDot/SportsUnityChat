@@ -54,25 +54,36 @@ class BaseRequestHandler(tornado.web.RequestHandler):
         user = User(username = self.username, password = self.password)
         user.authenticate()
 
+    def extract_psycopg2_integrity_error(self, error):
+        return error.message.split("Key")[1].replace("(", "").replace(")", "").split(".")[0].replace("=", " ")
+        
     def write_error(self, status_code, **kwargs):
         response = {}
+        error_object = kwargs['exc_info'][1]
+        error_type = kwargs['exc_info'][0]
         try:
-            response["info"] = kwargs['exc_info'][1].log_message
-        except:
-            response["info"] = kwargs['exc_info'][1].message
-
-        error = kwargs['exc_info'][0]
-
-        if error == BadInfoSuppliedError:
+            if error_type == IntegrityError:
+                response["info"] = self.extract_psycopg2_integrity_error(error_object)
+            else:
+                try:
+                    response["info"] = error_object.log_message
+                except:
+                    response["info"] = error_object.message
+        except Exception, e:
+            response["info"] = settings.INTERNAL_SERVER_ERROR
+            
+        if error_type == BadInfoSuppliedError:
             response["status"] = settings.STATUS_400
-        elif error == MissingArgumentError:
+        elif error_type == MissingArgumentError:
             response["status"] = settings.STATUS_400
-        elif error == ValueError:
+        elif error_type == ValueError:
             response["info"] = "Improper JSON format "
             response["status"] = settings.STATUS_400
-        elif error == BadAuthentication:
+        elif error_type == BadAuthentication:
             response["status"] = settings.STATUS_404
-        elif error == KeyError:
+        elif error_type == KeyError:
+            response["status"] = settings.STATUS_400
+        elif error_type == IntegrityError:
             response["status"] = settings.STATUS_400
         else:
             response["status"] = settings.STATUS_500
