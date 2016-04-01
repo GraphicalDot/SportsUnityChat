@@ -15,7 +15,7 @@ env.hosts = open('hosts', 'r').readlines()
 VIRTUAL_ENVIRONMENT = "/home/{0}/VirtualEnvironment"
 REPO_NAME = "SportsUnityChat"
 BRANCH = "master"
-env.key_filename = "/home/kaali/Downloads/testing_xmpp.pem"
+env.key_filename = "/home/madbrain/Downloads/ProductionSportsUntiy.pem"
 # env.key_filename = "/home/kaali/Downloads/staging_server.pem"
 
 

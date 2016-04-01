@@ -30,8 +30,8 @@ class ApnsHandler(object):
         payload.pop("tt", None)
         bottom_text = payload["bt"]
         payload.pop("bt", None)
-        display_text = top_text + "|" + bottom_text
-        payload = apns.Payload(alert = display_text, badge=1, sound = "default", custom=payload)
+        alert = {"title": top_text, "body": bottom_text}
+        payload = apns.Payload(alert = alert, badge=1, sound = "default", custom=payload)
         for idx, user in enumerate(users):
             if user['apple_token']:
                 identifier = idx + 1
