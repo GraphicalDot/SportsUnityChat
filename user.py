@@ -196,7 +196,10 @@ class User:
         """
         Registers the users in the database
         """
-        random_integer = random.randint(1000,9999)
+        if self.phone_number in settings.APP_TESTING_PHONE_NUMBERS:
+            random_integer = settings.APP_TESTING_OTP[self.phone_number]
+        else:
+            random_integer = random.randint(1000,9999)
         expiration_time = int(time.time()) + int(config.get('registration', 'expiry_period_sec'))
 
         try:
