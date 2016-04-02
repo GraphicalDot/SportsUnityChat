@@ -1,8 +1,8 @@
 [database]
-database=test_database
+database=production_db
 host=masterdb
-user=aakarshi
-password=aakarshi
+user=madmachines
+password=password_production_db
 
 [registration]
 expiry_period_sec=1800
