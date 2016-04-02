@@ -1,8 +1,8 @@
 [database]
-database=production_db
+database=test_database
 host=masterdb
-user=madmachines
-password=password_production_db
+user=aakarshi
+password=aakarshi
 
 [registration]
 expiry_period_sec=1800
@@ -23,7 +23,7 @@ test_phone_number=919560488236
 profile_pic_url = http://localhost:3000/profile_pic
 
 [nearby_users]
-was_online_limit=7200	
+was_online_limit=7200
 
 [tornado]
 listening_port=3000
