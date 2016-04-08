@@ -1,2 +1,5 @@
-HOST = "http://52.76.74.188:6200"
+HOST = "http://192.168.0.8:6900"
 PLAYERS_NAME_URL = HOST + "/get_player_names"
+CRICKET_TEAM_NAME_URL = HOST + "/get_cricket_teams"
+PLAYER_INTEREST_TYPE_NAME = "player"
+TEAM_INTEREST_TYPE_NAME = "team"

@@ -85,6 +85,8 @@ class BaseRequestHandler(tornado.web.RequestHandler):
             response["status"] = settings.STATUS_400
         elif error_type == IntegrityError:
             response["status"] = settings.STATUS_400
+        elif error == IntegrityError:
+            response["status"] = settings.STATUS_404
         else:
             response["status"] = settings.STATUS_500
         self.write(response)

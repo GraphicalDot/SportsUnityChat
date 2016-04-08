@@ -1,8 +1,8 @@
 [database]
-database=test_database
+database=production_db
 host=masterdb
-user=aakarshi
-password=aakarshi
+user=madmachines
+password=password_production_db
 
 [registration]
 expiry_period_sec=1800
@@ -26,11 +26,11 @@ profile_pic_url = http://localhost:3000/profile_pic
 listening_port=3000
 
 [nearby_users]
-was_online_limit=10000
+was_online_limit=7200
 
 [apns]
 cert_file=priv/prod_apns_cert.pem
 key_file=priv/prod_apns_key.pem
 
 [gcm]
-api_key=AIzaSyCju4rjZbSFLMFdijEr4IcIljeAS395Ikk
+api_key=AIzaSyAWO-284HUCY2NrGtf-P5r0o9p4RCe65F0
