@@ -33,5 +33,5 @@ cert_file=priv/prod_apns_cert.pem
 key_file=priv/prod_apns_key.pem
 
 [gcm]
-api_key=AIzaSyCju4rjZbSFLMFdijEr4IcIljeAS395Ikk
+api_key=AIzaSyAWO-284HUCY2NrGtf-P5r0o9p4RCe65F0
  

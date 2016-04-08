@@ -26,7 +26,7 @@ profile_pic_url = http://localhost:3000/profile_pic
 listening_port=3000
 
 [nearby_users]
-was_online_limit=1800
+was_online_limit=10000
 
 [apns]
 cert_file=priv/prod_apns_cert.pem
