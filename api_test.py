@@ -1078,5 +1078,39 @@ class RegisterMatch(unittest.TestCase):
         query = " DELETE FROM matches WHERE id IN {};".format(ids)
         QueryHandler.execute(query, (ids,))
 
+class SetUserInfoTest(unittest.TestCase):
+    _set_user_info_url = tornado_local_address + "/set_user_info"
+    _username = "test"
+    _name = "test"
+    _phone_number = "911"
+    _password = "test"
+    _token = "test_token"
+    
+    def setUp(self):
+        test_utils.delete_user(username = self._username)
+        test_utils.create_user(username = self._username, password = self._password, phone_number = self._phone_number)
+
+    def test_add_user_info(self):
+        payload = {"username": self._username, "password": self._password, "name": self._name}
+        payload.update(extra_params_dict)
+        response = json.loads(requests.post(self._set_user_info_url, data=payload).content)
+        assert response['status'] == settings.STATUS_200
+
+        record = test_utils.select_user(username = self._username)[0]
+        assert record['username'] == self._username
+        assert record['name'] == self._name
+
+        payload = {"username": self._username, "password": self._password}
+        payload.update(extra_params_dict)
+        response = json.loads(requests.post(self._set_user_info_url, data=payload).content)
+        assert response['status'] == settings.STATUS_200
+
+        record = test_utils.select_user(username = self._username)[0]
+        assert record['username'] == self._username
+        assert record['name'] == settings.DEFAULT_USER_NAME
+
+    def tearDown(self):
+        test_utils.delete_user(username = self._username)
+
 if __name__ == '__main__':
     unittest.main()

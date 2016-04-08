@@ -50,3 +50,6 @@ SINFINI_SENDER_ID = 'SPORTU'
 
 OTP_MESSAGE = 'Welcome to Sports Unity. Your authorization code is {}'
 APP_INVITATION_MESSAGE = 'Hi! {} has invited you to join SportsUnity App.'
+
+
+DEFAULT_USER_NAME = "N/A"

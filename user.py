@@ -210,3 +210,8 @@ class User:
             return status_info, status_code
         except Exception, e:
             return " Error while sending message : % s" % e, settings.STATUS_500
+
+    def set_info(self, info):
+        query = " UPDATE users SET name = %s WHERE username = %s ;"
+        variables = (info['name'], self.username)
+        QueryHandler.execute(query, variables) 

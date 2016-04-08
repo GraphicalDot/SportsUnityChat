@@ -767,7 +767,19 @@ class RegisterMatchHandler(tornado.web.RequestHandler):
             response['info'] = "Error: %s" % e
             response["status"] = settings.STATUS_500
         finally:
-            self.write(response)            
+            self.write(response)
+
+class UserInfoHandler(BaseRequestHandler):
+
+    def post(self):
+        response = {}
+        user_info = {}
+        self.username = str(self.get_argument('username'))
+        user_info['name'] = str(self.get_argument('name', settings.DEFAULT_USER_NAME))
+        user = User(username = self.username)
+        user.set_info(user_info)
+        response["info"], response["status"] = settings.SUCCESS_RESPONSE, settings.STATUS_200
+        self.write(response)                
 
 class Application(tornado.web.Application):
     def __init__(self):
@@ -794,6 +806,7 @@ class Application(tornado.web.Application):
             (r"/set_location_privacy", LocationPrivacyHandler),
             (r"/notify_event", PushNotificationHandler),
             (r"/register_matches", RegisterMatchHandler),
+            (r"/set_user_info", UserInfoHandler),
 
             # (r"/admin", admin_api.AdminPage),
             # (r"/get_users", admin_api.AdminSelectUsers),
