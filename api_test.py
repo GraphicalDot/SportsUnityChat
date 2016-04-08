@@ -689,13 +689,14 @@ class NearbyUsersWithSameInterestsTests(unittest.TestCase):
         self.assertEqual(res['status'], expected_status)
         modified_user_interest_dict = self.modify_response(response)
         if expected_result:
-            assert modified_user_interest_dict == expected_result
+            assert  set(expected_result["friends"].keys()).issubset(set(modified_user_interest_dict["friends"].keys()))
+            assert  set(expected_result["anonymous"].keys()).issubset(set(modified_user_interest_dict["anonymous"].keys()))
 
 
     def test_get_nearby_users(self):
-        # case 2: when 'test_2' was online 2 hours back
+        # case 2: when 'test_2' was online 10 hours back
         query = "UPDATE users SET last_seen=%s WHERE username='test_2';"
-        QueryHandler.execute(query, (time.time() - 7200,))
+        QueryHandler.execute(query, (time.time() - 36000,))
         self.expected_result_dict = {"friends": {"test_5": ["test_interest_2", "test_interest_1"]},
                                      "anonymous": {"test_6": ["test_interest_2"]}}
         self.data = {'username': 'test_4', 'password': 'pswd_4', 'lat': '0.0', 'lng': '0.0', 'radius': 5, 'apk_version': self.apk_version, 'udid': self.udid}
