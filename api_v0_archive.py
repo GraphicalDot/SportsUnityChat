@@ -461,9 +461,9 @@ class IOSSetUserDeviceTokenReturnsUsersMatches(BaseRequestHandler):
 
     def set_ios_token_and_return_user_matches(self): 
         token_type = settings.TOKEN_IOS_TYPE
-        query = " WITH updated AS (UPDATE users SET device_token=%s, token_type = %s, device_id = %s WHERE username=%s) "\
+        query = " WITH updated AS (UPDATE users SET apple_token = %s, device_token=%s, token_type = %s, device_id = %s WHERE username=%s) "\
         +   "SELECT users_matches.match_id FROM users_matches WHERE users_matches.username = %s;"
-        variables = (self.token, token_type, self.udid, self.username, self.username)
+        variables = (self.token, self.token, token_type, self.udid, self.username, self.username)
         return QueryHandler.get_results(query, variables)
 
     def post(self):

@@ -1,3 +1,4 @@
+import settings
 import os
 from global_func import QueryHandler
 import time
