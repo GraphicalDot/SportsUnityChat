@@ -71,6 +71,14 @@ def deploy():
     execute(pull_and_deploy)
     execute(run_tests)
 
+@task
+def add_interest():
+    virtual_environment = VIRTUAL_ENVIRONMENT.format(env["user"])
+    virtual_environment_python = virtual_environment + "/bin/python"
+    repo_dir = "/home/{0}".format(env["user"]) + "/" + REPO_NAME + "/"
+    with cd(repo_dir):
+        run(virtual_environment_python + " tasks/add_interests.py")
+
 def pull_and_deploy():
     virtual_environment = VIRTUAL_ENVIRONMENT.format(env["user"])
     virtual_environment_python = virtual_environment + "/bin/python"

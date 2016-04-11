@@ -17,7 +17,10 @@ def set_interest_type(interest_type):
 
 def add_interest(name, interest_id, interest_type):
 	try:
-		print "Adding {} with id {} of type {}".format(name, interest_id, interest_type)
+		try:
+			print "Adding {} with id {} of type {}".format(name, interest_id, interest_type)
+		except UnicodeEncodeError, e:
+			pass
 		query = " INSERT INTO interest (interest_name, interest_id, interest_type_id) "\
 		+ " VALUES (%s, %s, (SELECT interest_type_id FROM interest_type WHERE interest_type_name = %s)); "
 		variables = (name, interest_id, interest_type,)
@@ -25,6 +28,9 @@ def add_interest(name, interest_id, interest_type):
 	except IntegrityError, e:
 		print e
 		pass
+	except Exception, e:
+		from IPython import embed
+		embed()
 
 def set_player_names():
 	response = json.loads(requests.get(settings.PLAYERS_NAME_URL).content)['data']
@@ -54,7 +60,7 @@ def handle_players():
 def handle_teams():
 	set_interest_type(settings.TEAM_INTEREST_TYPE_NAME)
 	set_cricket_team_names()
-	set_football_teams()
+	set_football_team_names()
 
 def run_tasks():
 	handle_players()
