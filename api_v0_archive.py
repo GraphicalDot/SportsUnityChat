@@ -589,7 +589,7 @@ class GetNearbyUsers(BaseRequestHandler):
             + "                  AND privacy_list_data.value IS NOT NULL "\
             + "      )"\
             + " SELECT DISTINCT ON (users.username) "\
-            + "      users.username , "\
+            + "      users.username , users.name, "\
             + "      earth_distance(ll_to_earth(%s, %s), ll_to_earth(users.lat, users.lng)) as distance, "\
             + "      users.lat AS lat, "\
             + "      users.lng AS lng, "\
