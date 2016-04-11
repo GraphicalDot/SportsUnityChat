@@ -101,12 +101,12 @@ def add_interests():
         run(virtual_environment_python + " tasks/add_interests.py")
 
 def setup_server():
-    if not exists(virtual_environment):
-        execute(basic_setup)
     virtual_environment = VIRTUAL_ENVIRONMENT.format(env["user"])
     virtual_environment_python = virtual_environment + "/bin/python"
     repo_dir = "/home/{0}".format(env["user"]) + "/" + REPO_NAME + "/"
     repo_url = "https://github.com/kaali-python/"+ REPO_NAME + ".git"
+    if not exists(virtual_environment):
+        execute(basic_setup)
     with prefix(". "+virtual_environment+ "/bin/activate"):
         run("pip install -U pip")        
         with cd(repo_dir):
