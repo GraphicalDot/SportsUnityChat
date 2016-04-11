@@ -40,6 +40,13 @@ def set_cricket_team_names():
 		if team.get("team_id", None):
 			add_interest(team["team_id"], team["team_name"], interest_type)
 
+def set_football_team_names():
+	response = json.loads(requests.get(settings.FOOTBALL_TEAM_NAME_URL).content)['data']
+	interest_type = settings.TEAM_INTEREST_TYPE_NAME
+	for team in response:
+		if team.get("team_id", None):
+			add_interest(team["team_id"], team["team_name"], interest_type)
+
 def handle_players():
 	set_interest_type(settings.PLAYER_INTEREST_TYPE_NAME)	
 	set_player_names()
@@ -47,6 +54,7 @@ def handle_players():
 def handle_teams():
 	set_interest_type(settings.TEAM_INTEREST_TYPE_NAME)
 	set_cricket_team_names()
+	set_football_teams()
 
 def run_tasks():
 	handle_players()

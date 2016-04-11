@@ -913,6 +913,23 @@ class MatchPushNotificationTest(unittest.TestCase):
         record = QueryHandler.get_results(query, variables)
         assert not record
     
+    def test_user_match_reregistration(self):
+        payload = {"username": self._username, "password": self._password, "match_id": self._match_id}
+        payload.update(extra_params_dict)
+
+        response = json.loads(requests.post(self._register_url, data=payload).content)
+        assert response['status'] == settings.STATUS_200
+
+        query = " SELECT * FROM users_matches WHERE users_matches.username = %s AND users_matches.match_id = %s;"
+        variables = (self._username, self._match_id,)
+        record = QueryHandler.get_results(query, variables)[0]
+        assert record
+        assert record['username'] == self._username
+        assert record['match_id'] == self._match_id
+
+        reregistration_response = json.loads(requests.post(self._register_url, data=payload).content)
+        assert reregistration_response['status'] == settings.STATUS_200
+
     def tearDown(self):
         test_utils.delete_user(username = self._username)
         self.delete_users_match()
@@ -1043,11 +1060,11 @@ class PushNotifcationsTest(unittest.TestCase):
         assert response['status'] == settings.STATUS_200
 
 class ApnsHandlerTest(unittest.TestCase):
-	def test_singleton(self):
-		from notification_handler import ApnsHandler
-		class_1 = ApnsHandler()
-		class_2 = ApnsHandler()
-		assert id(class_1) == id(class_2)
+    def test_singleton(self):
+        from notification_handler import ApnsHandler
+        class_1 = ApnsHandler()
+        class_2 = ApnsHandler()
+        assert id(class_1) == id(class_2)
 
 class RegisterMatch(unittest.TestCase):
     _url = tornado_local_address + "/register_matches"
@@ -1072,6 +1089,7 @@ class RegisterMatch(unittest.TestCase):
         query = "SELECT id FROM matches;"
         results = QueryHandler.get_results(query, ())
         assert match_1_2_ids.issubset(set(map(lambda x: x["id"], results)))
+
 
     def tearDown(self):
         ids = tuple(list(set(map(lambda x: x['id'], self._matches_1 + self._matches_2))))  

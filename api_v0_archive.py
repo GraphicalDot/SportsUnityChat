@@ -1,3 +1,4 @@
+import psycopg2.errorcodes
 from user import User
 from global_func import QueryHandler, S3Handler, merge_dicts
 from notification_adapter import NotificationAdapter
@@ -646,7 +647,13 @@ class RegisterUserMatchHandler(BaseRequestHandler):
     def set_user_match(self):
         query = " INSERT INTO users_matches (username, match_id) VALUES (%s, %s);"
         variables = (self.username, self.match_id)
-        QueryHandler.execute(query, variables)
+        try:
+            QueryHandler.execute(query, variables)
+        except Exception, e:
+            if e.pgcode == psycopg2.errorcodes.UNIQUE_VIOLATION:
+                pass
+            else:
+                raise e
 
     def post(self):
         response = {}
