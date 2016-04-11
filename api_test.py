@@ -345,7 +345,8 @@ class InterestTest(unittest.TestCase):
 
         assert record
         assert record[0]['username']
-        assert record[0]['interests'] == map(lambda interest: interest['name'], self._interests)
+        assert record[0]['interests'] == map(lambda interest: interest['name'], self._interests[2:])
+        
 
     def test_delete_interest(self):
     	payload = copy.copy(self._payload)

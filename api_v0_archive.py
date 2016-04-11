@@ -415,10 +415,10 @@ class UserInterestHandler(BaseRequestHandler):
         variables = (self.username,)
         return QueryHandler.get_results(query, variables)
 
-    def insert_user_interest(self, new_interests):
+    def insert_user_interest(self, interests):
         query = "INSERT INTO users_interest (interest_id, username) "\
             " (SELECT interest_id, %s FROM interest WHERE "\
-            + " OR ".join(map( lambda interest: "interest_id = '" + str(interest) + "'" , new_interests))\
+            + " OR ".join(map( lambda interest: "interest_id = '" + str(interest) + "'" , interests))\
             + ");"         
         variables = (self.username, )
         QueryHandler.execute(query, variables)
@@ -429,13 +429,19 @@ class UserInterestHandler(BaseRequestHandler):
         variables = [self.username] + interests
         QueryHandler.execute(query, variables)
 
+    def delete_all_user_interest(self):
+        query = " DELETE FROM users_interest WHERE "\
+        +   " username = %s ;"
+        variables = (self.username,)
+        QueryHandler.execute(query, variables)
+
     def post(self):
         response = {}
+        self.delete_all_user_interest()
         self.username = self.get_argument('username')
         interests = self.request.arguments['interests']
-        interests_record = self.get_user_interests()
-        new_interests = [interest for interest in interests if interest not in map(lambda x: x['interest_id'], interests_record)] 
-        self.insert_user_interest(new_interests)
+        if interests:
+            self.insert_user_interest(interests)
         response['status'] = settings.STATUS_200
         response['info'] = settings.SUCCESS_RESPONSE
         self.write(response)
