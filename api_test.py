@@ -982,7 +982,8 @@ class SetDeviceTokenReturnUserMatchesTest(object):
 
         record = test_utils.select_user(username = self._username)[0]
         assert record['username'] == self._username
-        assert record[self._token_name] == self._token
+        assert record["device_token"] == self._token
+        assert record["token_type"] == self._token_type
         assert len(response["match_ids"]) == 1
         assert response["match_ids"][0] == self._match_id
         assert record['device_id'] == extra_params_dict['udid']
@@ -1007,12 +1008,14 @@ class SetAndroidDeviceTokenReturnUserMatchesTest(SetDeviceTokenReturnUserMatches
     _set_url = tornado_local_address + "/set_android_token_and_return_user_matches"
     _unset_url = tornado_local_address + "/remove_android_token"
     _token_name = "android_token"
+    _token_type = settings.TOKEN_ANDROID_TYPE
     
 
 class IOSSetUserDeviceIdReturnUserMatchesTests(SetDeviceTokenReturnUserMatchesTest, unittest.TestCase):
     _set_url = tornado_local_address + "/set_ios_token_and_return_user_matches"
     _unset_url = None
     _token_name = "apple_token"
+    _token_type = settings.TOKEN_IOS_TYPE
 
 class SetLocationPrivacyTest(unittest.TestCase):
     _set_location_privacy_url = tornado_local_address + "/set_location_privacy"

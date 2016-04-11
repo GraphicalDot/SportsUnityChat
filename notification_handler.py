@@ -33,11 +33,11 @@ class ApnsHandler(object):
         alert = {"title": top_text, "body": bottom_text}
         payload = apns.Payload(alert = alert, badge=1, sound = "default", custom=payload)
         for idx, user in enumerate(users):
-            if user['apple_token']:
+            if user['token_type'] == settings.TOKEN_IOS_TYPE:
                 identifier = idx + 1
                 expiry = time.time() + 3600
                 priority = 10
-                frame.add_item(user['apple_token'], payload, identifier, expiry, priority)
+                frame.add_item(user['device_token'], payload, identifier, expiry, priority)
         self.apns.gateway_server.send_notification_multiple(frame)
 
 class GCMHandler:
@@ -49,8 +49,8 @@ class GCMHandler:
         payload = {"data": {"message": event}}
         users_tokens = []
         for user in users:
-            if user['android_token']: 
-                users_tokens.append(user['android_token'])
+            if user['token_type'] == settings.TOKEN_ANDROID_TYPE: 
+                users_tokens.append(user['device_token'])
         if users_tokens:
             response = self.gcm.json_request(registration_ids = users_tokens, data=payload)
             self.handle_response(response)
@@ -69,7 +69,7 @@ class NotificationHandler:
         threading.Thread(group = None, target = self.handle_notification, name = None, args = (self.match_id, self.payload)).start()
 
     def get_subscribing_users(self, match_id):
-        query = " SELECT android_token, apple_token FROM users, users_matches"\
+        query = " SELECT device_token, token_type FROM users, users_matches"\
         + " WHERE users_matches.match_id = %s AND users_matches.username = users.username;"
         variables = (match_id,)
         return QueryHandler.get_results(query, variables)

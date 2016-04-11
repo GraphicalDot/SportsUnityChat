@@ -460,9 +460,10 @@ class UserInterestHandler(BaseRequestHandler):
 class IOSSetUserDeviceTokenReturnsUsersMatches(BaseRequestHandler):
 
     def set_ios_token_and_return_user_matches(self): 
-        query = " WITH updated AS (UPDATE users SET apple_token=%s, device_id = %s WHERE username=%s) "\
+        token_type = settings.TOKEN_IOS_TYPE
+        query = " WITH updated AS (UPDATE users SET device_token=%s, token_type = %s, device_id = %s WHERE username=%s) "\
         +   "SELECT users_matches.match_id FROM users_matches WHERE users_matches.username = %s;"
-        variables = (self.token, self.udid, self.username, self.username)
+        variables = (self.token, token_type, self.udid, self.username, self.username)
         return QueryHandler.get_results(query, variables)
 
     def post(self):
@@ -691,9 +692,10 @@ class AndroidSetUserDeviceTokenReturnsUsersMatches(BaseRequestHandler):
     This class handles the registration of a match for a jid
     """
     def set_android_device_token_returning_user_matches(self):
-        query = " WITH updated AS (UPDATE users SET android_token = %s, device_id = %s WHERE username = %s) "\
+        token_type = settings.TOKEN_ANDROID_TYPE
+        query = " WITH updated AS (UPDATE users SET device_token = %s, token_type = %s, device_id = %s WHERE username = %s) "\
             + " SELECT users_matches.match_id FROM users_matches WHERE users_matches.username = %s ;"
-        variables = (self.token, self.udid, self.username, self.username)
+        variables = (self.token, token_type, self.udid, self.username, self.username)
         return QueryHandler.get_results(query, variables)
 
     def post(self):
@@ -711,7 +713,7 @@ class AndroidRemoveUserDeviceId(BaseRequestHandler):
     This class handles the registration of a match for a jid
     """
     def remove_android_device_token(self):
-        query = "  UPDATE users SET android_token = null WHERE username = %s;"
+        query = "  UPDATE users SET device_token = null WHERE username = %s;"
         variables = ( self.username,)
         QueryHandler.execute(query, variables)
 
