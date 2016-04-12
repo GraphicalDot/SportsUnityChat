@@ -1,3 +1,6 @@
+# from redis import Redis
+# from rq import Queue
+import json
 import settings
 import os
 from global_func import QueryHandler
@@ -39,7 +42,8 @@ class ApnsHandler(object):
                 expiry = time.time() + 3600
                 priority = 10
                 frame.add_item(user['device_token'], payload, identifier, expiry, priority)
-        self.apns.gateway_server.send_notification_multiple(frame)
+        response = self.apns.gateway_server.send_notification_multiple(frame)
+        return response
 
 class GCMHandler:
     def __init__(self):
@@ -54,7 +58,7 @@ class GCMHandler:
                 users_tokens.append(user['device_token'])
         if users_tokens:
             response = self.gcm.json_request(registration_ids = users_tokens, data=payload)
-            self.handle_response(response)
+            return response
 
     def handle_response(self, response):
         print response
@@ -77,5 +81,11 @@ class NotificationHandler:
 
     def handle_notification(self, match_id, payload):
         subscribing_users = self.get_subscribing_users(match_id)
-        ApnsHandler().send_notifications(subscribing_users, payload)
-        GCMHandler().send_notifications(subscribing_users, payload)
+        self.apns_response = ApnsHandler().send_notifications(subscribing_users, payload)
+        self.gcm_response = GCMHandler().send_notifications(subscribing_users, payload)
+        self.handle_responses()
+
+    def handle_responses(self):
+        query = " INSERT INTO notifications (notification, apns_response, gcm_response) VALUES (%s, %s, %s);"
+        variables = (json.dumps(self.payload), str(self.apns_response), str(self.gcm_response),)
+        QueryHandler().execute(query, variables)

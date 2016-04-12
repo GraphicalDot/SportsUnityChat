@@ -12,19 +12,31 @@ config = ConfigParser.ConfigParser()
 config.read(os.path.join(os.path.abspath(os.path.dirname(__file__)), 'config.py'))
 
 class QueryHandler(object):
-    @classmethod
-    def get_connection(cls):
+
+    _instance = None
+    def __new__(cls, *args, **kwargs):
+        if not cls._instance:
+            cls._instance = super(QueryHandler, cls).__new__(cls, *args, **kwargs)
+        return cls._instance
+
+    def __init__(self):
+        self.start_connection()
+
+    def get_connection(self):
+        return self.connection
+
+    def start_connection(self):
         connection = psycopg2.connect("dbname=%s host=%s user=%s password=%s"
                                       % (config.get('database', 'database'),
                                          config.get('database', 'host'),
                                          config.get('database', 'user'),
                                          config.get('database', 'password'))
         )
-        return connection
+        self.connection = connection
 
     @classmethod
     def get_results(cls, query, variables=None):
-        connection = cls.get_connection()
+        connection = QueryHandler().get_connection()
         cursor = connection.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
         print(cursor.mogrify(query, variables))
         cursor.execute(query, variables)
@@ -35,7 +47,7 @@ class QueryHandler(object):
 
     @classmethod
     def execute(cls, query, variables=None):
-        connection = cls.get_connection()
+        connection = QueryHandler().get_connection()
         cursor = connection.cursor()
         print(cursor.mogrify(query, variables))
         cursor.execute(query, variables)
