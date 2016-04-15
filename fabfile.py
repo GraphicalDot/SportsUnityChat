@@ -11,11 +11,7 @@ import os
 import time
 import ConfigParser
 config = ConfigParser.ConfigParser()
-<<<<<<< HEAD
 config.read(os.path.join(os.path.abspath(os.path.dirname(__file__)), 'config_example.py'))
-=======
-config.read(os.path.join(os.path.abspath(os.path.dirname(__file__)), 'config.py'))
->>>>>>> dc499618f2a14e95be97ce35978636d7812895f3
 
 env.hosts = open('hosts', 'r').readlines()
 VIRTUAL_ENVIRONMENT = "/home/{0}/VirtualEnvironment"
@@ -99,11 +95,10 @@ def deploy():
 
 @task
 def run_migrations():
-    config = ConfigParser()
-    config.read('config.py')
+    run("sudo touch yoyo.ini")
     run("yoyo apply --database postgresql://{}:{}@{}/{} ./migrations".format(
             config.get('database', 'user'),
-            config.get('database', 'password')
+            config.get('database', 'password'),
             config.get('database', 'host'),
             config.get('database', 'database'),
         )
