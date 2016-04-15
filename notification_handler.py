@@ -1,5 +1,6 @@
 # from redis import Redis
 # from rq import Queue
+import psycopg2.extras
 import json
 import settings
 import os
@@ -71,7 +72,7 @@ class NotificationHandler:
         self.payload = payload
     
     def notify(self):
-        threading.Thread(group = None, target = self.handle_notification, name = None, args = (self.match_id, self.payload)).start()
+        threading.Thread(group = None, target = self.handle_notification, name = None, args = ()).start()
 
     def get_subscribing_users(self, match_id):
         query = " SELECT device_token, token_type FROM users, users_matches"\
@@ -79,13 +80,17 @@ class NotificationHandler:
         variables = (match_id,)
         return QueryHandler.get_results(query, variables)
 
-    def handle_notification(self, match_id, payload):
-        subscribing_users = self.get_subscribing_users(match_id)
-        self.apns_response = ApnsHandler().send_notifications(subscribing_users, payload)
-        self.gcm_response = GCMHandler().send_notifications(subscribing_users, payload)
+    def handle_notification(self):
+        subscribing_users = self.get_subscribing_users(self.match_id)
+        try:
+            self.apns_response = ApnsHandler().send_notifications(subscribing_users, self.payload)
+            self.gcm_response = GCMHandler().send_notifications(subscribing_users, self.payload)
+            self.sending_error = None
+        except Exception, e:
+            self.sending_error = e.message
         self.handle_responses()
 
     def handle_responses(self):
-        query = " INSERT INTO notifications (notification, apns_response, gcm_response) VALUES (%s, %s, %s);"
-        variables = (json.dumps(self.payload), str(self.apns_response), str(self.gcm_response),)
+        query = " INSERT INTO notifications (match_id, notification, apns_response, gcm_response, error) VALUES (%s, %s, %s, %s, %s);"
+        variables = (self.match_id, psycopg2.extras.Json(self.payload), str(self.apns_response), psycopg2.extras.Json(self.gcm_response), str(self.sending_error))
         QueryHandler().execute(query, variables)

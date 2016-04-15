@@ -1057,14 +1057,20 @@ class PushNotifcationsTest(unittest.TestCase):
     _event_code = "1"
     _match_id = "1"
     _league_id = "1"
+    _payload = {"s": _sport_code, "e": _event_code, "m": _match_id, "tt": "test", "bt": "test", "l": _league_id}
 
     def test_notify_event_and_storage(self):
-        payload = {"s": self._sport_code, "e": self._event_code, "m": self._match_id, "tt": "test", "bt": "test", "l": self._league_id}
-        response = json.loads(requests.post(self._push_notification_url, data=json.dumps(payload)).content)
+        response = json.loads(requests.post(self._push_notification_url, data=json.dumps(self._payload)).content)
         assert response['status'] == settings.STATUS_200
         query = " SELECT * FROM notifications ORDER BY created_at DESC LIMIT 1 "
         result = QueryHandler.get_results(query, ())
-        assert json.loads(result[0]['notification']) == payload        
+        assert result[0]['notification'] == self._payload        
+
+    def tearDown(self):
+        query = " DELETE FROM notifications WHERE match_id = %s;"
+        match_id = match_league_id = self._payload['m'].strip() + "|" + self._payload['l'].strip()
+        variables = (match_id,)
+        QueryHandler.execute(query, variables)
 
 class ApnsHandlerTest(unittest.TestCase):
     def test_singleton(self):

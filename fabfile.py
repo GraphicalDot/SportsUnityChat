@@ -9,7 +9,9 @@ from fabric.api import task
 from fabric.utils import error
 import os
 import time
-
+import ConfigParser
+config = ConfigParser.ConfigParser()
+config.read(os.path.join(os.path.abspath(os.path.dirname(__file__)), 'config_example.py'))
 
 env.hosts = open('hosts', 'r').readlines()
 VIRTUAL_ENVIRONMENT = "/home/{0}/VirtualEnvironment"
@@ -92,6 +94,17 @@ def deploy():
     execute(run_tests)
 
 @task
+def run_migrations():
+    run("yoyo apply --database postgresql://%s:%s@%s/%s ./migrations"
+        %(
+            config.get('database', 'user'),
+            config.get('database', 'password'),
+            config.get('database', 'host'),
+            config.get('database', 'database'),
+        )
+    )
+
+@task
 def add_interests():
     execute(pull)
     virtual_environment = VIRTUAL_ENVIRONMENT.format(env["user"])
@@ -111,6 +124,7 @@ def setup_server():
         run("pip install -U pip")        
         with cd(repo_dir):
             run(virtual_environment+"/bin/pip install -r requirement.txt")
+            execute(run_migrations)
             run("sudo  touch tornado_log ")
             run(" sudo chmod 777 tornado_log ")
             run(" sudo chmod 777 media ")
