@@ -8,6 +8,7 @@ import magic
 import settings
 from tornado.web import MissingArgumentError
 from psycopg2 import IntegrityError
+import logging
 import utils
 import base64
 import ConfigParser
@@ -46,14 +47,21 @@ def check_udid_and_apk_version(request_handler_object):
 
 
 class BaseRequestHandler(tornado.web.RequestHandler):
+    def prepare(self):
+        logging.debug("[info] Class {} via {} with body {}".format(self.__class__.__name__, self.request.uri, self.request.body))
+
+
+class UserApiRequestHandler(BaseRequestHandler):
 
     def prepare(self):
+        super(UserApiRequestHandler, self).prepare()
         self.request.arguments = merge_body_arguments(self)
         check_udid_and_apk_version(self)
         self.username = self.get_argument('username')
         self.password = self.get_argument('password')
         user = User(username = self.username, password = self.password)
         user.authenticate()
+        logging.debug("[debug] User {} authenticated".format(self.username))
 
     def extract_psycopg2_integrity_error(self, error):
         return error.message.split("Key")[1].replace("(", "").replace(")", "").split(".")[0].replace("=", " ")
@@ -86,14 +94,12 @@ class BaseRequestHandler(tornado.web.RequestHandler):
             response["status"] = settings.STATUS_400
         elif error_type == IntegrityError:
             response["status"] = settings.STATUS_400
-        elif error == IntegrityError:
-            response["status"] = settings.STATUS_404
         else:
             response["status"] = settings.STATUS_500
         self.write(response)
 
 
-class SetLocationHandler(BaseRequestHandler):
+class SetLocationHandler(UserApiRequestHandler):
     # TO-DO Write tests for this class
     """
     This class handles the storage of locations of a user in the server
@@ -201,7 +207,7 @@ class SetLocationHandler(BaseRequestHandler):
 #         QueryHandler.execute(query, variables)
 
 
-class RegistrationHandler(tornado.web.RequestHandler):
+class RegistrationHandler(BaseRequestHandler):
     """
     Handles the registration of the user.
     Parameters:- 
@@ -227,7 +233,7 @@ class RegistrationHandler(tornado.web.RequestHandler):
             self.write(response)
 
 
-class CreationHandler(tornado.web.RequestHandler):
+class CreationHandler(BaseRequestHandler):
     """
     Handles the creation of the user.
     Query Parameters:-
@@ -258,7 +264,7 @@ class CreationHandler(tornado.web.RequestHandler):
         finally:
             self.write(response)
 
-class MediaPresentHandler(tornado.web.RequestHandler):
+class MediaPresentHandler(BaseRequestHandler):
     def get(self):
         check_udid_and_apk_version(self)
         response = {}
@@ -281,7 +287,7 @@ class MediaPresentHandler(tornado.web.RequestHandler):
 
 
 @tornado.web.stream_request_body
-class MediaHandler(tornado.web.RequestHandler):
+class MediaHandler(BaseRequestHandler):
     response = {}
 
     def prepare(self):
@@ -337,7 +343,7 @@ class MediaHandler(tornado.web.RequestHandler):
         self.file_content += data
 
 
-class IOSMediaHandler(tornado.web.RequestHandler):
+class IOSMediaHandler(BaseRequestHandler):
 
     def data_validation(self, headers, body):
         response = {'info': '', 'status': 0}
@@ -393,7 +399,7 @@ class IOSMediaHandler(tornado.web.RequestHandler):
             self.write(response)
 
 
-class UserInterestHandler(BaseRequestHandler):
+class UserInterestHandler(UserApiRequestHandler):
     """
     This class creates a link between users and interests. The interests have to
     stored beforehand.
@@ -440,8 +446,10 @@ class UserInterestHandler(BaseRequestHandler):
         self.delete_all_user_interest()
         self.username = self.get_argument('username')
         interests = self.request.arguments['interests']
-        if interests:
+        if interests and type(interests) == list:
             self.insert_user_interest(interests)
+        else:
+            raise BadInfoSuppliedError("interests")
         response['status'] = settings.STATUS_200
         response['info'] = settings.SUCCESS_RESPONSE
         self.write(response)
@@ -457,7 +465,7 @@ class UserInterestHandler(BaseRequestHandler):
         self.write(response)        
 
 
-class IOSSetUserDeviceTokenReturnsUsersMatches(BaseRequestHandler):
+class IOSSetUserDeviceTokenReturnsUsersMatches(UserApiRequestHandler):
 
     def set_ios_token_and_return_user_matches(self): 
         token_type = settings.TOKEN_IOS_TYPE
@@ -541,7 +549,7 @@ class IOSSetUserDeviceTokenReturnsUsersMatches(BaseRequestHandler):
 #             NotificationAdapter(event, "Cricket").notify()
 
 
-class ContactJidsHandler(BaseRequestHandler):
+class ContactJidsHandler(UserApiRequestHandler):
     """
     This class handles the retrival of jids in the contact list
     of the user
@@ -579,7 +587,7 @@ class ContactJidsHandler(BaseRequestHandler):
         self.write(response)
 
 
-class GetNearbyUsers(BaseRequestHandler):
+class GetNearbyUsers(UserApiRequestHandler):
 
     def get_nearby_users(self):
         query = "WITH uinterest AS "\
@@ -647,7 +655,7 @@ class GetNearbyUsers(BaseRequestHandler):
         response['status'] = settings.STATUS_200
         self.write(response)
 
-class RegisterUserMatchHandler(BaseRequestHandler):
+class RegisterUserMatchHandler(UserApiRequestHandler):
     """
     This class handles the registration of a match for a jid
     """
@@ -670,7 +678,7 @@ class RegisterUserMatchHandler(BaseRequestHandler):
         response["info"], response["status"] = settings.SUCCESS_RESPONSE, settings.STATUS_200
         self.write(response)
 
-class UnRegisterUserMatchHandler(BaseRequestHandler):
+class UnRegisterUserMatchHandler(UserApiRequestHandler):
     """
     This class handles the registration of a match for a jid
     """
@@ -687,7 +695,7 @@ class UnRegisterUserMatchHandler(BaseRequestHandler):
         response["info"], response["status"] = settings.SUCCESS_RESPONSE, settings.STATUS_200
         self.write(response)
             
-class AndroidSetUserDeviceTokenReturnsUsersMatches(BaseRequestHandler):
+class AndroidSetUserDeviceTokenReturnsUsersMatches(UserApiRequestHandler):
     """
     This class handles the registration of a match for a jid
     """
@@ -708,7 +716,7 @@ class AndroidSetUserDeviceTokenReturnsUsersMatches(BaseRequestHandler):
         response["info"], response["status"] = settings.SUCCESS_RESPONSE, settings.STATUS_200
         self.write(response)
 
-class AndroidRemoveUserDeviceId(BaseRequestHandler):
+class AndroidRemoveUserDeviceId(UserApiRequestHandler):
     """
     This class handles the registration of a match for a jid
     """
@@ -724,7 +732,7 @@ class AndroidRemoveUserDeviceId(BaseRequestHandler):
         response["info"], response["status"] = settings.SUCCESS_RESPONSE, settings.STATUS_200
         self.write(response)
 
-class LocationPrivacyHandler(BaseRequestHandler):
+class LocationPrivacyHandler(UserApiRequestHandler):
     def set_location_privacy(self):
         query = " UPDATE users SET show_location = %s WHERE username = %s;"
         variables = (self.show_location_status, self.username,)
@@ -740,15 +748,15 @@ class LocationPrivacyHandler(BaseRequestHandler):
         response["info"], response["status"] = settings.SUCCESS_RESPONSE, settings.STATUS_200
         self.write(response)
 
-class PushNotificationHandler(tornado.web.RequestHandler):
+class PushNotificationHandler(BaseRequestHandler):
     def post(self):
         response = {}
         try:
             payload = json.loads(self.request.body)
             match_id = str(payload['m'])
             league_id = str(payload['l'])
-            league_match_id = match_id.strip() + "|" + league_id.strip()
-            NotificationHandler(league_match_id, payload).notify()
+            match_league_id = match_id.strip() + "|" + league_id.strip()
+            NotificationHandler(match_league_id, payload).notify()
             response["info"], response["status"] = settings.SUCCESS_RESPONSE, settings.STATUS_200
         except MissingArgumentError, status:
             response["info"] = status.log_message
@@ -759,7 +767,7 @@ class PushNotificationHandler(tornado.web.RequestHandler):
         finally:
             self.write(response)
 
-class RegisterMatchHandler(tornado.web.RequestHandler):
+class RegisterMatchHandler(BaseRequestHandler):
     def insert_match(self, match):
         query = "INSERT INTO matches (id, name) VALUES (%s, %s);"
         variables = (match["id"], match["name"],)
@@ -784,7 +792,7 @@ class RegisterMatchHandler(tornado.web.RequestHandler):
         finally:
             self.write(response)
 
-class UserInfoHandler(BaseRequestHandler):
+class UserInfoHandler(UserApiRequestHandler):
 
     def post(self):
         response = {}
