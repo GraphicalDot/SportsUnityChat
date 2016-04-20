@@ -1,3 +1,5 @@
+import psycopg2.errorcodes
+from user import User
 from global_func import QueryHandler, S3Handler, merge_dicts
 from notification_adapter import NotificationAdapter
 from tornado.log import enable_pretty_logging
@@ -6,6 +8,7 @@ import magic
 import settings
 from tornado.web import MissingArgumentError
 from psycopg2 import IntegrityError
+import logging
 import utils
 import base64
 import ConfigParser
@@ -22,8 +25,9 @@ import tornado.escape
 import tornado.web
 import uuid
 from requests_toolbelt import MultipartDecoder
-from custom_error import BadAuthentication
+from custom_error import BadAuthentication, BadInfoSuppliedError
 import admin_api
+from notification_handler import NotificationHandler
 config = ConfigParser.ConfigParser()
 config.read('config.py')
 
@@ -42,7 +46,61 @@ def check_udid_and_apk_version(request_handler_object):
     request_handler_object.get_argument('udid')
 
 
-class SetLocationHandler(tornado.web.RequestHandler):
+class BaseRequestHandler(tornado.web.RequestHandler):
+    def prepare(self):
+        logging.debug("[info] Class {} via {} with body {}".format(self.__class__.__name__, self.request.uri, self.request.body))
+
+
+class UserApiRequestHandler(BaseRequestHandler):
+
+    def prepare(self):
+        super(UserApiRequestHandler, self).prepare()
+        self.request.arguments = merge_body_arguments(self)
+        check_udid_and_apk_version(self)
+        self.username = self.get_argument('username')
+        self.password = self.get_argument('password')
+        user = User(username = self.username, password = self.password)
+        user.authenticate()
+        logging.debug("[debug] User {} authenticated".format(self.username))
+
+    def extract_psycopg2_integrity_error(self, error):
+        return error.message.split("Key")[1].replace("(", "").replace(")", "").split(".")[0].replace("=", " ")
+        
+    def write_error(self, status_code, **kwargs):
+        response = {}
+        error_object = kwargs['exc_info'][1]
+        error_type = kwargs['exc_info'][0]
+        try:
+            if error_type == IntegrityError:
+                response["info"] = self.extract_psycopg2_integrity_error(error_object)
+            else:
+                try:
+                    response["info"] = error_object.log_message
+                except:
+                    response["info"] = error_object.message
+        except Exception, e:
+            response["info"] = settings.INTERNAL_SERVER_ERROR
+            
+        if error_type == BadInfoSuppliedError:
+            response["status"] = settings.STATUS_400
+        elif error_type == MissingArgumentError:
+            response["status"] = settings.STATUS_400
+        elif error_type == ValueError:
+            response["info"] = "Improper JSON format "
+            response["status"] = settings.STATUS_400
+        elif error_type == BadAuthentication:
+            response["status"] = settings.STATUS_404
+        elif error_type == KeyError:
+            response["status"] = settings.STATUS_400
+        elif error_type == IntegrityError:
+            response["status"] = settings.STATUS_400
+        else:
+            response["status"] = settings.STATUS_500
+        self.write(response)
+
+
+class SetLocationHandler(UserApiRequestHandler):
+    # TO-DO Write tests for this class
     """
     This class handles the storage of locations of a user in the server
     For web interfacing it implements two methods i.e get and post, which 
@@ -50,297 +108,106 @@ class SetLocationHandler(tornado.web.RequestHandler):
     Methods : 
         get :
             :params 
-                user username  
+                username username
+                password password  
                 lng  longtitude
                 lat  latitude
+
             :response 
                 :success => {'status':settings.STATUS_200, 'info': 'Success'}
                 :failure => {'status': 500, 'info': 'Error [Error message]'}
 
     """
+    def set_location(self):
+        query = " UPDATE users SET lat = %s, lng = %s " \
+                " WHERE username = %s; "
+        QueryHandler.execute(query, (self.latitude, self.longtitude, self.username))
+
 
     def get(self):
-        try:
-            response = {}
-            check_udid_and_apk_version(self)
-            username = self.get_argument("user")
-            longtitude = self.get_argument("lng")
-            latitude = self.get_argument("lat")
-            query = " UPDATE users SET lat = %s, lng = %s " \
-                    " WHERE username = %s; "
-            QueryHandler.execute(query, (latitude, longtitude, username))
-        except MissingArgumentError, status:
-            response["info"] = status.log_message 
-            response["status"] = settings.STATUS_400
-        except Exception, e:
-            response["info"] = " Error %s " % e
-            response["status"] = settings.STATUS_500
-        else:
-            response['message'] = settings.SUCCESS_RESPONSE
-            response["status"] = settings.STATUS_200
-        finally:
-            self.write(response)
+        response = {}
+        self.username = self.get_argument("username")
+        self.longtitude = self.get_argument("lng")
+        self.latitude = self.get_argument("lat")
+        self.set_location()
+        response['message'] = settings.SUCCESS_RESPONSE
+        response["status"] = settings.STATUS_200
+        self.write(response)
 
 
-class User:
-    """
-    This class defines the user object which can be used for successive operations
-    to be done on the user object.
-    Attributes to be passed on the initialization:
-        username -- username of the user most typically the full jid of the user 
-        password [optional] -- optionally if the user has been created.
-    Methods: 
-        authenticate -- authenticates the user
-        handle_creation -- handles the creation of user
-        _is_token_correct -- checks whether the otp token given by the user is correct/expired
-        _create_new -- creates a new user after verifying the authenticity of the user
-        handle_registration -- starts the registration process for the user
-        _delete_registered -- deletes the registered user so that new otp can be sent to the user
-        _register -- registers the user
-        _send_message -- send the otp token to the users phone number
-    """
-    def __init__(self, phone_number = None, password = None, username = None):
-        self.username = username
-        self.password = password
-        self.phone_number = phone_number
-
-    def authenticate(self):
-        """
-        In case of already created user, this functions authicates the user. 
-        return true if authenticated
-        return false if not authenticated
-        """
-        query = " SELECT * FROM users WHERE username = %s AND password = %s; "
-        variables = (self.username, self.password,)
-
-        record = QueryHandler.get_results(query, variables)
-
-        if not record:
-            raise BadAuthentication
-
-    def handle_creation(self, auth_code):
-        """
-        Handles the creation aspect of the User class
-        Parameters:- 
-            auth_code - The otp token sent to the users cellphone
-        Response :-
-            If token correct:
-                "Success",settings.STATUS_200, [password]
-            If user already created
-                " User already created",settings.STATUS_200, [password]
-            If wrong or expired auth token
-                " Wrong or Expired Token ",settings.STATUS_400, None
-        """
-        try:
-            if self._is_token_correct(auth_code):
-                query = " SELECT * FROM users WHERE phone_number = %s ;"
-                variables = (self.phone_number, )
-                record = QueryHandler.get_results(query, variables)
-                
-                if record:
-                    self.username = record[0]['username']
-                    response, status = self._reset_password()
-                else:
-                    response, status = self._create_new()
-            else:
-                response, status = " Wrong or Expired Token ", settings.STATUS_400
-            pass
-        except Exception, e:
-            response, status = " Error %e " % e, settings.STATUS_500
-        finally:
-            self._delete_registered()
-            return response, status, self.password, self.username
-
-    def _generate_username(self):
-        self.username = self._generate_random()
-    
-    def _generate_password(self):
-        self.password = self._generate_random()
-
-    def _generate_random(self, n = 10):
-        return (uuid.uuid4().hex)[:n]
-
-    def _reset_password(self):
-        """
-            This functions resets the password of a user
-            Response:-
-                If successfully
-                    Response, Status = "Success",settings.STATUS_200
-                Else
-                    Response, Status = "Error [Error]", 500
-        """
-        try: 
-            self._generate_password()
-            query = " UPDATE users SET password = %s WHERE username = %s; "
-            variables = (self.password, self.username)
-            QueryHandler.execute(query, variables)
-            response, status = "Success", settings.STATUS_200
-        except Exception, e:
-            response, status = " Error %e " % e, settings.STATUS_500
-        finally:
-            return response, status
 
 
-    def _is_token_correct(self, auth_code):
-        """
-        Authenticates the otp token sent to the user
-        Parameters :-
-            auth_code -- The otp token sent to the user
-        Response :-
-            True if correct
-            False if wrong token
-        """
-        query = " SELECT * FROM registered_users WHERE phone_number = %s AND authorization_code = %s ;"
-        variables = (self.phone_number, auth_code,)
+# class FacebookHandler(tornado.web.RequestHandler):
+#     """
+#     Stores the facebook id of the user and finds his friends from the stored ids
+#     Methods:
+#         get - Implements the http get method for tornado frameowrk and also sets the user
+#             facebook details in the database
+#             Parameters:
+#                 fb_id -- fb_id of the user
+#                 token -- fb token of the user
+#                 user_id -- xmpp user_id 
+#             Response: 
+#                 {'info' : 'Error [Error]', 'status': 500}
+#                 {'info' : [{'id': [friend_id], 'fb_name': [friend name]} .. ], 'status': 500}
+#         _get_friends_id - 
+#             Gets friends facebook id. 
+#         _set_fb_details - 
+#             sets the users fb details in the database
+#     """
+#     def get(self):
+#         try:
+#             check_udid_and_apk_version(self)
+#             response = {}
+#             fb_id = str(self.get_argument("fb_id"))
+#             token = str(self.get_argument("token"))
+#             user_id = str(self.get_argument('id'))
 
-        record = QueryHandler.get_results(query, variables)
-        try:
-            if record and (record[0]['expiration_time'] > int(time.time())):
-                is_token_correct = True
-            else:
-                is_token_correct = False
-        except:
-            is_token_correct = False
-        finally:
-            return is_token_correct
+#             username = str.split(user_id, "@")[0]
 
-    def _create_new(self):
-        """
-        Creates a new user in the database.
-        """
-        try:
-            while True:
-                self._generate_username()
-                self._generate_password()
+#             args = {'fields': 'id,name,email,friends', }
+#             graph = facebook.GraphAPI(token)
+#             fb_json = graph.get_object('me', **args)
 
-                query = " SELECT * FROM users WHERE username = %s;"
-                variables = (self.username,)
-                record = QueryHandler.get_results(query, variables)
+#             fb_name = fb_json['name']
 
-                if not record:
-                    query = " INSERT INTO users (username, phone_number, password) VALUES "\
-                    + "(%s, %s, %s);"
-                    variables = (self.username, self.phone_number, self.password)
-                    QueryHandler.execute(query, variables)
-                    break
-            response, status = "Success", settings.STATUS_200
-        except Exception, e:
-            response, status = " %s " % e, settings.STATUS_500
-        finally:
-            return response, status
+#             self._set_fb_details(fb_id, username, fb_name)
 
-    def check_if_user_blocked(self):
-        query = "SELECT is_banned FROM users WHERE phone_number=%s AND is_banned=True;"
-        variables = (self.phone_number,)
-        return True if QueryHandler.get_results(query, variables) else False
+#             friends_details = self._get_friends_id(fb_json['friends']['data'])
+#         # TO-DO explicit error messages
+#         except MissingArgumentError, status:
+#             response["info"] = status.log_message 
+#             response["status"] = settings.STATUS_400
+#         except Exception, e:
+#             response['info'] = " Error : % s " % e
+#             response['status'] = settings.STATUS_500
+#         else:
+#             if not response:
+#                 response['list'] = friends_details
+#                 response['status'] = settings.STATUS_200
+#         finally:
+#             self.write(response)
 
-    def handle_registration(self):
-        """
-        Handles the registration of the user in the database
-        """
-        self._delete_registered()
-        response, status = (settings.USER_FORBIDDEN_ERROR, settings.STATUS_403) if self.check_if_user_blocked() \
-            else self._register()
-        return response, status
+#     def _get_friends_id(self, friends_details):
+#         friends_id_name = []
+#         for friend_detail in friends_details:
+#             friend_id_name = {}
+#             query = " SELECT * FROM users WHERE fb_id = %s;"
+#             variables = (friend_detail['id'],)
+#             results = QueryHandler.get_results(query, variables)
+#             if len(results) > 0:
+#                 friend_id_name['id'] = results['username'] + '@mm.io'
+#                 friend_id_name['fb_name'] = results['fb_name'] + '@mm.io'
+#                 friends_id_name.append(friend_id_name)
+#         return friends_id_name
 
-    def _delete_registered(self):
-        """
-        Deletes the registered users in the database, which have been created or 
-        when new otp token has to be sent.
-        """
-        query = " DELETE FROM registered_users WHERE phone_number = %s ;"
-        variables = (self.phone_number,)
-        QueryHandler.execute(query, variables)
-
-    def _register(self):
-        """
-        Registers the users in the database
-        """
-        # TODO: remove app testing numbers after the release
-        random_integer = settings.APP_TESTING_OTP[self.phone_number] \
-            if self.phone_number in settings.APP_TESTING_PHONE_NUMBERS else random.randint(1000,9999)
-        expiration_time = int(time.time()) + int(config.get('registration', 'expiry_period_sec'))
-
-        query = " INSERT INTO registered_users (phone_number, authorization_code, expiration_time) VALUES ( %s, %s, %s); "
-        variables = (self.phone_number, random_integer, expiration_time)
-        try:
-            QueryHandler.execute(query, variables)
-            return utils.send_message(number=self.phone_number, message=settings.OTP_MESSAGE.format(random_integer))
-        except Exception, e:
-            return " Error while sending message : % s" % e, settings.STATUS_500
+#     def _set_fb_details(self, fb_id, username, fb_name):
+#         query = " UPDATE users SET fb_id = %s, fb_name = %s WHERE username = %s ;"
+#         variables = (fb_id, fb_name, username)
+#         QueryHandler.execute(query, variables)
 
 
-class FacebookHandler(tornado.web.RequestHandler):
-    """
-    Stores the facebook id of the user and finds his friends from the stored ids
-    Methods:
-        get - Implements the http get method for tornado frameowrk and also sets the user
-            facebook details in the database
-            Parameters:
-                fb_id -- fb_id of the user
-                token -- fb token of the user
-                user_id -- xmpp user_id 
-            Response: 
-                {'info' : 'Error [Error]', 'status': 500}
-                {'info' : [{'id': [friend_id], 'fb_name': [friend name]} .. ], 'status': 500}
-        _get_friends_id - 
-            Gets friends facebook id. 
-        _set_fb_details - 
-            sets the users fb details in the database
-    """
-    def get(self):
-        try:
-            check_udid_and_apk_version(self)
-            response = {}
-            fb_id = str(self.get_argument("fb_id"))
-            token = str(self.get_argument("token"))
-            user_id = str(self.get_argument('id'))
-
-            username = str.split(user_id, "@")[0]
-
-            args = {'fields': 'id,name,email,friends', }
-            graph = facebook.GraphAPI(token)
-            fb_json = graph.get_object('me', **args)
-
-            fb_name = fb_json['name']
-
-            self._set_fb_details(fb_id, username, fb_name)
-
-            friends_details = self._get_friends_id(fb_json['friends']['data'])
-        # TO-DO explicit error messages
-        except MissingArgumentError, status:
-            response["info"] = status.log_message 
-            response["status"] = settings.STATUS_400
-        except Exception, e:
-            response['info'] = " Error : % s " % e
-            response['status'] = settings.STATUS_500
-        else:
-            if not response:
-                response['list'] = friends_details
-                response['status'] = settings.STATUS_200
-        finally:
-            self.write(response)
-
-    def _get_friends_id(self, friends_details):
-        friends_id_name = []
-        for friend_detail in friends_details:
-            friend_id_name = {}
-            query = " SELECT * FROM users WHERE fb_id = %s;"
-            variables = (friend_detail['id'],)
-            results = QueryHandler.get_results(query, variables)
-            if len(results) > 0:
-                friend_id_name['id'] = results['username'] + '@mm.io'
-                friend_id_name['fb_name'] = results['fb_name'] + '@mm.io'
-                friends_id_name.append(friend_id_name)
-        return friends_id_name
-
-    def _set_fb_details(self, fb_id, username, fb_name):
-        query = " UPDATE users SET fb_id = %s, fb_name = %s WHERE username = %s ;"
-        variables = (fb_id, fb_name, username)
-        QueryHandler.execute(query, variables)
-
-
-class RegistrationHandler(tornado.web.RequestHandler):
+class RegistrationHandler(BaseRequestHandler):
     """
     Handles the registration of the user.
     Parameters:- 
@@ -366,7 +233,7 @@ class RegistrationHandler(tornado.web.RequestHandler):
             self.write(response)
 
 
-class CreationHandler(tornado.web.RequestHandler):
+class CreationHandler(BaseRequestHandler):
     """
     Handles the creation of the user.
     Query Parameters:-
@@ -397,7 +264,7 @@ class CreationHandler(tornado.web.RequestHandler):
         finally:
             self.write(response)
 
-class MediaPresentHandler(tornado.web.RequestHandler):
+class MediaPresentHandler(BaseRequestHandler):
     def get(self):
         check_udid_and_apk_version(self)
         response = {}
@@ -420,7 +287,7 @@ class MediaPresentHandler(tornado.web.RequestHandler):
 
 
 @tornado.web.stream_request_body
-class MediaHandler(tornado.web.RequestHandler):
+class MediaHandler(BaseRequestHandler):
     response = {}
 
     def prepare(self):
@@ -476,7 +343,7 @@ class MediaHandler(tornado.web.RequestHandler):
         self.file_content += data
 
 
-class IOSMediaHandler(tornado.web.RequestHandler):
+class IOSMediaHandler(BaseRequestHandler):
 
     def data_validation(self, headers, body):
         response = {'info': '', 'status': 0}
@@ -532,143 +399,157 @@ class IOSMediaHandler(tornado.web.RequestHandler):
             self.write(response)
 
 
-class UserInterestHandler(tornado.web.RequestHandler):
+class UserInterestHandler(UserApiRequestHandler):
     """
     This class creates a link between users and interests. The interests have to
     stored beforehand.
 
     Methods : 
-        get :
+        post :
             :params 
                 username => username 
                 interests => list of interests like interests=football&interests=cricket 
+                password => password
+                apk_version 
+                udid
             :response 
                 :success => {'status':settings.STATUS_200, 'info': 'Success'}
                 :failure => {'status': 500, 'info': 'Error [Error message]'}     
     """
-    def get(self):
-        response = {}
-        try:
-            check_udid_and_apk_version(self)
-            username = self.get_argument('username')
-            interests = self.request.arguments['interests']
-            interests = map(lambda interest: interest.lower(), interests)
+    def get_user_interests(self):
+        query = " SELECT interest_id FROM users_interest WHERE username = %s;"
+        variables = (self.username,)
+        return QueryHandler.get_results(query, variables)
 
-            query = " DELETE FROM users_interest WHERE username = %s;"
-            variables = (username,)
-            QueryHandler.execute(query, variables)            
+    def insert_user_interest(self, interests):
+        query = "INSERT INTO users_interest (interest_id, username) "\
+            " (SELECT interest_id, %s FROM interest WHERE "\
+            + " OR ".join(map( lambda interest: "interest_id = '" + str(interest) + "'" , interests))\
+            + ");"         
+        variables = (self.username, )
+        QueryHandler.execute(query, variables)
 
-            query = "INSERT INTO users_interest (interest_id, username) "\
-                " (SELECT interest_id, %s FROM interest WHERE "\
-                + " OR ".join(map( lambda interest: "interest_name = '" + interest + "'" , interests))\
-                + ");"         
-            variables = (username, )
-            QueryHandler.execute(query, variables)
-            response['status'] =settings.STATUS_200
-            response['info'] = "Success"
-        except MissingArgumentError, status:
-            response["info"] = status.log_message 
-            response["status"] =settings.STATUS_400
-        except Exception, e:
-            response['status'] = settings.STATUS_500
-            response['info'] = "Error: %s " % e
-        finally:
-            self.write(response)
+    def delete_user_interest(self, interests):
+        query = " DELETE FROM users_interest WHERE "\
+        +   "username = %s AND ( " + " OR ".join(["interest_id = %s "]*len(interests)) + " );"
+        variables = [self.username] + interests
+        QueryHandler.execute(query, variables)
 
-
-class IOSSetUserDeviceId(tornado.web.RequestHandler):
+    def delete_all_user_interest(self):
+        query = " DELETE FROM users_interest WHERE "\
+        +   " username = %s ;"
+        variables = (self.username,)
+        QueryHandler.execute(query, variables)
 
     def post(self):
         response = {}
-        try:
-            check_udid_and_apk_version(self)
-            username = str(self.get_argument('user'))
-            password = str(self.get_argument('password'))
-            udid = str(self.get_argument('token'))
+        self.delete_all_user_interest()
+        self.username = self.get_argument('username')
+        interests = self.request.arguments['interests']
+        if interests and type(interests) == list:
+            self.insert_user_interest(interests)
+        else:
+            raise BadInfoSuppliedError("interests")
+        response['status'] = settings.STATUS_200
+        response['info'] = settings.SUCCESS_RESPONSE
+        self.write(response)
 
-            user = User(password = password, username = username)
-            user.authenticate()
-            query = "UPDATE users SET apple_token=%s WHERE username=%s;"
-            variables = (udid, username)
-            QueryHandler.execute(query, variables)
+    def delete(self):
+        response = {}
+        self.username = self.get_argument('username')
+        interests = self.request.arguments['interests']
+        self.delete_user_interest(interests)
 
-            response['info'] = "Success"
-            response['status'] =settings.STATUS_200
-        except BadAuthentication, status:
-            response["info"] = status.log_message 
-            response["status"] =settings.STATUS_400
-        except MissingArgumentError, status:
-            response["info"] = status.log_message 
-            response["status"] =settings.STATUS_400
-        except Exception as e:
-            response['info'] = "Error: %s" % e
-            response['status'] = settings.STATUS_500
-        finally:
-            self.write(response)
+        response['status'] =settings.STATUS_200
+        response['info'] = settings.SUCCESS_RESPONSE
+        self.write(response)        
 
 
-class SendAppInvitation(tornado.web.RequestHandler):
-    """
-    Sends invitation invite from app user to any of its contacts.
-    """
+class IOSSetUserDeviceTokenReturnsUsersMatches(UserApiRequestHandler):
 
-    def data_validation(self, app_user, invited_user):
-        query = "SELECT * FROM users WHERE username=%s;"
-        variables = (app_user,)
-        result = QueryHandler.get_results(query, variables)
-        if not result:
-            return ("Bad Request: User is not Registered!", settings.STATUS_400)
-
-        query = "SELECT * FROM users WHERE phone_number=%s;"
-        variables = (invited_user,)
-        return ("Bad Request: Invited User is Already Registered!", settings.STATUS_400) \
-            if QueryHandler.get_results(query, variables) else ('Valid', settings.STATUS_200)
+    def set_ios_token_and_return_user_matches(self): 
+        token_type = settings.TOKEN_IOS_TYPE
+        query = " WITH updated AS (UPDATE users SET device_token=%s, token_type = %s, device_id = %s WHERE username=%s) "\
+        +   "SELECT users_matches.match_id FROM users_matches WHERE users_matches.username = %s;"
+        variables = (self.token, token_type, self.udid, self.username, self.username)
+        return QueryHandler.get_results(query, variables)
 
     def post(self):
         response = {}
-        try:
-            app_user = str(self.get_argument('user'))
-            invited_user = str(self.get_argument('invited_user')).strip()
-
-            # data validation
-            response['info'], response['status'] = self.data_validation(app_user, invited_user)
-
-            if response['status'] not in settings.STATUS_ERROR_LIST:
-                message = settings.APP_INVITATION_MESSAGE.format(app_user)
-                response['info'], response['status'] = utils.send_message(invited_user, message)
-
-        except MissingArgumentError, status:
-            response['info'] = status.log_message
-            response['status'] = settings.STATUS_400
-        except Exception as e:
-            response['info'] = 'Error: %s' % e
-            response['status'] = settings.STATUS_500
-        finally:
-            self.write(response)
+        self.username = str(self.get_argument('username'))
+        self.token = str(self.get_argument('token'))
+        self.udid = str(self.get_argument('udid'))
+        user = User(password = self.password, username = self.username)
+        user.authenticate()
+        users_matches = self.set_ios_token_and_return_user_matches()
+        response['match_ids'] = map(lambda x: x['match_id'], users_matches)
+        response['info'] = settings.SUCCESS_RESPONSE
+        response['status'] =settings.STATUS_200
+        self.write(response)
 
 
-class FootballEvents(tornado.web.RequestHandler):
-    def post(self):
-        event = tornado.escape.json_decode(self.request.body)
-        if event:
-            NotificationAdapter(event, "Football").notify()
+# class SendAppInvitation(tornado.web.RequestHandler):
+#     """
+#     Sends invitation invite from app user to any of its contacts.
+#     """
+
+#     def data_validation(self, app_user, invited_user):
+#         query = "SELECT * FROM users WHERE username=%s;"
+#         variables = (app_user,)
+#         result = QueryHandler.get_results(query, variables)
+#         if not result:
+#             return ("Bad Request: User is not Registered!", settings.STATUS_400)
+
+#         query = "SELECT * FROM users WHERE phone_number=%s;"
+#         variables = (invited_user,)
+#         return ("Bad Request: Invited User is Already Registered!", settings.STATUS_400) \
+#             if QueryHandler.get_results(query, variables) else ('Valid', settings.STATUS_200)
+
+#     def post(self):
+#         response = {}
+#         try:
+#             app_user = str(self.get_argument('user'))
+#             invited_user = str(self.get_argument('invited_user')).strip()
+
+#             # data validation
+#             response['info'], response['status'] = self.data_validation(app_user, invited_user)
+
+#             if response['status'] not in settings.STATUS_ERROR_LIST:
+#                 message = settings.APP_INVITATION_MESSAGE.format(app_user)
+#                 response['info'], response['status'] = utils.send_message(invited_user, message)
+
+#         except MissingArgumentError, status:
+#             response['info'] = status.log_message
+#             response['status'] = settings.STATUS_400
+#         except Exception as e:
+#             response['info'] = 'Error: %s' % e
+#             response['status'] = settings.STATUS_500
+#         finally:
+#             self.write(response)
 
 
-class TennisEvents(tornado.web.RequestHandler):
-    def post(self):
-        event = tornado.escape.json_decode(self.request.body)
-        if event:
-            NotificationAdapter(event, "Tennis").notify()
+# class FootballEvents(tornado.web.RequestHandler):
+#     def post(self):
+#         event = tornado.escape.json_decode(self.request.body)
+#         if event:
+#             NotificationAdapter(event, "Football").notify()
 
 
-class CricketEvents(tornado.web.RequestHandler):
-    def post(self):
-        event = tornado.escape.json_decode(self.request.body)
-        if event:
-            NotificationAdapter(event, "Cricket").notify()
+# class TennisEvents(tornado.web.RequestHandler):
+#     def post(self):
+#         event = tornado.escape.json_decode(self.request.body)
+#         if event:
+#             NotificationAdapter(event, "Tennis").notify()
 
 
-class ContactJidsHandler(tornado.web.RequestHandler):
+# class CricketEvents(tornado.web.RequestHandler):
+#     def post(self):
+#         event = tornado.escape.json_decode(self.request.body)
+#         if event:
+#             NotificationAdapter(event, "Cricket").notify()
+
+
+class ContactJidsHandler(UserApiRequestHandler):
     """
     This class handles the retrival of jids in the contact list
     of the user
@@ -696,42 +577,17 @@ class ContactJidsHandler(tornado.web.RequestHandler):
 
     def post(self):
         response = {}
-        self.request.arguments = merge_body_arguments(self)
-        try:
-            check_udid_and_apk_version(self)
-            username = self.get_argument('username')
-            password = self.get_argument('password')
-            contacts = self.get_arguments('contacts')
-            assert type(contacts) == list
-            contacts = map(lambda x: str(x), contacts)
-            user = User(username = username, password = password)
-            user.authenticate()
-            response['info'] = 'Success'
-            response['status'] = settings.STATUS_200
-            if len(contacts) == 0:
-                response['jids'] = []
-            else:
-                response['jids'] = self.get_contacts_jids(username, contacts)
-        except BadAuthentication, status:
-            response["info"] = status.log_message
-            response["status"] = settings.STATUS_404
-        except KeyError, status:
-            response["info"] = " Missing %e" % status.message
-            response["status"] = settings.STATUS_400
-        except MissingArgumentError, status:
-            response["info"] = status.log_message
-            response["status"] = settings.STATUS_400
-        except AssertionError:
-            response["info"] = "Bad contacts value type"
-            response["status"] = settings.STATUS_400
-        except Exception as e:
-            response['info'] = "Error: %s" % e
-            response['status'] = settings.STATUS_500
-        finally:
-            self.write(response)
+        username = self.get_argument('username')
+        contacts = self.get_arguments('contacts')
+        if not (type(contacts) == list and len(contacts) > 0): 
+            raise BadInfoSuppliedError("Contacts") 
+        response['info'] = settings.SUCCESS_RESPONSE
+        response['status'] = settings.STATUS_200
+        response['jids'] = self.get_contacts_jids(username, contacts)
+        self.write(response)
 
 
-class GetNearbyUsers(tornado.web.RequestHandler):
+class GetNearbyUsers(UserApiRequestHandler):
 
     def get_nearby_users(self):
         query = "WITH uinterest AS "\
@@ -749,7 +605,7 @@ class GetNearbyUsers(tornado.web.RequestHandler):
             + "                  AND privacy_list_data.value IS NOT NULL "\
             + "      )"\
             + " SELECT DISTINCT ON (users.username) "\
-            + "      users.username , "\
+            + "      users.username , users.name, "\
             + "      earth_distance(ll_to_earth(%s, %s), ll_to_earth(users.lat, users.lng)) as distance, "\
             + "      users.lat AS lat, "\
             + "      users.lng AS lng, "\
@@ -769,6 +625,7 @@ class GetNearbyUsers(tornado.web.RequestHandler):
             + "      ("\
             + "      ( SELECT bjids FROM banned_users)"\
             + "      )"\
+            + "      AND users.show_location = True"\
             + " GROUP BY  friendship_status, users.username, uinterest.uinterest  "\
             + " ORDER BY users.username, friendship_status DESC;"
         variables = (self.username,
@@ -787,70 +644,41 @@ class GetNearbyUsers(tornado.web.RequestHandler):
 
     def get(self):
         response = {}
-        self.request.arguments = merge_body_arguments(self)
-        try:
-            check_udid_and_apk_version(self)
-            self.username = str(self.get_argument('username'))
-            self.password = str(self.get_argument('password'))
-            user = User(username = self.username, password = self.password)
-            user.authenticate()
-            self.was_online_limit = int(config.get('nearby_users', 'was_online_limit'))
-            self.radius = self.get_argument('radius')
-            self.lat = self.get_argument('lat')
-            self.lng = self.get_argument('lng')
-            nearby_users = self.get_nearby_users()
-            response['users'] = nearby_users
-            response['info'] = settings.SUCCESS_RESPONSE
-            response['status'] = settings.STATUS_200
-        except BadAuthentication, status:
-            response["info"] = status.log_message
-            response["status"] = settings.STATUS_400
-        except MissingArgumentError, status:
-            response["info"] = status.log_message
-            response["status"] = settings.STATUS_400
-        except Exception as e:
-            response['info'] = "Error: %s" % e
-            response['status'] = settings.STATUS_500
-        finally:
-            self.write(response)
+        self.username = str(self.get_argument('username'))
+        self.was_online_limit = int(config.get('nearby_users', 'was_online_limit'))
+        self.radius = self.get_argument('radius')
+        self.lat = self.get_argument('lat')
+        self.lng = self.get_argument('lng')
+        nearby_users = self.get_nearby_users()
+        response['users'] = nearby_users
+        response['info'] = settings.SUCCESS_RESPONSE
+        response['status'] = settings.STATUS_200
+        self.write(response)
 
-class RegisterMatchHandler(tornado.web.RequestHandler):
+class RegisterUserMatchHandler(UserApiRequestHandler):
     """
     This class handles the registration of a match for a jid
     """
     def set_user_match(self):
         query = " INSERT INTO users_matches (username, match_id) VALUES (%s, %s);"
         variables = (self.username, self.match_id)
-        QueryHandler.execute(query, variables)
+        try:
+            QueryHandler.execute(query, variables)
+        except Exception, e:
+            if e.pgcode == psycopg2.errorcodes.UNIQUE_VIOLATION:
+                pass
+            else:
+                raise e
 
     def post(self):
         response = {}
-        try:
-            check_udid_and_apk_version(self)
-            self.request.arguments = merge_body_arguments(self)
-            self.username = str(self.get_argument('username'))
-            self.password = str(self.get_argument('password'))
-            user = User(username = self.username, password = self.password)
-            user.authenticate()
-            self.match_id = str(self.get_argument('match_id'))
-            self.set_user_match()
-            response["info"], response["status"] = settings.SUCCESS_RESPONSE, settings.STATUS_200
-        except BadAuthentication, status:
-            response["info"] = status.log_message
-            response["status"] = settings.STATUS_400
-        except MissingArgumentError, status:
-            response["info"] = status.log_message
-            response["status"] = settings.STATUS_400
-        except IntegrityError, status:
-            response["info"] = " Specified Match does not exists or has been already subscribed to"
-            response["status"] = settings.STATUS_400
-        except Exception, e:
-            response['info'] = "Error: %s" % e
-            response["status"] = settings.STATUS_500
-        finally:
-            self.write(response)
+        self.username = str(self.get_argument('username'))
+        self.match_id = str(self.get_argument('match_id'))
+        self.set_user_match()
+        response["info"], response["status"] = settings.SUCCESS_RESPONSE, settings.STATUS_200
+        self.write(response)
 
-class UnRegisterMatchHandler(tornado.web.RequestHandler):
+class UnRegisterUserMatchHandler(UserApiRequestHandler):
     """
     This class handles the registration of a match for a jid
     """
@@ -861,85 +689,75 @@ class UnRegisterMatchHandler(tornado.web.RequestHandler):
 
     def post(self):
         response = {}
-        try:
-            check_udid_and_apk_version(self)
-            self.request.arguments = merge_body_arguments(self)
-            self.username = str(self.get_argument('username'))
-            self.password = str(self.get_argument('password'))
-            user = User(username = self.username, password = self.password)
-            user.authenticate()
-            self.match_id = str(self.get_argument('match_id'))
-            self.remove_user_match()
-            response["info"], response["status"] = settings.SUCCESS_RESPONSE, settings.STATUS_200
-        except BadAuthentication, status:
-            response["info"] = status.log_message
-            response["status"] = settings.STATUS_400
-        except MissingArgumentError, status:
-            response["info"] = status.log_message
-            response["status"] = settings.STATUS_400
-        except Exception, e:
-            response['info'] = "Error: %s" % e
-            response["status"] = settings.STATUS_500
-        finally:
-            self.write(response)
+        self.username = str(self.get_argument('username'))
+        self.match_id = str(self.get_argument('match_id'))
+        self.remove_user_match()
+        response["info"], response["status"] = settings.SUCCESS_RESPONSE, settings.STATUS_200
+        self.write(response)
             
-class AndroidSetUserDeviceToken(tornado.web.RequestHandler):
+class AndroidSetUserDeviceTokenReturnsUsersMatches(UserApiRequestHandler):
     """
     This class handles the registration of a match for a jid
     """
-    def set_android_device_token(self):
-        query = "  UPDATE users SET android_token = %s, device_id = %s WHERE username = %s;"
-        variables = ( self.token, self.udid, self.username)
-        QueryHandler.execute(query, variables)
+    def set_android_device_token_returning_user_matches(self):
+        token_type = settings.TOKEN_ANDROID_TYPE
+        query = " WITH updated AS (UPDATE users SET device_token = %s, token_type = %s, device_id = %s WHERE username = %s) "\
+            + " SELECT users_matches.match_id FROM users_matches WHERE users_matches.username = %s ;"
+        variables = (self.token, token_type, self.udid, self.username, self.username)
+        return QueryHandler.get_results(query, variables)
 
     def post(self):
         response = {}
-        try:
-            check_udid_and_apk_version(self)
-            self.request.arguments = merge_body_arguments(self)
-            self.username = str(self.get_argument('username'))
-            self.password = str(self.get_argument('password'))
-            user = User(username = self.username, password = self.password)
-            user.authenticate()
-            self.udid = str(self.get_argument('udid'))
-            self.token = str(self.get_argument('token'))
-            self.set_android_device_token()
-            response["info"], response["status"] = settings.SUCCESS_RESPONSE, settings.STATUS_200
-        except BadAuthentication, status:
-            response["info"] = status.log_message
-            response["status"] = settings.STATUS_400
-        except MissingArgumentError, status:
-            response["info"] = status.log_message
-            response["status"] = settings.STATUS_400
-        except Exception, e:
-            response['info'] = "Error: %s" % e
-            response["status"] = settings.STATUS_500
-        finally:
-            self.write(response)
+        self.username = str(self.get_argument('username'))
+        self.udid = str(self.get_argument('udid'))
+        self.token = str(self.get_argument('token'))
+        users_matches = self.set_android_device_token_returning_user_matches()
+        response['match_ids'] = map(lambda x: x['match_id'], users_matches)
+        response["info"], response["status"] = settings.SUCCESS_RESPONSE, settings.STATUS_200
+        self.write(response)
 
-class AndroidRemoveUserDeviceId(tornado.web.RequestHandler):
+class AndroidRemoveUserDeviceId(UserApiRequestHandler):
     """
     This class handles the registration of a match for a jid
     """
-    def set_android_device_token(self):
-        query = "  UPDATE users SET android_token = null WHERE username = %s;"
+    def remove_android_device_token(self):
+        query = "  UPDATE users SET device_token = null WHERE username = %s;"
         variables = ( self.username,)
         QueryHandler.execute(query, variables)
 
     def post(self):
         response = {}
+        self.username = str(self.get_argument('username'))
+        self.remove_android_device_token()
+        response["info"], response["status"] = settings.SUCCESS_RESPONSE, settings.STATUS_200
+        self.write(response)
+
+class LocationPrivacyHandler(UserApiRequestHandler):
+    def set_location_privacy(self):
+        query = " UPDATE users SET show_location = %s WHERE username = %s;"
+        variables = (self.show_location_status, self.username,)
+        QueryHandler.execute(query, variables)
+
+    def post(self):
+        response = {}
+        self.username = str(self.get_argument('username'))
+        self.show_location_status = str(self.get_argument('show_location_status'))
+        if not self.show_location_status in ["true", "false"]:
+            raise BadInfoSuppliedError("location_status")
+        self.set_location_privacy()
+        response["info"], response["status"] = settings.SUCCESS_RESPONSE, settings.STATUS_200
+        self.write(response)
+
+class PushNotificationHandler(BaseRequestHandler):
+    def post(self):
+        response = {}
         try:
-            check_udid_and_apk_version(self)
-            self.request.arguments = merge_body_arguments(self)
-            self.username = str(self.get_argument('username'))
-            self.password = str(self.get_argument('password'))
-            user = User(username = self.username, password = self.password)
-            user.authenticate()
-            self.set_android_device_token()
+            payload = json.loads(self.request.body)
+            match_id = str(payload['m'])
+            league_id = str(payload['l'])
+            match_league_id = match_id.strip() + "|" + league_id.strip()
+            NotificationHandler(match_league_id, payload).notify()
             response["info"], response["status"] = settings.SUCCESS_RESPONSE, settings.STATUS_200
-        except BadAuthentication, status:
-            response["info"] = status.log_messages
-            response["status"] = settings.STATUS_400
         except MissingArgumentError, status:
             response["info"] = status.log_message
             response["status"] = settings.STATUS_400
@@ -948,6 +766,43 @@ class AndroidRemoveUserDeviceId(tornado.web.RequestHandler):
             response["status"] = settings.STATUS_500
         finally:
             self.write(response)
+
+class RegisterMatchHandler(BaseRequestHandler):
+    def insert_match(self, match):
+        query = "INSERT INTO matches (id, name) VALUES (%s, %s);"
+        variables = (match["id"], match["name"],)
+        try:
+
+            QueryHandler.execute(query, variables)
+        except IntegrityError:
+            pass
+            
+
+    def post(self):
+        response = {}
+        try:
+            self.request.arguments = merge_body_arguments(self)
+            matches = self.request.arguments["matches"]
+            for match in matches:
+                self.insert_match(match)
+            response["info"], response["status"] = settings.SUCCESS_RESPONSE, settings.STATUS_200
+        except Exception, e:
+            response['info'] = "Error: %s" % e
+            response["status"] = settings.STATUS_500
+        finally:
+            self.write(response)
+
+class UserInfoHandler(UserApiRequestHandler):
+
+    def post(self):
+        response = {}
+        user_info = {}
+        self.username = str(self.get_argument('username'))
+        user_info['name'] = str(self.get_argument('name', settings.DEFAULT_USER_NAME))
+        user = User(username = self.username)
+        user.set_info(user_info)
+        response["info"], response["status"] = settings.SUCCESS_RESPONSE, settings.STATUS_200
+        self.write(response)                
 
 class Application(tornado.web.Application):
     def __init__(self):
@@ -956,27 +811,31 @@ class Application(tornado.web.Application):
             (r"/create", CreationHandler),
             (r"/set_location", SetLocationHandler),
             (r"/get_nearby_users", GetNearbyUsers),
-            (r"/fb_friends", FacebookHandler),
-            (r"/football_notifications", FootballEvents),
-            (r"/tennis_notifications", TennisEvents),
+            # (r"/fb_friends", FacebookHandler),
+            # (r"/football_notifications", FootballEvents),
+            # (r"/tennis_notifications", TennisEvents),
             (r"/media", MediaHandler),
             (r"/media_present", MediaPresentHandler),
             (r"/media_multipart", IOSMediaHandler),
-            (r"/cricket_notifications", CricketEvents),
+            # (r"/cricket_notifications", CricketEvents),
             (r"/set_user_interests", UserInterestHandler),
-            (r"/set_ios_udid", IOSSetUserDeviceId),
+            (r"/set_ios_token_and_return_user_matches", IOSSetUserDeviceTokenReturnsUsersMatches),
             (r"/get_contact_jids", ContactJidsHandler),
-            (r"/send_app_invite", SendAppInvitation),
-            (r"/user_register_match", RegisterMatchHandler),
-            (r"/user_unregister_match", UnRegisterMatchHandler),
-            (r"/set_android_token", AndroidSetUserDeviceToken),
+            # (r"/send_app_invite", SendAppInvitation),
+            (r"/user_register_match", RegisterUserMatchHandler),
+            (r"/user_unregister_match", UnRegisterUserMatchHandler),
+            (r"/set_android_token_and_return_user_matches", AndroidSetUserDeviceTokenReturnsUsersMatches),
             (r"/remove_android_token", AndroidRemoveUserDeviceId),
+            (r"/set_location_privacy", LocationPrivacyHandler),
+            (r"/notify_event", PushNotificationHandler),
+            (r"/register_matches", RegisterMatchHandler),
+            (r"/set_user_info", UserInfoHandler),
 
-            (r"/admin", admin_api.AdminPage),
-            (r"/get_users", admin_api.AdminSelectUsers),
-            (r"/create_user", admin_api.AdminCreateUser),
-            (r"/update_user", admin_api.AdminUpdateUser),
-            (r"/delete_user", admin_api.AdminDeleteUser),
+            # (r"/admin", admin_api.AdminPage),
+            # (r"/get_users", admin_api.AdminSelectUsers),
+            # (r"/create_user", admin_api.AdminCreateUser),
+            # (r"/update_user", admin_api.AdminUpdateUser),
+            # (r"/delete_user", admin_api.AdminDeleteUser),
             (r"/block_user", admin_api.AdminBlockUser),
 
         ]

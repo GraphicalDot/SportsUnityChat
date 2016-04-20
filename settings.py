@@ -14,7 +14,8 @@ SUCCESS_RESPONSE = "Success"
 MISSING_APK_AND_UDID_ERROR = "Bad Request: Please provide 'apk_version' and 'udid'"
 BAD_AUTHENTICATION_ERROR = " Bad Authentication Info"
 USER_FORBIDDEN_ERROR = "Forbidden: The user is BLOCKED!"
-
+BAD_INFO_ERROR = " Bad Info Supplied for {}"
+INTERNAL_SERVER_ERROR = "Internal server error"
 # admin templates path
 ADMIN_TEMPLATES_PATH = 'admin_templates/'
 ADMIN_TEMPLATES = [
@@ -47,5 +48,10 @@ SINFINI_MESSAGE_GATEWAY = 'http://global.sinfini.com/api/v3/index.php'
 SINFINI_API_KEY = 'A8e2b6ece6237e5ebc6a0631e51e4ec43'
 SINFINI_SENDER_ID = 'SPORTU'
 
-OTP_MESSAGE = 'Welcome to Sports Unity App. Your authorization code is {}'
+OTP_MESSAGE = 'Welcome to Sports Unity. Your authorization code is {}'
 APP_INVITATION_MESSAGE = 'Hi! {} has invited you to join SportsUnity App.'
+
+
+DEFAULT_USER_NAME = "N/A"
+TOKEN_ANDROID_TYPE = 'a'
+TOKEN_IOS_TYPE = 'i'

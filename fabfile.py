@@ -9,16 +9,17 @@ from fabric.api import task
 from fabric.utils import error
 import os
 import time
-
+import ConfigParser
+config = ConfigParser.ConfigParser()
+config.read(os.path.join(os.path.abspath(os.path.dirname(__file__)), 'config_example.py'))
 
 env.hosts = open('hosts', 'r').readlines()
 VIRTUAL_ENVIRONMENT = "/home/{0}/VirtualEnvironment"
 REPO_NAME = "SportsUnityChat"
-BRANCH = "satish_fab_deployer"
-@task
-def remote_host():
-    env.key_filename = "/home/madbrain/Downloads/staging_server.pem"
-    env.warn_only = True
+BRANCH = "master"
+env.key_filename = "/home/kaali/Downloads/NginxLoadBalancer.pem"
+# env.key_filename = "/home/kaali/Downloads/staging_server.pem"
+
 
 @task
 def basic_setup():
@@ -39,50 +40,102 @@ def basic_setup():
     run("sudo apt-get install -y python-virtualenv")
     run("sudo apt-get install -y tor")
     run("sudo apt-get install -y git")
+    run("sudo apt-get install -y apt-get install libffi-dev libssl-dev")
+    
     run("virtualenv VirtualEnvironment --no-site-packages")
     run("sudo chown -R "+env["user"]+":"+env["user"]+" "+virtual_environment)
     run("sudo chmod -R a+rX "+virtual_environment)
 
-@task
-def deploy():
-    virtual_environment = VIRTUAL_ENVIRONMENT.format(env.user)
-    if not exists(virtual_environment):
-        execute(basic_setup)
-    execute(pull_and_deploy)
-    execute(run_tests)
 
-def pull_and_deploy():
-    virtual_environment = VIRTUAL_ENVIRONMENT.format(env["user"])
+def sshagent_run(cmd):
+    """
+    Helper function.
+    Runs a command with SSH agent forwarding enabled.
+    
+    Note:: Fabric (and paramiko) can't forward your SSH agent. 
+    This helper uses your system's ssh to do so.
+    """
+
+    for h in env.hosts:
+        try:
+            # catch the port number to pass to ssh
+            host, port = h.split(':')
+            local('ssh -p %s -A %s "%s"' % (port, host, cmd))
+        except ValueError:
+            local('ssh -A %s "%s"' % (h, cmd))
+
+
+@task
+def pull():
     repo_dir = "/home/{0}".format(env["user"]) + "/" + REPO_NAME + "/"
     repo_url = "https://github.com/kaali-python/"+ REPO_NAME + ".git"
-    with prefix(". "+virtual_environment+ "/bin/activate"):
-        run("pip install -U pip")
-        if exists(repo_dir):
-            with cd(repo_dir):
+    if exists(repo_dir):
+        with cd(repo_dir):
+            response = run("sudo git remote -v")
+            if not repo_url in response:
                 run("sudo git init")
-                response = run("sudo git remote -v")
-                if not repo_url in response:
-                    response = run("sudo git remote set-url origin " + repo_url)
-                run("sudo git fetch --all")
-                run("sudo git checkout -f " + BRANCH)
-                run("sudo git pull origin " + BRANCH)
+                response = run("sudo git remote set-url origin " + repo_url)
+            run("sudo git checkout -f " + BRANCH)
+            run("sudo git pull origin " + BRANCH)
 
-        else:
-            run("sudo git clone https://github.com/kaali-python/"+ REPO_NAME + ".git")
-            with cd(repo_dir):
-                run("sudo git checkout -f " + BRANCH)
-        
+    else:
+        run("sudo git clone https://github.com/kaali-python/"+ REPO_NAME + ".git")
+        with cd(repo_dir):
+            run("sudo git checkout -f " + BRANCH)
+
+    with cd(repo_dir):
+        run("sudo mv config_example.py config.py")
+
+
+@task
+def deploy():
+    execute(pull)
+    execute(setup_server)
+    execute(run_tests)
+
+@task
+def run_migrations():
+    run("sudo touch yoyo.ini")
+    run("yoyo apply --database postgresql://{}:{}@{}/{} ./migrations".format(
+            config.get('database', 'user'),
+            config.get('database', 'password'),
+            config.get('database', 'host'),
+            config.get('database', 'database'),
+        )
+    )
+
+@task
+def add_interests():
+    execute(pull)
+    virtual_environment = VIRTUAL_ENVIRONMENT.format(env["user"])
+    virtual_environment_python = virtual_environment + "/bin/python"
+    repo_dir = "/home/{0}".format(env["user"]) + "/" + REPO_NAME + "/"
+    with cd(repo_dir):
+        run(virtual_environment_python + " tasks/add_interests.py")
+
+def setup_server():
+    virtual_environment = VIRTUAL_ENVIRONMENT.format(env["user"])
+    virtual_environment_python = virtual_environment + "/bin/python"
+    repo_dir = "/home/{0}".format(env["user"]) + "/" + REPO_NAME + "/"
+    repo_url = "https://github.com/kaali-python/"+ REPO_NAME + ".git"
+    if not exists(virtual_environment):
+        execute(basic_setup)
+    with prefix(". "+virtual_environment+ "/bin/activate"):
+        run("pip install -U pip")        
         with cd(repo_dir):
             run(virtual_environment+"/bin/pip install -r requirement.txt")
-            run("sudo mv config_example.py config.py")
+            execute(run_migrations)
             run("sudo  touch tornado_log ")
             run(" sudo chmod 777 tornado_log ")
             run(" sudo chmod 777 media ")
-        run("sudo zdaemon -p 'python api_v0_archive.py' -d stop")
-        run("sudo zdaemon -p 'python api_v0_archive.py' -d start")
+            run("sudo touch big.mp4")
+            run("sudo zdaemon -p '" + virtual_environment_python + " api_v0_archive.py' -z " + repo_dir + " -d stop")
+            run("sudo zdaemon -p '" + virtual_environment_python + " api_v0_archive.py' -z " + repo_dir + " -d start")
 
 
 def run_tests():
     repo_dir = "/home/{0}".format(env["user"]) + "/" + REPO_NAME + "/"
-    with cd(repo_dir):
-        run(" python api_test.py ")
+    virtual_environment = VIRTUAL_ENVIRONMENT.format(env["user"])
+    with prefix(". "+virtual_environment+ "/bin/activate"):
+        with cd(repo_dir):
+            run(" python api_test.py ")

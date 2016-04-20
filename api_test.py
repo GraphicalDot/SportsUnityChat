@@ -1,3 +1,4 @@
+##TO-DO Refactor this file
 import hashlib
 import json
 import magic
@@ -17,8 +18,10 @@ from requests_toolbelt import MultipartEncoder
 from shutil import copyfile
 from custom_error import BadAuthentication
 import api_v0_archive
+from user import User
 import settings
 import test_utils
+import copy
 
 config = ConfigParser()
 config.read('config.py')
@@ -39,10 +42,10 @@ class UserTest(unittest.TestCase):
         test_utils.delete_user(username = username, phone_number=phone_number)
         test_utils.create_user(username, password, phone_number)
 
-        user = api_v0_archive.User(username = username, password = password)
+        user = User(username = username, password = password)
 
         fraud_password = 'test'
-        fraud_user = api_v0_archive.User(username, fraud_password)
+        fraud_user = User(username, fraud_password)
 
         try:
             user.authenticate()
@@ -109,24 +112,10 @@ class CreationTest(AsyncHTTPTestCase):
         response = requests.get(self._registration_url + extra_params)
         res = json.loads(response.text)
         record = QueryHandler.get_results(select_query, select_variables)
-
         self.assertEqual(len(record), 1)
+        assert record[0]['gateway_response']
         self.assertEqual(res['info'], settings.SUCCESS_RESPONSE)
         self.assertEqual(res['status'], settings.STATUS_200)
-
-
-        # Testing Registration for App testing phone numbers
-        app_testing_registration_url = tornado_local_address + "/register?phone_number=" + settings.TESTING_NUMBER_2
-        response = requests.get(app_testing_registration_url + extra_params)
-        res = json.loads(response.text)
-        query = "SELECT authorization_code FROM registered_users WHERE phone_number=%s;"
-        variables = (settings.TESTING_NUMBER_2,)
-        result = QueryHandler.get_results(query, variables)
-
-        self.assertEqual(res['info'], settings.SUCCESS_RESPONSE)
-        self.assertEqual(res['status'], settings.STATUS_200)
-        self.assertEqual(len(result), 1)
-        self.assertEqual(result[0]['authorization_code'], str(settings.APP_TESTING_OTP[settings.TESTING_NUMBER_2]))
 
     def test_wrong_auth_code_failure(self):
 
@@ -285,52 +274,50 @@ class CreationTest(AsyncHTTPTestCase):
 #         pass
 
 
-class InterestTest(AsyncHTTPTestCase):
+class InterestTest(unittest.TestCase):
     _username = 'test'
     _password = 'password'
     _phone_number = config.get('tests', 'test_phone_number')
-
+    _interests = [{"name": "interest_one", 'id': " test_1"}, 
+    			{"name": "interest_two", 'id': "test_2"}, 
+    			{"name": "interest_three", 'id': "test_3"}]
+    _payload = {'username': _username, 'password': _password}
+    _test_storage_url = tornado_local_address + "/set_user_interests"
     def get_app(self):
         return api_v0_archive.Application()
 
     def setUp(self):
-        super(InterestTest, self).setUp()
-        try:
-            test_utils.delete_user(username = self._username, phone_number=self._phone_number)
-            test_utils.create_user(username = self._username, password = self._phone_number, phone_number = self._phone_number)
+        test_utils.delete_user(username = self._username, phone_number=self._phone_number)
+        test_utils.create_user(username = self._username, password = self._password, phone_number = self._phone_number)
+        
 
-            query = " DELETE FROM users_interest WHERE username = %s;"
-            variables = (self._username,)
-            QueryHandler.execute(query, variables)
-        except psycopg2.IntegrityError:
-            pass
+        query = " DELETE FROM users_interest WHERE username = %s;"
+        variables = (self._username,)
+        QueryHandler.execute(query, variables)
 
-        try:
-            interests = ['interest_one', 'interest_two']
-            query = " DELETE FROM interest WHERE "\
-                " interest_name = 'interest_one' OR interest_name = 'interest_two';"
-            variables = ()
-            QueryHandler.execute(query, variables)
+        query = " DELETE FROM interest WHERE "\
+        +  " OR ".join([" interest_id = %s "] * len(self._interests)) + ";"
+        variables = map(lambda interest: interest['id'], self._interests)
+        QueryHandler.execute(query, variables)
 
-            interests = ['interest_one', 'interest_two']
-            query = "INSERT INTO interest (interest_name) VALUES ('interest_one'), ('interest_two');"
-            QueryHandler.execute(query, ())
-        except psycopg2.IntegrityError, e:
-            pass
+        query = "INSERT INTO interest (interest_id, interest_name) VALUES " + ",".join(["(%s, %s)"] * len(self._interests))
+        QueryHandler.execute(query, 
+    						[self._interests[0]['id'], self._interests[0]['name'], 
+    						self._interests[1]['id'], self._interests[1]['name'],
+    						self._interests[2]['id'], self._interests[2]['name']]
+        					)
 
     def test_storage(self):
-        interests = ['interest_one', 'interest_two']
-
-        test_storage_url = tornado_local_address + "/set_user_interests?username=" + self._username\
-            + "".join(map(lambda interest: "&interests=" + interest, interests))
-
-        response = requests.get(test_storage_url + extra_params)
+    	payload = copy.copy(self._payload)
+    	payload.update({'interests': map(lambda interest: interest['id'], self._interests[:2])})
+    	payload.update(extra_params_dict)
+        response = requests.post(self._test_storage_url, data = payload)
         res = json.loads(response.text)
         assert response
+
         self.assertEqual(res['status'], settings.STATUS_200)
 
-
-        query = "select users.username, string_agg(interest.interest_name, ' ,') as interests from users "\
+        query = "select users.username, array_agg(interest.interest_name) as interests from users "\
             + " left outer join users_interest on (users.username = users_interest.username) "\
             + " left outer join interest on (users_interest.interest_id = interest.interest_id)"\
             + " WHERE users.username = %s group by users.username;"
@@ -338,18 +325,18 @@ class InterestTest(AsyncHTTPTestCase):
         record = QueryHandler.get_results(query, variables)
         assert record
         assert record[0]['username']
-        assert record[0]['interests'] == "interest_one ,interest_two"
+        assert record[0]['interests'] == map(lambda interest: interest['name'], self._interests[:2])
 
-        interests = ['interest_one']
-        test_storage_url = tornado_local_address + "/set_user_interests?username=" + self._username\
-            + "".join(map(lambda interest: "&interests=" + interest, interests))
+    	payload = copy.copy(self._payload)
+    	payload.update({'interests': map(lambda interest: interest['id'], self._interests[2:])})
+    	payload.update(extra_params_dict)
 
-        response = requests.get(test_storage_url + extra_params)
+        response = requests.post(self._test_storage_url, data = payload)
         res = json.loads(response.text)
         assert response
         self.assertEqual(res['status'], settings.STATUS_200)
 
-        query = "select users.username, string_agg(interest.interest_name, ' ,') as interests from users "\
+        query = "select users.username, array_agg(interest.interest_name) as interests from users "\
             + " left outer join users_interest on (users.username = users_interest.username) "\
             + " left outer join interest on (users_interest.interest_id = interest.interest_id)"\
             + " WHERE users.username = %s group by users.username;"
@@ -358,10 +345,40 @@ class InterestTest(AsyncHTTPTestCase):
 
         assert record
         assert record[0]['username']
-        self.assertEqual(record[0]['interests'], "interest_one")
+        assert record[0]['interests'] == map(lambda interest: interest['name'], self._interests[2:])
+        
+
+    def test_delete_interest(self):
+    	payload = copy.copy(self._payload)
+    	payload.update({'interests': map(lambda interest: interest['id'], self._interests)})
+    	payload.update(extra_params_dict)
+        response = requests.post(self._test_storage_url, data = payload)
+
+    	payload = copy.copy(self._payload)
+    	payload.update({'interests': map(lambda interest: interest['id'], self._interests[2:])})
+    	payload.update(extra_params_dict)
+        response = requests.delete(self._test_storage_url, data = payload)
+        res = json.loads(response.text)
+        assert response
+        assert res['status'] == settings.STATUS_200
+
+        query = "select users.username, array_agg(interest.interest_name) as interests from users "\
+            + " left outer join users_interest on (users.username = users_interest.username) "\
+            + " left outer join interest on (users_interest.interest_id = interest.interest_id)"\
+            + " WHERE users.username = %s group by users.username;"
+        variables = (self._username,)
+        record = QueryHandler.get_results(query, variables)
+
+        assert record
+        assert record[0]['username']
+        assert record[0]['interests'] == map(lambda interest: interest['name'], self._interests[:2])
 
     def tearDown(self):
-        pass
+        query = " DELETE FROM interest WHERE "\
+            +  " OR ".join([" interest_id = %s "] * len(self._interests)) + ";"
+        variables = map(lambda interest: interest['id'], self._interests)
+        QueryHandler.execute(query, variables)
+        test_utils.delete_user(username = self._username, phone_number=self._phone_number)
 
 
 class MediaTest(AsyncHTTPTestCase):
@@ -491,47 +508,8 @@ class IOSMediaHandlerTests(unittest.TestCase):
             os.remove('media/' + file)
 
 
-class IOSSetUserDeviceIdTests(unittest.TestCase):
 
-    _username = 'test'
-    _password = 'password'
-    _phone_number = config.get('tests', 'test_phone_number')
 
-    def assert_status_info(self, response, expected_status):
-        res = json.loads(response.content)
-        assert response.status_code == settings.STATUS_200
-        assert json.loads(response.content)['status'] == expected_status
-
-    def setUp(self):
-        self.url = tornado_local_address + '/set_ios_udid' + '?apk_version=v0.1&udid=TEST@UDID'
-        test_utils.delete_user(username = self._username)
-        test_utils.delete_user(phone_number = self._phone_number)
-        test_utils.create_user(username = self._username, password = self._password, phone_number = self._phone_number)
-
-    def test_validations(self):
-        # self._username not provided
-        self.data = {'token': 'AAAAAAAA'}
-        response = requests.post(self.url, data=self.data)
-        self.assert_status_info(response, settings.STATUS_400)
-
-        # udid token not provided
-        self.data = {'user': self._username}
-        response = requests.post(self.url, data=self.data)
-        self.assert_status_info(response, settings.STATUS_400)
-
-        # self._username is not registered
-        self.data = {'user': '910000000000', 'token': 'AAAAAA'}
-        response = requests.post(self.url, data=self.data)
-        self.assert_status_info(response, settings.STATUS_400)
-
-    def test_post(self):
-        self.data = {'user': self._username, 'token': 'AAAAAA', 'password': self._password}
-        response = requests.post(self.url, data=self.data)
-        self.assert_status_info(response, settings.STATUS_200)
-
-        record = test_utils.select_user(username = self._username)[0]
-        assert record
-        assert record['apple_token'] == self.data['token']
 
 class ContactListTest(unittest.TestCase):
     _username = 'test'
@@ -589,7 +567,7 @@ class NearbyUsersWithSameInterestsTests(unittest.TestCase):
 
     def create_test_users(self):
         for user in self.users:
-            query = "INSERT INTO users(username, password, phone_number, lat, lng, last_seen, is_available) values(%s, %s, %s, %s, %s, %s, True);"
+            query = "INSERT INTO users(username, password, phone_number, lat, lng, last_seen, is_available, show_location) values(%s, %s, %s, %s, %s, %s, True, True);"
             variables = (user[0], user[1], user[2], user[3], user[4], user[5])
             try:
                 QueryHandler.execute(query, variables)
@@ -598,8 +576,8 @@ class NearbyUsersWithSameInterestsTests(unittest.TestCase):
 
     def create_interests(self):
         for interest in self.interests:
-            query = "INSERT INTO interest(interest_name) values(%s) RETURNING interest_id;"
-            variables = (interest,)
+            query = "INSERT INTO interest(interest_id, interest_name) values(%s, %s) RETURNING interest_id;"
+            variables = (interest['id'],interest['name'],)
             result = QueryHandler.get_results(query, variables)
             self.interest_id.append(result[0]['interest_id'])
         self.users_interests = {'test_1': [self.interest_id[0], self.interest_id[2]],
@@ -666,9 +644,11 @@ class NearbyUsersWithSameInterestsTests(unittest.TestCase):
                       ('test_4', 'pswd_4', 'test_4', 0.0, 0.0, self.epoch_time),
                       ('test_5', 'pswd_5', 'test_5', 0.0000010, 0.0000010, self.epoch_time + 75),
                       ('test_6', 'pswd_6', 'test_6', 0.0, 0.0, self.epoch_time + 1000)]
-        self.interests = ['test_interest_1', 'test_interest_2', 'test_interest_3', 'test_interest_4']
+        self.interests = [{'name':'test_interest_1', 'id': 'test_1'},
+                        {'name':'test_interest_2', 'id': 'test_2'},
+                        {'name':'test_interest_3', 'id': 'test_3'},
+                        {'name':'test_interest_4', 'id': 'test_4'}]
         self.interest_id = []
-
         self.delete_users()
         self.delete_interests()
         self.create_test_users()
@@ -684,8 +664,8 @@ class NearbyUsersWithSameInterestsTests(unittest.TestCase):
 
     def delete_interests(self):
         for interest in self.interests:
-            query = "DELETE FROM interest where interest_name=%s;"
-            variables = (interest,)
+            query = "DELETE FROM interest where interest_id=%s;"
+            variables = (interest['id'],)
             QueryHandler.execute(query, variables)
 
     def delete_user_friends(self):
@@ -710,13 +690,14 @@ class NearbyUsersWithSameInterestsTests(unittest.TestCase):
         self.assertEqual(res['status'], expected_status)
         modified_user_interest_dict = self.modify_response(response)
         if expected_result:
-            assert modified_user_interest_dict == expected_result
+            assert  set(expected_result["friends"].keys()).issubset(set(modified_user_interest_dict["friends"].keys()))
+            assert  set(expected_result["anonymous"].keys()).issubset(set(modified_user_interest_dict["anonymous"].keys()))
 
 
     def test_get_nearby_users(self):
-        # case 2: when 'test_2' was online 2 hours back
+        # case 2: when 'test_2' was online 10 hours back
         query = "UPDATE users SET last_seen=%s WHERE username='test_2';"
-        QueryHandler.execute(query, (time.time() - 7200,))
+        QueryHandler.execute(query, (time.time() - 36000,))
         self.expected_result_dict = {"friends": {"test_5": ["test_interest_2", "test_interest_1"]},
                                      "anonymous": {"test_6": ["test_interest_2"]}}
         self.data = {'username': 'test_4', 'password': 'pswd_4', 'lat': '0.0', 'lng': '0.0', 'radius': 5, 'apk_version': self.apk_version, 'udid': self.udid}
@@ -760,8 +741,28 @@ class NearbyUsersWithSameInterestsTests(unittest.TestCase):
                                     "anonymous": {}}
         self.assert_response_status(response, settings.SUCCESS_RESPONSE, settings.STATUS_200, self.expected_result_dict)
 
+        # case 6: when 'test_2' has disabled his location
+        self.expected_result_dict = {"friends": {"test_6": ["test_interest_2"],
+                                                 "test_5": ["test_interest_2", "test_interest_1"]}, 
+                                    "anonymous": {}}
+        query = " UPDATE users SET show_location = FALSE WHERE username = %s;"
+        variables = ('test_2',)
+        QueryHandler.execute(query, variables)
+        response = requests.get(self.url, data=self.data)
+        self.assert_response_status(response, settings.SUCCESS_RESPONSE, settings.STATUS_200, self.expected_result_dict)
 
-        #case 6: when 'test_2' has a 'F' and 
+        #case 7: when 'test_2' has enabled his location
+        self.expected_result_dict = {"friends": {"test_6": ["test_interest_2"],
+                                                 "test_5": ["test_interest_2", "test_interest_1"],
+                                                 "test_2": ["test_interest_2"]}, 
+                                    "anonymous": {}}
+        query = " UPDATE users SET show_location = TRUE WHERE username = %s;"
+        variables = ('test_2',)
+        QueryHandler.execute(query, variables)
+        response = requests.get(self.url, data=self.data)
+        self.assert_response_status(response, settings.SUCCESS_RESPONSE, settings.STATUS_200, self.expected_result_dict)
+
+        #case 8: when 'test_2' has a 'F' subscription
         self.update_roster_entry('test_2@mm.io', subscription = 'F')
         response = requests.get(self.url, data=self.data)
         self.expected_result_dict = {"friends": {"test_6": ["test_interest_2"],
@@ -769,12 +770,13 @@ class NearbyUsersWithSameInterestsTests(unittest.TestCase):
                                     "anonymous": {"test_2": ["test_interest_2"]}}
         self.assert_response_status(response, settings.SUCCESS_RESPONSE, settings.STATUS_200, self.expected_result_dict)
 
-        # case 7: when 'test_2' has a 'T' subscription
+        # case 9: when 'test_2' has a 'T' subscription
         self.update_roster_entry('test_2@mm.io', subscription = 'T')
         response = requests.get(self.url, data=self.data)
         self.assert_response_status(response, settings.SUCCESS_RESPONSE, settings.STATUS_200, self.expected_result_dict)
         
-        # case 6: when user has NO friends
+
+        # case 10: when user has NO friends
         self.delete_user_friends()
         self.expected_result_dict = {"friends": {}, 
                                     "anonymous": {"test_6": ["test_interest_2"], 
@@ -785,7 +787,7 @@ class NearbyUsersWithSameInterestsTests(unittest.TestCase):
         self.assert_response_status(response, settings.SUCCESS_RESPONSE, settings.STATUS_200, self.expected_result_dict)
 
 
-        # case 7: when no banned users
+        # case 11: when no banned users
         query = "UPDATE users SET last_seen=%s WHERE username='test_1';"
         QueryHandler.execute(query, (time.time(),))
         self.delete_user_privacy_list()
@@ -820,45 +822,45 @@ class NearbyUsersWithSameInterestsTests(unittest.TestCase):
         self.delete_user_privacy_list()
 
 
-class SendAppInvitationTest(unittest.TestCase):
-    _url = None
-    _unregistered_user = '910000000000'
-    _registered_user = '911111111111'
-    _invited_user = '912222222222'
-    _password = 'password'
+# class SendAppInvitationTest(unittest.TestCase):
+#     _url = None
+#     _unregistered_user = '910000000000'
+#     _registered_user = '911111111111'
+#     _invited_user = '912222222222'
+#     _password = 'password'
 
-    def setUp(self):
-        self._url = tornado_local_address + '/send_app_invite' + '?apk_version=v0.1&udid=TEST@UDID'
-        test_utils.delete_user(phone_number=self._unregistered_user)
-        test_utils.delete_user(phone_number=self._registered_user)
-        test_utils.delete_user(phone_number=self._invited_user)
-        test_utils.create_user(username=self._registered_user, password=self._password, phone_number=self._registered_user)
+#     def setUp(self):
+#         self._url = tornado_local_address + '/send_app_invite' + '?apk_version=v0.1&udid=TEST@UDID'
+#         test_utils.delete_user(phone_number=self._unregistered_user)
+#         test_utils.delete_user(phone_number=self._registered_user)
+#         test_utils.delete_user(phone_number=self._invited_user)
+#         test_utils.create_user(username=self._registered_user, password=self._password, phone_number=self._registered_user)
 
-    def test_validation(self):
+#     def test_validation(self):
 
-        # incomplete post data
-        response = requests.post(self._url, data={})
-        res = json.loads(response.text)
-        self.assertEqual(res['info'], "Missing argument user")
-        self.assertEqual(res['status'], settings.STATUS_400)
+#         # incomplete post data
+#         response = requests.post(self._url, data={})
+#         res = json.loads(response.text)
+#         self.assertEqual(res['info'], "Missing argument user")
+#         self.assertEqual(res['status'], settings.STATUS_400)
 
-        # user not registered
-        response = requests.post(self._url, data={'user': self._unregistered_user, 'invited_user': self._invited_user})
-        res = json.loads(response.text)
-        self.assertEqual(res['info'], "Bad Request: User is not Registered!")
-        self.assertEqual(res['status'], settings.STATUS_400)
+#         # user not registered
+#         response = requests.post(self._url, data={'user': self._unregistered_user, 'invited_user': self._invited_user})
+#         res = json.loads(response.text)
+#         self.assertEqual(res['info'], "Bad Request: User is not Registered!")
+#         self.assertEqual(res['status'], settings.STATUS_400)
 
-        # invited user already registered
-        response = requests.post(self._url, data={'user': self._registered_user, 'invited_user': self._registered_user})
-        res = json.loads(response.text)
-        self.assertEqual(res['info'], "Bad Request: Invited User is Already Registered!")
-        self.assertEqual(res['status'], settings.STATUS_400)
+#         # invited user already registered
+#         response = requests.post(self._url, data={'user': self._registered_user, 'invited_user': self._registered_user})
+#         res = json.loads(response.text)
+#         self.assertEqual(res['info'], "Bad Request: Invited User is Already Registered!")
+#         self.assertEqual(res['status'], settings.STATUS_400)
 
-        # valid post request
-        response = requests.post(self._url, data={'user': self._registered_user, 'invited_user': self._invited_user})
-        res = json.loads(response.text)
-        self.assertEqual(res['info'], settings.SUCCESS_RESPONSE)
-        self.assertEqual(res['status'], settings.STATUS_200)
+#         # valid post request
+#         response = requests.post(self._url, data={'user': self._registered_user, 'invited_user': self._invited_user})
+#         res = json.loads(response.text)
+#         self.assertEqual(res['info'], settings.SUCCESS_RESPONSE)
+#         self.assertEqual(res['status'], settings.STATUS_200)
 
 class MatchPushNotificationTest(unittest.TestCase):
     _register_url = tornado_local_address + "/user_register_match"
@@ -912,15 +914,109 @@ class MatchPushNotificationTest(unittest.TestCase):
         record = QueryHandler.get_results(query, variables)
         assert not record
     
+    def test_user_match_reregistration(self):
+        payload = {"username": self._username, "password": self._password, "match_id": self._match_id}
+        payload.update(extra_params_dict)
+
+        response = json.loads(requests.post(self._register_url, data=payload).content)
+        assert response['status'] == settings.STATUS_200
+
+        query = " SELECT * FROM users_matches WHERE users_matches.username = %s AND users_matches.match_id = %s;"
+        variables = (self._username, self._match_id,)
+        record = QueryHandler.get_results(query, variables)[0]
+        assert record
+        assert record['username'] == self._username
+        assert record['match_id'] == self._match_id
+
+        reregistration_response = json.loads(requests.post(self._register_url, data=payload).content)
+        assert reregistration_response['status'] == settings.STATUS_200
+
     def tearDown(self):
         test_utils.delete_user(username = self._username)
         self.delete_users_match()
         self.delete_match()
 
 
-class SetAndroidDeviceTokenTest(unittest.TestCase):
-    _set_url = tornado_local_address + "/set_android_token"
+
+class SetDeviceTokenReturnUserMatchesTest(object):
+    _username = "test"
+    _phone_number = "911"
+    _password = "test"
+    _token = "test_token"
+    _match = "test_match"
+    _match_id = "000"
+
+    def delete_users_match(self):
+        query = "DELETE FROM users_matches WHERE users_matches.username = %s AND users_matches.match_id = %s;"
+        variables = (self._username, self._match_id,)
+        QueryHandler.execute(query, variables)
+        
+    def insert_match(self):
+        query = "INSERT INTO matches (id, name) VALUES (%s, %s);"
+        variables = (self._match_id, self._match)
+        QueryHandler.execute(query, variables)
+
+    def delete_match(self):
+        query = " DELETE FROM matches WHERE id = %s;"
+        variables = (self._match_id,)
+        QueryHandler.execute(query, variables)
+
+    def set_user_match(self):
+        query = " INSERT INTO users_matches (username, match_id) VALUES (%s, %s);"
+        variables = (self._username, self._match_id)
+        QueryHandler.execute(query, variables)
+
+    def setUp(self):
+        test_utils.delete_user(username = self._username)
+        test_utils.create_user(username = self._username, password = self._password, phone_number = self._phone_number)
+        self.delete_users_match()
+        self.delete_match()
+        self.insert_match()
+        self.set_user_match()
+
+    def test_set_unset_token_and_return_user_matches(self):
+        payload = {"username": self._username, "password": self._password, "token": self._token}
+        payload.update(extra_params_dict)
+        response = json.loads(requests.post(self._set_url, data=payload).content)
+        assert response['status'] == settings.STATUS_200
+
+        record = test_utils.select_user(username = self._username)[0]
+        assert record['username'] == self._username
+        assert record["device_token"] == self._token
+        assert record["token_type"] == self._token_type
+        assert len(response["match_ids"]) == 1
+        assert response["match_ids"][0] == self._match_id
+        assert record['device_id'] == extra_params_dict['udid']
+
+        if self._unset_url:
+            payload = {'username': self._username, 'password': self._password}
+            payload.update(extra_params_dict)
+            response = json.loads(requests.post(self._unset_url, data=payload).content)
+            assert response['status'] == settings.STATUS_200
+
+            record = test_utils.select_user(username = self._username)[0]
+            assert record['username'] == self._username
+            assert not record['device_token']
+            assert record['device_id']        
+
+    def tearDown(self):
+        test_utils.delete_user(username = self._username)
+        self.delete_users_match()
+        self.delete_match()
+
+class SetAndroidDeviceTokenReturnUserMatchesTest(SetDeviceTokenReturnUserMatchesTest, unittest.TestCase, ):
+    _set_url = tornado_local_address + "/set_android_token_and_return_user_matches"
     _unset_url = tornado_local_address + "/remove_android_token"
+    _token_type = settings.TOKEN_ANDROID_TYPE
+    
+
+class IOSSetUserDeviceIdReturnUserMatchesTests(SetDeviceTokenReturnUserMatchesTest, unittest.TestCase):
+    _set_url = tornado_local_address + "/set_ios_token_and_return_user_matches"
+    _unset_url = None
+    _token_type = settings.TOKEN_IOS_TYPE
+
+class SetLocationPrivacyTest(unittest.TestCase):
+    _set_location_privacy_url = tornado_local_address + "/set_location_privacy"
     _username = "test"
     _phone_number = "911"
     _password = "test"
@@ -930,26 +1026,117 @@ class SetAndroidDeviceTokenTest(unittest.TestCase):
         test_utils.delete_user(username = self._username)
         test_utils.create_user(username = self._username, password = self._password, phone_number = self._phone_number)
 
-    def test_set_unset_token(self):
-        payload = {"username": self._username, "password": self._password, "token": self._token}
+    def test_show_location_status(self):
+        payload = {"username": self._username, "password": self._password, "show_location_status": "true"}
         payload.update(extra_params_dict)
-        response = json.loads(requests.post(self._set_url, data=payload).content)
+        response = json.loads(requests.post(self._set_location_privacy_url, data=payload).content)
         assert response['status'] == settings.STATUS_200
 
         record = test_utils.select_user(username = self._username)[0]
         assert record['username'] == self._username
-        assert record['android_token'] == self._token
-        assert record['device_id'] == extra_params_dict['udid']
+        assert record['show_location']
 
-        payload = {'username': self._username, 'password': self._password}
+        payload = {'username': self._username, 'password': self._password, "show_location_status": "false"}
         payload.update(extra_params_dict)
-        response = json.loads(requests.post(self._unset_url, data=payload).content)
+        response = json.loads(requests.post(self._set_location_privacy_url, data=payload).content)
         assert response['status'] == settings.STATUS_200
 
         record = test_utils.select_user(username = self._username)[0]
         assert record['username'] == self._username
-        assert not record['android_token']
-        assert record['device_id']        
+        assert not record['show_location']
+
+    def tearDown(self):
+        test_utils.delete_user(username = self._username)
+
+class PushNotifcationsTest(unittest.TestCase):
+    #TO-DO Write test for users retrieval 
+    _push_notification_url = tornado_local_address + "/notify_event"
+    _sport_code = "1"
+    _event_code = "1"
+    _match_id = "1"
+    _league_id = "1"
+    _payload = {"s": _sport_code, "e": _event_code, "m": _match_id, "tt": "test", "bt": "test", "l": _league_id}
+
+    def test_notify_event_and_storage(self):
+        response = json.loads(requests.post(self._push_notification_url, data=json.dumps(self._payload)).content)
+        assert response['status'] == settings.STATUS_200
+        query = " SELECT * FROM notifications ORDER BY created_at DESC LIMIT 1 "
+        result = QueryHandler.get_results(query, ())
+        assert result[0]['notification'] == self._payload        
+
+    def tearDown(self):
+        query = " DELETE FROM notifications WHERE match_id = %s;"
+        match_id = match_league_id = self._payload['m'].strip() + "|" + self._payload['l'].strip()
+        variables = (match_id,)
+        QueryHandler.execute(query, variables)
+
+class ApnsHandlerTest(unittest.TestCase):
+    def test_singleton(self):
+        from notification_handler import ApnsHandler
+        class_1 = ApnsHandler()
+        class_2 = ApnsHandler()
+        assert id(class_1) == id(class_2)
+
+class RegisterMatch(unittest.TestCase):
+    _url = tornado_local_address + "/register_matches"
+    _matches_1 = [{"name": "test_1", "id": "id_1"}, {"name": "test_2", "id": "id_2"}]
+    _matches_2 = [{"name": "test_1", "id": "id_1"}, {"name": "test_3", "id": "id_3"}]
+
+    def test_match_registration(self):
+        payload = {"matches": self._matches_1}
+        response = json.loads(requests.post(self._url, data=json.dumps(payload)).content)
+        assert response["status"] == 200
+
+        match_1_ids = set(map(lambda x: x["id"], self._matches_1))
+        query = "SELECT id FROM matches;"
+        results = QueryHandler.get_results(query, ())
+        assert match_1_ids.issubset(set(map(lambda x: x["id"], results)))
+
+        payload = {"matches": self._matches_2}
+        response = json.loads(requests.post(self._url, data=json.dumps(payload)).content)
+        assert response["status"] == 200
+
+        match_1_2_ids = set(map(lambda x: x["id"], self._matches_1 + self._matches_2))
+        query = "SELECT id FROM matches;"
+        results = QueryHandler.get_results(query, ())
+        assert match_1_2_ids.issubset(set(map(lambda x: x["id"], results)))
+
+
+    def tearDown(self):
+        ids = tuple(list(set(map(lambda x: x['id'], self._matches_1 + self._matches_2))))  
+        query = " DELETE FROM matches WHERE id IN {};".format(ids)
+        QueryHandler.execute(query, (ids,))
+
+class SetUserInfoTest(unittest.TestCase):
+    _set_user_info_url = tornado_local_address + "/set_user_info"
+    _username = "test"
+    _name = "test"
+    _phone_number = "911"
+    _password = "test"
+    _token = "test_token"
+    
+    def setUp(self):
+        test_utils.delete_user(username = self._username)
+        test_utils.create_user(username = self._username, password = self._password, phone_number = self._phone_number)
+
+    def test_add_user_info(self):
+        payload = {"username": self._username, "password": self._password, "name": self._name}
+        payload.update(extra_params_dict)
+        response = json.loads(requests.post(self._set_user_info_url, data=payload).content)
+        assert response['status'] == settings.STATUS_200
+
+        record = test_utils.select_user(username = self._username)[0]
+        assert record['username'] == self._username
+        assert record['name'] == self._name
+
+        payload = {"username": self._username, "password": self._password}
+        payload.update(extra_params_dict)
+        response = json.loads(requests.post(self._set_user_info_url, data=payload).content)
+        assert response['status'] == settings.STATUS_200
+
+        record = test_utils.select_user(username = self._username)[0]
+        assert record['username'] == self._username
+        assert record['name'] == settings.DEFAULT_USER_NAME
 
     def tearDown(self):
         test_utils.delete_user(username = self._username)
