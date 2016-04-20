@@ -11,14 +11,15 @@ import os
 import time
 import ConfigParser
 config = ConfigParser.ConfigParser()
-config.read(os.path.join(os.path.abspath(os.path.dirname(__file__)), 'config_example.py'))
+config.read(os.path.dirname(__file__) + '/../../config.py')
+config.read(os.path.dirname(__file__) + '/../../config_example.py')
 
 env.hosts = open('hosts', 'r').readlines()
 VIRTUAL_ENVIRONMENT = "/home/{0}/VirtualEnvironment"
 REPO_NAME = "SportsUnityChat"
 BRANCH = "master"
-env.key_filename = "/home/kaali/Downloads/NginxLoadBalancer.pem"
-# env.key_filename = "/home/kaali/Downloads/staging_server.pem"
+# env.key_filename = "/home/kaali/Downloads/NginxLoadBalancer.pem"
+env.key_filename = "/home/kaali/Downloads/staging_server.pem"
 
 
 @task
@@ -83,10 +84,6 @@ def pull():
         with cd(repo_dir):
             run("sudo git checkout -f " + BRANCH)
 
-    with cd(repo_dir):
-        run("sudo mv config_example.py config.py")
-
-
 @task
 def deploy():
     execute(pull)
@@ -95,7 +92,7 @@ def deploy():
 
 @task
 def run_migrations():
-    run("sudo touch yoyo.ini")
+    # run("sudo rm yoyo.ini")
     run("yoyo apply --database postgresql://{}:{}@{}/{} ./migrations".format(
             config.get('database', 'user'),
             config.get('database', 'password'),

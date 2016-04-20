@@ -1,8 +1,8 @@
 [database]
-database=test_database
+database=production_db
 host=masterdb
-user=aakarshi
-password=aakarshi
+user=madmachines
+password=password_production_db
 
 [registration]
 expiry_period_sec=1800
@@ -22,11 +22,11 @@ test_facebook_id=145634995501895
 test_phone_number=919560488236
 profile_pic_url = http://localhost:3000/profile_pic
 
-[tornado]
-listening_port=3000
-
 [nearby_users]
 was_online_limit=7200
+
+[tornado]
+listening_port=3000
 
 [apns]
 cert_file=priv/prod_apns_cert.pem
@@ -34,3 +34,4 @@ key_file=priv/prod_apns_key.pem
 
 [gcm]
 api_key=AIzaSyAWO-284HUCY2NrGtf-P5r0o9p4RCe65F0
+ 
