@@ -1,0 +1,33 @@
+import handlers
+urls = [
+      (r"/register", handlers.RegistrationHandler),
+      (r"/create", handlers.CreationHandler),
+      (r"/set_location", handlers.SetLocationHandler),
+      (r"/get_nearby_users", handlers.GetNearbyUsers),
+      # (r"/fb_friends", handlers.FacebookHandler),
+      # (r"/football_notifications", FootballEvents),
+      # (r"/tennis_notifications", TennisEvents),
+      (r"/media", handlers.MediaHandler),
+      (r"/media_present", handlers.MediaPresentHandler),
+      (r"/media_multipart", handlers.IOSMediaHandler),
+      # (r"/cricket_notifications", CricketEvents),
+      (r"/set_user_interests", handlers.UserInterestHandler),
+      (r"/set_ios_token_and_return_user_matches", handlers.IOSSetUserDeviceTokenReturnsUsersMatches),
+      (r"/get_contact_jids", handlers.ContactJidsHandler),
+      # (r"/send_app_invite", SendAppInvitation),
+      (r"/user_register_match", handlers.RegisterUserMatchHandler),
+      (r"/user_unregister_match", handlers.UnRegisterUserMatchHandler),
+      (r"/set_android_token_and_return_user_matches", handlers.AndroidSetUserDeviceTokenReturnsUsersMatches),
+      (r"/remove_android_token", handlers.AndroidRemoveUserDeviceId),
+      (r"/set_location_privacy", handlers.LocationPrivacyHandler),
+      (r"/notify_event", handlers.PushNotificationHandler),
+      (r"/register_matches", handlers.RegisterMatchHandler),
+      (r"/set_user_info", handlers.UserInfoHandler),
+
+      # (r"/admin", admin_api.AdminPage),
+      # (r"/get_users", admin_api.AdminSelectUsers),
+      # (r"/create_user", admin_api.AdminCreateUser),
+      # (r"/update_user", admin_api.AdminUpdateUser),
+      # (r"/delete_user", admin_api.AdminDeleteUser),
+      # (r"/block_user", admin_api.AdminBlockUser)
+]

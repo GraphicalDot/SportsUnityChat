@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.6/css/bootstrap.min.css" integrity="sha384-1q8mTJOASx8j1Au+a5WDVnPi2lkFfwwEAa8hDDdjZlpLegxhjVME1fgjWPGmkzs7" crossorigin="anonymous">
+
+<!-- <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.6/css/bootstrap-theme.min.css" integrity="sha384-fLW2N01lMqjakBkx3l/M9EahuwpSfeNvV63J5ezn3uZzapT0u7EYsXMjQV+0En5r" crossorigin="anonymous"> -->
+
+<script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.6/js/bootstrap.min.js" integrity="sha384-0mSbJDEHialfmuBBQP6A4Qrprq5OVfW37PRR3j5ELqxss1yVqOtnepnHVP9aJ7xS" crossorigin="anonymous"></script>
+<html>
+<head>
+	<title>Home</title>
+</head>
+<body>
+<div>
+   <ul class="nav nav-tabs">
+  <li class="active"><a href="#">Home</a></li>
+  <li><a href="#" onclick="getusers()">Users</a></li>
+</ul>
+</div>
+<div id="content_div">
+	<table >
+	
+	</table>
+</div>	
+</body>
+</html>
+
+
+<script type="text/javascript">
+	getusers(count){
+		var users;
+		count = count || 0;
+		var xhr = new XMLHttpRequest();
+		xhr.open('GET', '/get_users?count=0');
+		xhr.send(null);
+		xhr.onreadystatechange = function () {
+			var DONE = 4; // readyState 4 means the request is done.
+			var OK = 200; // status 200 is a successful return.
+			if (xhr.readyState === DONE) {
+			    if (xhr.status === OK)
+			    	users = JSON.parse(xhr.responseText) 
+				    append_table(users);
+				    console.log(users); // 'This is the returned text.'
+			    } else {
+			        console.log('Error: ' + xhr.status); // An error occurred during the request.
+			    }
+			}
+		};
+	}
+
+	append_table(users){
+		var content_div = document.getElementById("content_div")
+		table = document.createElement("table");
+		table.class = "table";
+		head = document.createElement("thead");
+		table.appendChild(head);
+		row = document.createElement("tr");
+		for(var key in users[0]){
+	            var attrName = key;
+				heading = document.createElement("th");
+				heading.textContent = key;
+				row.appendChild(heading);
+        }		
+        body = document.createElement('tbody');
+	  	for(var i=0;i<users.length;i++){
+	        var obj = arr[i];
+	        table_row = document.createElement("tr");
+	        for(var key in obj){
+	        	cell = document.createElement("td");
+	        	cell.textContent = obj[key];
+	        	table_row.appendChild(cell);
+	        }
+	        body.appendChild(table_row);
+	    }
+	    table.appendChild(body);
+	}
+</script>
