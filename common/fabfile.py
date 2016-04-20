@@ -129,8 +129,8 @@ def setup_server():
             run(" sudo chmod 777 tornado_log ")
             run(" sudo chmod 777 media ")
             run("sudo touch big.mp4")
-            run("sudo zdaemon -p '" + virtual_environment_python + " api_v0_archive.py' -z " + repo_dir + " -d stop")
-            run("sudo zdaemon -p '" + virtual_environment_python + " api_v0_archive.py' -z " + repo_dir + " -d start")
+            run("sudo zdaemon -p '" + virtual_environment_python + " __main__.py' -z " + repo_dir + " -d stop")
+            run("sudo zdaemon -p '" + virtual_environment_python + " __main__.py' -z " + repo_dir + " -d start")
 
 
 def run_tests():
@@ -138,4 +138,4 @@ def run_tests():
     virtual_environment = VIRTUAL_ENVIRONMENT.format(env["user"])
     with prefix(". "+virtual_environment+ "/bin/activate"):
         with cd(repo_dir):
-            run(" python api_test.py ")
+            run(" python -m tests.v0_tests ")
