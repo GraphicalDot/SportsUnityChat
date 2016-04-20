@@ -11,20 +11,18 @@ import time
 import unittest
 from ConfigParser import ConfigParser
 from ConfigParser import ConfigParser
-from global_func import QueryHandler, S3Handler, merge_dicts
+from common.funcs import QueryHandler, S3Handler, merge_dicts
 from requests_toolbelt.multipart.encoder import MultipartEncoder
-from tornado.testing import AsyncHTTPTestCase
 from requests_toolbelt import MultipartEncoder
 from shutil import copyfile
-from custom_error import BadAuthentication
-import api_v0_archive
-from user import User
+from common.custom_error import BadAuthentication
+from models.user import User
 import settings
 import test_utils
 import copy
 
 config = ConfigParser()
-config.read('config.py')
+config.read(os.path.dirname(__file__) + '/../config.py')
 
 extra_params = '&apk_version=v0.1&udid=TEST@UDID'
 extra_params_dict = {'apk_version' : 'v0.1', 'udid' : "test_udid"}
@@ -57,7 +55,7 @@ class UserTest(unittest.TestCase):
         except BadAuthentication:
             pass
 
-class CreationTest(AsyncHTTPTestCase):
+class CreationTest(unittest.TestCase):
     username = None
     _phone_number = config.get('tests', 'test_phone_number')
     _password = 'password'
@@ -72,22 +70,7 @@ class CreationTest(AsyncHTTPTestCase):
         test_utils.delete_user(username=self._username, phone_number=self._phone_number)
         test_utils.delete_registered_user(phone_number=self._phone_number)
 
-    def get_app(self):
-        return api_v0_archive.Application()
-
     def test_user_registration(self):
-
-        # Invalid url params
-        response = requests.get(self._registration_url)
-        res = json.loads(response.text)
-        self.assertEqual(res['info'], "Missing argument apk_version")
-        self.assertEqual(res['status'], settings.STATUS_400)
-
-        query = "SELECT * FROM registered_users WHERE phone_number = %s;"
-        variables = (self._phone_number,)
-        record = QueryHandler.get_results(query, variables)
-        self.assertEqual(len(record), 0)
-
 
         # test for banned user with valid url
         query = " INSERT INTO users (username, password, phone_number, is_banned) VALUES (%s,%s, %s, True);"
@@ -96,11 +79,7 @@ class CreationTest(AsyncHTTPTestCase):
 
         response = requests.get(self._registration_url + extra_params)
         res = json.loads(response.text)
-        select_query = "SELECT * FROM registered_users WHERE phone_number = %s;"
-        select_variables = (self._phone_number,)
-        record = QueryHandler.get_results(select_query, select_variables)
 
-        self.assertEqual(len(record), 0)
         self.assertEqual(res['status'], settings.STATUS_403)
         self.assertEqual(res['info'], settings.USER_FORBIDDEN_ERROR)
 
@@ -111,11 +90,20 @@ class CreationTest(AsyncHTTPTestCase):
         QueryHandler.execute(query, variables)
         response = requests.get(self._registration_url + extra_params)
         res = json.loads(response.text)
-        record = QueryHandler.get_results(select_query, select_variables)
-        self.assertEqual(len(record), 1)
-        assert record[0]['gateway_response']
         self.assertEqual(res['info'], settings.SUCCESS_RESPONSE)
         self.assertEqual(res['status'], settings.STATUS_200)
+
+    def test_user_registration_function(self):
+        user = User(phone_number = self._phone_number)
+        response, status = user._register()
+        assert status == settings.STATUS_200
+
+        select_query = "SELECT * FROM registered_users WHERE phone_number = %s;"
+        select_variables = (self._phone_number,)
+        record = QueryHandler.get_results(select_query, select_variables)
+        assert len(record) == 1
+        assert record[0]['gateway_response']
+        assert record[0]['phone_number']
 
     def test_wrong_auth_code_failure(self):
 
@@ -283,8 +271,6 @@ class InterestTest(unittest.TestCase):
     			{"name": "interest_three", 'id': "test_3"}]
     _payload = {'username': _username, 'password': _password}
     _test_storage_url = tornado_local_address + "/set_user_interests"
-    def get_app(self):
-        return api_v0_archive.Application()
 
     def setUp(self):
         test_utils.delete_user(username = self._username, phone_number=self._phone_number)
@@ -381,16 +367,13 @@ class InterestTest(unittest.TestCase):
         test_utils.delete_user(username = self._username, phone_number=self._phone_number)
 
 
-class MediaTest(AsyncHTTPTestCase):
+class MediaTest(unittest.TestCase):
 
     def setUp(self):
         super(MediaTest, self).setUp()
         file_storage_name = "media/md5_sample"
-        file_storage_name2 = "media/big.mp4"
         if os.path.isfile(file_storage_name):
             os.remove(file_storage_name)
-        if os.path.isfile(file_storage_name2):
-            os.remove(file_storage_name2)
 
     def test_upload_download_media_presence(self):
         self.url = tornado_local_address + "/media" + '?apk_version=v0.1&udid=TEST@UDID'
@@ -416,18 +399,6 @@ class MediaTest(AsyncHTTPTestCase):
         response = requests.get(self.media_presence_url)
         self.assertEqual(json.loads(response.content)["status"], settings.STATUS_400)
 
-        self.url = tornado_local_address + "/media" + '?apk_version=v0.1&udid=TEST@UDID'
-        file_name2 = 'big.mp4'
-        headers = {'Checksum': 'big.mp4'}
-        with open(file_name2, 'rb') as file_content2:
-            response = requests.post(self.url, headers=headers, data=file_content2)
-        self.assertEqual(json.loads(response.content)['status'], settings.STATUS_200)
-        assert os.path.isfile('media/big.mp4')
-
-        self.url = tornado_local_address + "/media?name=big.mp4" + extra_params
-        response = requests.get(self.url)
-        self.assertEqual(response.status_code, settings.STATUS_200)
-
     def get_app(self):
         return api_v0_archive.Application()
 
@@ -441,74 +412,46 @@ class IOSMediaHandlerTests(unittest.TestCase):
 
     def setUp(self):
         self.url = tornado_local_address + '/media_multipart' + '?apk_version=v0.1&udid=TEST@UDID'
-        self.test_files = [sys.argv[0]]
-
-    def test_validations(self):
-        self.filename = self.test_files[0]
-        mime = magic.Magic(mime=True)
-        mime_type = mime.from_file(self.filename)
-        encoder = MultipartEncoder(
-            fields={'name': 'image', 'filename': self.filename, 'Content-Disposition': 'form-data',
-                    'Content-Type': mime_type, 'file': (self.filename, open(self.filename, 'rb'), mime_type)}
-        )
-
-        # 'Content-type' not provided
-        response = requests.post(self.url, data=encoder.to_string(), headers={'Checksum': 'test_image'})
-        res = json.loads(response.content)
-        self.assertEqual(response.status_code, settings.STATUS_200)
-        self.assertEqual(res['status'], settings.STATUS_400)
-
-        # 'Checksum' not provided
-        response = requests.post(self.url, data=encoder.to_string(), headers={'Content-Type': encoder.content_type})
-        res = json.loads(response.content)
-        self.assertEqual(response.status_code, settings.STATUS_200)
-        self.assertEqual(res['status'], settings.STATUS_400)
-
-        # Request body not provided
-        response = requests.post(self.url, headers={'Checksum': 'test_image', 'Content-Type': encoder.content_type})
-        res = json.loads(response.content)
-        self.assertEqual(response.status_code, settings.STATUS_200)
-        self.assertEqual(res['status'], settings.STATUS_400)
+        self.test_file = sys.argv[0]
+        self.filename = "test_file"
+        try:
+	        os.remove('media/' + self.filename)
+        except Exception, e:
+        	pass
 
     def test_upload_media(self):
 
         # test on different media files
-        for file in self.test_files:
-            self.filename = file
-            mime = magic.Magic(mime=True)
-            mime_type = mime.from_file(self.filename)
-            encoder = MultipartEncoder(
-                fields={'name': 'image', 'filename': self.filename, 'Content-Disposition': 'form-data',
-                        'Content-Type': mime_type, 'file': (self.filename, open(self.filename, 'rb'), mime_type)}
-                )
-            response = requests.post(self.url, data=encoder.to_string(),
-                                     headers={'Content-Type': encoder.content_type, 'Checksum': file})
-            res = json.loads(response.content)
-            self.assertEqual(response.status_code, settings.STATUS_200)
-            self.assertEqual(res['info'], 'Success')
-            self.assertEqual(res['status'], settings.STATUS_200)
+        mime = magic.Magic(mime=True)
+        mime_type = mime.from_file(self.test_file)
+        encoder = MultipartEncoder(
+            fields={'name': 'image', 'filename': self.filename, 'Content-Disposition': 'form-data',
+                    'Content-Type': mime_type, 'file': (self.filename, open(self.test_file, 'rb'), mime_type)}
+            )
+
+        response = requests.post(self.url, data=encoder.to_string(),
+                                 headers={'Content-Type': encoder.content_type, 'Checksum': self.filename})
+        res = json.loads(response.content)
+        self.assertEqual(response.status_code, settings.STATUS_200)
+        self.assertEqual(res['info'], 'Success')
+        self.assertEqual(res['status'], settings.STATUS_200)
 
 
         # if file already exists
-        self.filename = self.test_files[0]
         mime = magic.Magic(mime=True)
-        mime_type = mime.from_file(self.filename)
+        mime_type = mime.from_file(self.test_file)
         encoder = MultipartEncoder(
             fields={'name': 'image', 'filename': self.filename, 'Content-Disposition': 'form-data',
-                    'Content-Type': mime_type, 'file': (self.filename, open(self.filename, 'rb'), mime_type)}
+                    'Content-Type': mime_type, 'file': (self.filename, open(self.test_file, 'rb'), mime_type)}
         )
         response = requests.post(self.url, data=encoder.to_string(),
-                                 headers={'Content-Type': encoder.content_type, 'Checksum': file})
+                                 headers={'Content-Type': encoder.content_type, 'Checksum': self.filename})
         res = json.loads(response.content)
         self.assertEqual(response.status_code, settings.STATUS_200)
         self.assertEqual(res['status'], settings.STATUS_422)
 
-        # delete all test files from media folder
-        for file in self.test_files:
-            os.remove('media/' + file)
-
-
-
+    def tearDown(self):
+        os.remove('media/' + self.filename)
 
 
 class ContactListTest(unittest.TestCase):
@@ -931,6 +874,7 @@ class MatchPushNotificationTest(unittest.TestCase):
         reregistration_response = json.loads(requests.post(self._register_url, data=payload).content)
         assert reregistration_response['status'] == settings.STATUS_200
 
+
     def tearDown(self):
         test_utils.delete_user(username = self._username)
         self.delete_users_match()
@@ -1060,8 +1004,14 @@ class PushNotifcationsTest(unittest.TestCase):
     def test_notify_event_and_storage(self):
         response = json.loads(requests.post(self._push_notification_url, data=json.dumps(self._payload)).content)
         assert response['status'] == settings.STATUS_200
-        query = " SELECT * FROM notifications ORDER BY created_at DESC LIMIT 1 "
-        result = QueryHandler.get_results(query, ())
+
+    def test_send_notification(self):
+        from common.notification_handler import NotificationHandler
+        match_id = self._payload['m'].strip() + "|" + self._payload['l'].strip()
+        nh = NotificationHandler(match_id, self._payload).handle_notification()
+        query = " SELECT * FROM notifications WHERE match_id = %s "
+        variables = (match_id,)
+        result = QueryHandler.get_results(query, (variables,))
         assert result[0]['notification'] == self._payload        
 
     def tearDown(self):
@@ -1072,7 +1022,7 @@ class PushNotifcationsTest(unittest.TestCase):
 
 class ApnsHandlerTest(unittest.TestCase):
     def test_singleton(self):
-        from notification_handler import ApnsHandler
+        from common.notification_handler import ApnsHandler
         class_1 = ApnsHandler()
         class_2 = ApnsHandler()
         assert id(class_1) == id(class_2)

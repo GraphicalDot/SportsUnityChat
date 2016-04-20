@@ -10,7 +10,7 @@ import copy
 import threading
 import ConfigParser
 config = ConfigParser.ConfigParser()
-config.read(os.path.join(os.path.abspath(os.path.dirname(__file__)), 'config.py'))
+config.read(os.path.dirname(__file__) + '/../config.py')
 import apns
 from gcm import GCM
 

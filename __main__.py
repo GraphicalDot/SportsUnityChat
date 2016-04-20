@@ -14,6 +14,7 @@ import os
 import settings
 import argparse
 import runpy
+# import logger
 
 class Application(tornado.web.Application):
     def __init__(self):
@@ -30,13 +31,12 @@ def add_templates_for_tornado_watch(watched_files):
 
 
 def run_server():
-    from IPython import embed
-    embed()
     app = Application()
     options.log_file_prefix  = "tornado_log"
     enable_pretty_logging(options=options)
     app.listen(int(config.get('tornado', 'listening_port')))
     tornado.autoreload.start()
+    # logger.setLevel(logging.INFO)
     add_templates_for_tornado_watch(settings.ADMIN_TEMPLATES)
     tornado.ioloop.IOLoop.current().start()
 

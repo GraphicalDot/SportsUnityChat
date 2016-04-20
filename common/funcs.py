@@ -7,11 +7,12 @@ import psycopg2
 import psycopg2.extras
 from apns import APNs, Payload
 import os
+import json
 from gcm import GCM
 import time
 import ConfigParser
 config = ConfigParser.ConfigParser()
-config.read(os.path.join(os.path.abspath(os.path.dirname(__file__)), 'config.py'))
+config.read(os.path.dirname(__file__) + '/../config.py')
 
 class QueryHandler(object):
 

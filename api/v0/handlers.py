@@ -1,6 +1,6 @@
 import psycopg2.errorcodes
 from models.user import User
-from common.funcs import QueryHandler, S3Handler, merge_dicts, send_message
+from common.funcs import QueryHandler, S3Handler, merge_dicts, send_message, merge_body_arguments
 from tornado.log import enable_pretty_logging
 from tornado.options import options
 import magic

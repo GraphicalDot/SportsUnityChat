@@ -1,6 +1,7 @@
 from common.funcs import QueryHandler, S3Handler, merge_dicts, send_message
 from psycopg2 import IntegrityError
 import base64
+import threading
 import ConfigParser
 import facebook
 import json
@@ -8,11 +9,6 @@ import os
 import random
 import requests
 import time
-import tornado
-import tornado.ioloop
-import tornado.autoreload
-import tornado.escape
-import tornado.web
 import uuid
 from requests_toolbelt import MultipartDecoder
 from common.custom_error import BadAuthentication, BadInfoSuppliedError
@@ -86,7 +82,6 @@ class User:
         except Exception, e:
             response, status = " Error %e " % e, settings.STATUS_500
         finally:
-            self._delete_registered()
             return response, status, self.password, self.username
 
     def _generate_username(self):
@@ -109,7 +104,7 @@ class User:
         """
         try: 
             self._generate_password()
-            query = " UPDATE users SET password = %s WHERE username = %s; "
+            query = " WITH delete_registered AS (DELETE FROM registered_users WHERE phone_number = E'919560488236' ) UPDATE users SET password = %s WHERE username = %s; "
             variables = (self.password, self.username)
             QueryHandler.execute(query, variables)
             response, status = "Success", settings.STATUS_200
@@ -156,9 +151,9 @@ class User:
                 record = QueryHandler.get_results(query, variables)
 
                 if not record:
-                    query = " INSERT INTO users (username, phone_number, password) VALUES "\
+                    query = " WITH delete_registered AS (DELETE FROM registered_users WHERE phone_number = %s ) INSERT INTO users (username, phone_number, password) VALUES "\
                     + "(%s, %s, %s);"
-                    variables = (self.username, self.phone_number, self.password)
+                    variables = (self.phone_number, self.username, self.phone_number, self.password)
                     QueryHandler.execute(query, variables)
                     break
             response, status = "Success", settings.STATUS_200
@@ -176,10 +171,11 @@ class User:
         """
         Handles the registration of the user in the database
         """
-        self._delete_registered()
-        response, status = (settings.USER_FORBIDDEN_ERROR, settings.STATUS_403) if self.check_if_user_blocked() \
-            else self._register()
-        return response, status
+        if self.check_if_user_blocked():
+            return settings.USER_FORBIDDEN_ERROR, settings.STATUS_403 
+        else:
+            threading.Thread(group = None, target = self._register, name = None, args = ()).start()
+            return settings.SUCCESS_RESPONSE, settings.STATUS_200
 
     def _delete_registered(self):
         """
@@ -202,8 +198,11 @@ class User:
 
         try:
             status_info, status_code, gateway_response = send_message(number=self.phone_number, message=settings.OTP_MESSAGE.format(random_integer))
-            query = " INSERT INTO registered_users (phone_number, authorization_code, expiration_time, gateway_response) VALUES ( %s, %s, %s, %s); "
-            variables = (self.phone_number, random_integer, expiration_time, str(gateway_response))
+            query = " WITH upsert AS (UPDATE registered_users SET "\
+            +    "authorization_code = %s, expiration_time = %s, gateway_response = %s WHERE phone_number= %s RETURNING * ) "\
+            + " INSERT INTO registered_users (phone_number, authorization_code, expiration_time, gateway_response) SELECT  %s, %s, %s, %s "\
+            + " WHERE NOT EXISTS (SELECT * FROM upsert);"
+            variables = (random_integer, expiration_time, str(gateway_response), self.phone_number, self.phone_number, random_integer, expiration_time, str(gateway_response))
             QueryHandler.execute(query, variables)
             return status_info, status_code
         except Exception, e:

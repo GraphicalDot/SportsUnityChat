@@ -1,4 +1,4 @@
-from global_func import QueryHandler
+from common.funcs import QueryHandler
 
 
 def delete_registered_user(phone_number):

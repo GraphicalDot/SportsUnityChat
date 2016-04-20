@@ -72,7 +72,8 @@ class NotificationHandler:
         self.payload = payload
     
     def notify(self):
-        threading.Thread(group = None, target = self.handle_notification, name = None, args = ()).start()
+        # threading.Thread(group = None, target = self.handle_notification, name = None, args = ()).start()
+        self.handle_notification()
 
     def get_subscribing_users(self, match_id):
         query = " SELECT device_token, token_type FROM users, users_matches"\
