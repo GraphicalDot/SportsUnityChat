@@ -1,5 +1,5 @@
 [database]
-database=productiondb
+database=production_db
 host=masterdb
 user=madmachines
 password=password_production_db
