@@ -216,7 +216,7 @@ class ProfilePicServiceTest(unittest.TestCase):
     _username = 'test'
     _password = 'password'
     _phone_number = config.get('tests', 'test_phone_number')
-    _test_storage_url = tornado_local_address + "/set_group_dp"
+    _test_storage_url = tornado_local_address + "/group_dp"
     _small_version_name = str(_username) + "/S" + ".jpg"
     _large_version_name = str(_username) + "/L" + ".jpg"
     _profile_pic_bucket = config.get('amazon', 'dp_bucket_name')
