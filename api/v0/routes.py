@@ -23,7 +23,7 @@ urls = [
       (r"/notify_event", handlers.PushNotificationHandler),
       (r"/register_matches", handlers.RegisterMatchHandler),
       (r"/set_user_info", handlers.UserInfoHandler),
-      (r"/set_group_dp", handlers.GroupDpHandler),
+      (r"/group_dp", handlers.GroupDpHandler),
 
       # (r"/admin", admin_api.AdminPage),
       # (r"/get_users", admin_api.AdminSelectUsers),
