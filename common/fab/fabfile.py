@@ -92,7 +92,6 @@ def deploy():
 
 @task
 def run_migrations():
-    run("sudo apt-get install -y apt-get install libpng12-dev libtiff4-dev libwebp-dev python-pip python-dev g++")
     # run("sudo rm yoyo.ini")
     run("yoyo apply --database postgresql://{}:{}@{}/{} ./migrations".format(
             config.get('database', 'user'),
@@ -112,6 +111,7 @@ def add_interests():
         run(virtual_environment_python + " tasks/add_interests.py")
 
 def setup_server():
+    run("sudo apt-get install -y libpng12-dev libtiff4-dev libwebp-dev python-pip python-dev g++")
     virtual_environment = VIRTUAL_ENVIRONMENT.format(env["user"])
     virtual_environment_python = virtual_environment + "/bin/python"
     repo_dir = "/home/{0}".format(env["user"]) + "/" + REPO_NAME + "/"
