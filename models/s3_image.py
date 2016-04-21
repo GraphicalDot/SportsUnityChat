@@ -6,9 +6,10 @@ from common.funcs import S3
 import copy
 
 class S3Image(S3):
-	def __init__(self, name, content, bucket):
+	def __init__(self, name, bucket_name, content = None):
+		super(S3Image, self).__init__(bucket_name)
 		self.name = name
-		self.bucket = bucket
+		self.bucket_name = bucket_name
 		self.content = content
 		self.versions = []
 
@@ -30,4 +31,4 @@ class S3Image(S3):
 
 	def upload_to_s3(self, index):
 		for name, content in self.versions[index].iteritems():
-			S3(self.bucket).upload(name, content)
+			S3(self.bucket_name).upload(name, content)

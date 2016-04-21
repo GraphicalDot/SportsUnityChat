@@ -801,3 +801,14 @@ class GroupDpHandler(UserApiRequestHandler):
         response['info'] = 'Success'
         self.write(response)
 
+    def get(self):
+        response = {}
+        name = self.get_argument('jid')
+        version = self.get_argument('version')
+        content = base64.b64encode(Group(name).get_dp_version(version))
+        response['status'] = 200
+        response['info'] = 'Success'
+        response['content'] = content
+        self.write(response)        
+
+

@@ -246,14 +246,17 @@ class ProfilePicServiceTest(unittest.TestCase):
         assert S3(self._profile_pic_bucket).check_exists(self._large_version_name)
         assert S3(self._profile_pic_bucket).check_exists(self._small_version_name)
 
-        # payload = {
-        #     'username': self._username,
-        #     'password': self._password,
-        #     'name': self._small_version_name
-        # }
-        # response = json.loads(requests.get(self._test_storage_url , data = json.dumps(payload)).content)
-        # assert response['status'] == 200
-        # assert response['content']
+        payload = {
+            'username': self._username,
+            'password': self._password,
+            'jid': self._groupname,
+            'version': 'L'
+        }
+
+        payload.update(extra_params_dict)
+        response = json.loads(requests.get(self._test_storage_url , data = json.dumps(payload)).content)
+        assert response['status'] == 200
+        assert base64.b64decode(response['content']) == S3(self._profile_pic_bucket).get_file(self._large_version_name)
 
     def tearDown(self):
         pass

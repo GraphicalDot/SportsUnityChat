@@ -78,6 +78,13 @@ class S3(object):
     def delete_key(self, key):
         return self.bucket.delete_key(key)
 
+    def get_file(self, key):
+        key = self.check_exists(key)
+        if key:
+            return key.get_contents_as_string()
+        else:
+            return None
+
 def merge_dicts(dict_list):
     '''Given two dicts, merge them into a new dict as a shallow copy.'''
     z = dict_list[0].copy()
