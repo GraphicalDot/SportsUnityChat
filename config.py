@@ -1,8 +1,8 @@
 [database]
-database=production_db
-host=masterdb
-user=madmachines
-password=password_production_db
+database=test_database
+host=localhost
+user=aakarshi
+password=aakarshi
 
 [registration]
 expiry_period_sec=1800
@@ -13,6 +13,12 @@ pubsub_jid=satish@mm.io
 pubsub_password=password
 sample_message=Lorem Ipsum is simply dummy text of the printing and typesetting industry please consider donating a small sum to help pay for the hosting and bandwidth bill
 node=princely_musings
+
+[amazon]
+amazon_access_key=AKIAJQ4YKSYEDJGYH7ZA
+amazon_secret_key=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
+dp_bucket_name=sports_unity_profile_pics
+acl=public-read
 
 [xmpp]
 domain=@mm.io
