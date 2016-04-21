@@ -18,7 +18,7 @@ node=princely_musings
 amazon_access_key=AKIAJQ4YKSYEDJGYH7ZA
 amazon_secret_key=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
 dp_bucket_name=sports_unity_profile_pics
-acl=public-read
+acl=private
 
 [xmpp]
 domain=@mm.io

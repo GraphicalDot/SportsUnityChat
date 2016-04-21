@@ -575,7 +575,7 @@ class ContactJidsHandler(UserApiRequestHandler):
 class GetNearbyUsers(UserApiRequestHandler):
 
     def get_nearby_users(self):
-        query = "WITH uinterest AS "\
+        query = " WITH uinterest AS "\
             + "      ( "\
             + "            SELECT array_agg(interest.interest_name) AS uinterest FROM interest, users_interest  "\
             + "            WHERE users_interest.username = %s AND users_interest.interest_id = interest.interest_id "\
@@ -611,6 +611,7 @@ class GetNearbyUsers(UserApiRequestHandler):
             + "      ( SELECT bjids FROM banned_users)"\
             + "      )"\
             + "      AND users.show_location = True"\
+            + "      AND EXISTS (SELECT * FROM users WHERE username = %s AND show_location = True) "\
             + " GROUP BY  friendship_status, users.username, uinterest.uinterest  "\
             + " ORDER BY users.username, friendship_status DESC;"
         variables = (self.username,
@@ -622,6 +623,7 @@ class GetNearbyUsers(UserApiRequestHandler):
                 self.lng,
                 self.radius,
                 int(time.time() - self.was_online_limit),
+                self.username,
                 self.username
         )
         records = QueryHandler.get_results(query, variables)
@@ -789,12 +791,13 @@ class UserInfoHandler(UserApiRequestHandler):
         response["info"], response["status"] = settings.SUCCESS_RESPONSE, settings.STATUS_200
         self.write(response)
 
-class SetGroupDpHandler(UserApiRequestHandler):
+class GroupDpHandler(UserApiRequestHandler):
     def post(self):
         response = {}
-        name = self.get_argument('groupname')
+        name = self.get_argument('jid')
         content = self.get_argument('content')
         Group(name).upload_dp(content)
         response['status'] = 200
         response['info'] = 'Success'
         self.write(response)
+

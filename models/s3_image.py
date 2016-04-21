@@ -4,12 +4,11 @@ import settings
 import threading
 from common.funcs import S3
 import copy
-import ConfigParser
-config = ConfigParser.ConfigParser()
-config.read('config.py')
-class Image(S3):
-	def __init__(self, name, content):
+
+class S3Image(S3):
+	def __init__(self, name, content, bucket):
 		self.name = name
+		self.bucket = bucket
 		self.content = content
 		self.versions = []
 
@@ -30,6 +29,5 @@ class Image(S3):
 			threading.Thread(group = None, target = self.upload_to_s3, name = None, args = (idx, )).start()
 
 	def upload_to_s3(self, index):
-		bucket_name = str.strip(config.get('amazon', 'dp_bucket_name'))
 		for name, content in self.versions[index].iteritems():
-			S3(bucket_name).upload(name, content)
+			S3(self.bucket).upload(name, content)
