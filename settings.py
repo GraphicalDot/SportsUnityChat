@@ -55,3 +55,7 @@ APP_INVITATION_MESSAGE = 'Hi! {} has invited you to join SportsUnity App.'
 DEFAULT_USER_NAME = "N/A"
 TOKEN_ANDROID_TYPE = 'a'
 TOKEN_IOS_TYPE = 'i'
+DP_S_WIDTH = 150
+DP_S_HEIGHT = 150
+DP_L_WIDTH = 640
+DP_L_HEIGHT = 640

@@ -1,6 +1,6 @@
 import psycopg2.errorcodes
 from models.user import User
-from common.funcs import QueryHandler, S3Handler, merge_dicts, send_message, merge_body_arguments
+from common.funcs import QueryHandler, S3, merge_dicts, send_message, merge_body_arguments
 from tornado.log import enable_pretty_logging
 from tornado.options import options
 import magic
@@ -18,6 +18,7 @@ import random
 import requests
 import time
 import uuid
+from models.group import Group
 from requests_toolbelt import MultipartDecoder
 from common.custom_error import BadAuthentication, BadInfoSuppliedError
 # import admin_api
@@ -786,4 +787,14 @@ class UserInfoHandler(UserApiRequestHandler):
         user = User(username = self.username)
         user.set_info(user_info)
         response["info"], response["status"] = settings.SUCCESS_RESPONSE, settings.STATUS_200
+        self.write(response)
+
+class SetGroupDpHandler(UserApiRequestHandler):
+    def post(self):
+        response = {}
+        name = self.get_argument('groupname')
+        content = self.get_argument('content')
+        Group(name).upload_dp(content)
+        response['status'] = 200
+        response['info'] = 'Success'
         self.write(response)

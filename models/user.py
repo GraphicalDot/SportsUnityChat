@@ -1,4 +1,4 @@
-from common.funcs import QueryHandler, S3Handler, merge_dicts, send_message
+from common.funcs import QueryHandler, S3, merge_dicts, send_message
 from psycopg2 import IntegrityError
 import base64
 import threading

@@ -42,7 +42,7 @@ def basic_setup():
     run("sudo apt-get install -y tor")
     run("sudo apt-get install -y git")
     run("sudo apt-get install -y apt-get install libffi-dev libssl-dev")
-    
+    run("sudo apt-get install -y apt-get install libpng12-dev libtiff4-dev libwebp-dev python-pip python-dev g++")
     run("virtualenv VirtualEnvironment --no-site-packages")
     run("sudo chown -R "+env["user"]+":"+env["user"]+" "+virtual_environment)
     run("sudo chmod -R a+rX "+virtual_environment)
@@ -92,6 +92,7 @@ def deploy():
 
 @task
 def run_migrations():
+    run("sudo apt-get install -y apt-get install libpng12-dev libtiff4-dev libwebp-dev python-pip python-dev g++")
     # run("sudo rm yoyo.ini")
     run("yoyo apply --database postgresql://{}:{}@{}/{} ./migrations".format(
             config.get('database', 'user'),
@@ -125,7 +126,6 @@ def setup_server():
             run("sudo  touch tornado_log ")
             run(" sudo chmod 777 tornado_log ")
             run(" sudo chmod 777 media ")
-            run("sudo touch big.mp4")
             run("sudo zdaemon -p '" + virtual_environment_python + " __main__.py' -z " + repo_dir + " -d stop")
             run("sudo zdaemon -p '" + virtual_environment_python + " __main__.py' -z " + repo_dir + " -d start")
 

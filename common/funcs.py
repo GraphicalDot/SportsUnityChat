@@ -13,7 +13,6 @@ import time
 import ConfigParser
 config = ConfigParser.ConfigParser()
 config.read(os.path.dirname(__file__) + '/../config.py')
-
 class QueryHandler(object):
 
     _instance = None
@@ -58,7 +57,7 @@ class QueryHandler(object):
         cursor.close()
 
 
-class S3Handler(object):
+class S3(object):
     def __init__(self, bucket_name):
         amazon_access_key = str.strip(str(config.get('amazon', 'amazon_access_key')))
         amazon_secret_key = str.strip(str(config.get('amazon', 'amazon_secret_key')))
@@ -76,6 +75,8 @@ class S3Handler(object):
     def check_exists(self, key):
         return self.bucket.get_key(key)
 
+    def delete_key(self, key):
+        return self.bucket.delete_key(key)
 
 def merge_dicts(dict_list):
     '''Given two dicts, merge them into a new dict as a shallow copy.'''
@@ -120,3 +121,4 @@ def is_number(s):
         return True
     except ValueError:
         return False
+
