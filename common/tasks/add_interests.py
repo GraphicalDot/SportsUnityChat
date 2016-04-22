@@ -1,8 +1,7 @@
 import requests
 import sys
 from os import path
-sys.path.append( path.dirname( path.dirname( path.abspath(__file__) ) ) )
-from global_func import QueryHandler
+from common.funcs import QueryHandler
 import settings
 from psycopg2 import IntegrityError
 import json
@@ -52,6 +51,13 @@ def set_football_team_names():
 		if team.get("team_id", None):
 			add_interest(team["team_name"], team["team_id"], interest_type)
 
+def set_football_league_names():
+	response = json.loads(requests.get(settings.FOOTBALL_LEAGUE_NAME_URL).content)['data']
+	interest_type = settings.LEAGUE_INTEREST_TYPE_NAME
+	for league in response:
+		if league.get("league_id", None):
+			add_interest(league["league_name"], league["league_id"], interest_type)
+
 def handle_players():
 	set_interest_type(settings.PLAYER_INTEREST_TYPE_NAME)	
 	set_player_names()
@@ -61,9 +67,14 @@ def handle_teams():
 	set_cricket_team_names()
 	set_football_team_names()
 
+def handle_leagues():
+	set_interest_type(settings.LEAGUE_INTEREST_TYPE_NAME)
+	set_football_league_names()
+
 def run_tasks():
 	handle_players()
 	handle_teams()
+	handle_leagues()
 
 if __name__ == '__main__':
 	run_tasks()
