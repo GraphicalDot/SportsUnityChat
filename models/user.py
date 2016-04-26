@@ -16,8 +16,9 @@ from common.custom_error import BadAuthentication, BadInfoSuppliedError
 config = ConfigParser.ConfigParser()
 import settings
 config.read('config.py')
+from node import Node
 
-class User:
+class User(Node):
     """
     This class defines the user object which can be used for successive operations
     to be done on the user object.

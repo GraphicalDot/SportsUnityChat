@@ -18,7 +18,7 @@ import random
 import requests
 import time
 import uuid
-from models.group import Group
+from models.node import Node
 from requests_toolbelt import MultipartDecoder
 from common.custom_error import BadAuthentication, BadInfoSuppliedError
 # import admin_api
@@ -791,21 +791,22 @@ class UserInfoHandler(UserApiRequestHandler):
         response["info"], response["status"] = settings.SUCCESS_RESPONSE, settings.STATUS_200
         self.write(response)
 
-class GroupDpHandler(UserApiRequestHandler):
+class SetDpHandler(UserApiRequestHandler):
     def post(self):
         response = {}
-        name = self.get_argument('jid')
+        jid = self.get_argument('jid')
         content = self.get_argument('content')
-        Group(name).upload_dp(content)
+        Node(jid).upload_dp(content)
         response['status'] = 200
         response['info'] = 'Success'
         self.write(response)
 
-    def get(self):
+class GetDpHandler(UserApiRequestHandler):
+    def post(self):
         response = {}
-        name = self.get_argument('jid')
+        jid = self.get_argument('jid')
         version = self.get_argument('version')
-        content = base64.b64encode(Group(name).get_dp_version(version))
+        content = base64.b64encode(Node(jid).get_dp_version(version))
         response['status'] = 200
         response['info'] = 'Success'
         response['content'] = content

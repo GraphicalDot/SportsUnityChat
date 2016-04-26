@@ -216,7 +216,8 @@ class ProfilePicServiceTest(unittest.TestCase):
     _username = 'test'
     _password = 'password'
     _phone_number = config.get('tests', 'test_phone_number')
-    _test_storage_url = tornado_local_address + "/group_dp"
+    _test_set_url = tornado_local_address + "/set_dp"
+    _test_get_url = tornado_local_address + "/get_dp"
     _small_version_name = str(_username) + "/S" + ".jpg"
     _large_version_name = str(_username) + "/L" + ".jpg"
     _profile_pic_bucket = config.get('amazon', 'dp_bucket_name')
@@ -238,7 +239,7 @@ class ProfilePicServiceTest(unittest.TestCase):
             'content': image_data
         }
         payload.update(extra_params_dict)
-        response = requests.post(self._test_storage_url , data = json.dumps(payload))
+        response = requests.post(self._test_set_url , data = json.dumps(payload))
         assert json.loads(response.text)['status'] == 200
 
         time.sleep(10)
@@ -254,13 +255,12 @@ class ProfilePicServiceTest(unittest.TestCase):
         }
 
         payload.update(extra_params_dict)
-        response = json.loads(requests.get(self._test_storage_url , data = json.dumps(payload)).content)
+        response = json.loads(requests.post(self._test_get_url , data = json.dumps(payload)).content)
         assert response['status'] == 200
         assert base64.b64decode(response['content']) == S3(self._profile_pic_bucket).get_file(self._large_version_name)
 
     def tearDown(self):
         pass
-
 
 class InterestTest(unittest.TestCase):
     _username = 'test'

@@ -6,6 +6,7 @@ from common.funcs import S3
 import copy
 
 class S3Image(S3):
+
 	def __init__(self, name, bucket_name, content = None):
 		super(S3Image, self).__init__(bucket_name)
 		self.name = name
