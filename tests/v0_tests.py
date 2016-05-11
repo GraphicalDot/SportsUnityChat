@@ -139,6 +139,7 @@ class CreationTest(unittest.TestCase):
         self.assertEqual(res['password'], record[0]['password'])
         self.assertEqual(res['username'], record[0]['username'])
         old_username = record[0]['username']
+        assert not record[0]['show_location'] 
 
         query = " SELECT * FROM registered_users WHERE phone_number = %s; "
         variables = (self._phone_number,)
