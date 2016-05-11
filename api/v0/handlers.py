@@ -575,7 +575,11 @@ class ContactJidsHandler(UserApiRequestHandler):
 class GetNearbyUsers(UserApiRequestHandler):
 
     def get_nearby_users(self):
-        query = " WITH uinterest AS "\
+        query = " WITH user_pref AS"\
+            + "      ( "\
+            + "            SELECT show_location_status FROM users WHERE username = %s  "\
+            + "      ),"\
+            + " uinterest AS "\
             + "      ( "\
             + "            SELECT array_agg(interest.interest_name) AS uinterest FROM interest, users_interest  "\
             + "            WHERE users_interest.username = %s AND users_interest.interest_id = interest.interest_id "\
@@ -615,6 +619,7 @@ class GetNearbyUsers(UserApiRequestHandler):
             + " GROUP BY  friendship_status, users.username, uinterest.uinterest  "\
             + " ORDER BY users.username, friendship_status DESC;"
         variables = (self.username,
+                self.username,
                 self.username,
                 self.lat,
                 self.lng,
@@ -729,8 +734,9 @@ class LocationPrivacyHandler(UserApiRequestHandler):
         response = {}
         self.username = str(self.get_argument('username'))
         self.show_location_status = str(self.get_argument('show_location_status'))
-        if not self.show_location_status in ["true", "false"]:
+        if not self.show_location_status in ["true", "false", "f", "a", "n"]:
             raise BadInfoSuppliedError("location_status")
+        self.show_location_status = self.show_location_status == "true" ? "a" : "n" 
         self.set_location_privacy()
         response["info"], response["status"] = settings.SUCCESS_RESPONSE, settings.STATUS_200
         self.write(response)
