@@ -614,8 +614,14 @@ class GetNearbyUsers(UserApiRequestHandler):
             + "      ("\
             + "      ( SELECT bjids FROM banned_users)"\
             + "      )"\
-            + "      AND users.show_location = True"\
-            + "      AND EXISTS (SELECT * FROM users WHERE username = %s AND show_location = True) "\
+            + "      AND "\
+            + "      ("\
+            + "         CASE "\
+            + "             WHEN user_pref = 'a' AND users.friendship_status = 'anonymous' AND users.show_location = 'a' THEN True "\
+            + "             WHEN (user_pref = 'a' OR  user_pref = 'f') AND users.friendship_status = 'friend' AND (users.show_location = 'a' OR user.show_location = 'f') THEN True "\
+            + "             ELSE False "\
+            + "         END "\
+            + "      ) = True"\
             + " GROUP BY  friendship_status, users.username, uinterest.uinterest  "\
             + " ORDER BY users.username, friendship_status DESC;"
         variables = (self.username,
@@ -629,8 +635,9 @@ class GetNearbyUsers(UserApiRequestHandler):
                 self.radius,
                 int(time.time() - self.was_online_limit),
                 self.username,
-                self.username
         )
+        from IPython import embed
+        embed()
         records = QueryHandler.get_results(query, variables)
         return records
 
@@ -736,7 +743,7 @@ class LocationPrivacyHandler(UserApiRequestHandler):
         self.show_location_status = str(self.get_argument('show_location_status'))
         if not self.show_location_status in ["true", "false", "f", "a", "n"]:
             raise BadInfoSuppliedError("location_status")
-        self.show_location_status = self.show_location_status == "true" ? "a" : "n" 
+        self.show_location_status = "a" if self.show_location_status == "true" else "n" 
         self.set_location_privacy()
         response["info"], response["status"] = settings.SUCCESS_RESPONSE, settings.STATUS_200
         self.write(response)
