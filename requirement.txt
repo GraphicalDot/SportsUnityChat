@@ -1,6 +1,6 @@
 Django==1.9.5
 Facebook==0.0
-Unidecode==0.4.19
+Unidecode==0.04.19
 Wand==0.4.2
 apns==2.0.1
 argparse==1.2.1
