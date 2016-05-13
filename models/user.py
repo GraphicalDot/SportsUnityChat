@@ -10,6 +10,7 @@ import random
 import requests
 import time
 import uuid
+import settings
 from requests_toolbelt import MultipartDecoder
 from common.custom_error import BadAuthentication, BadInfoSuppliedError
 # import admin_api
@@ -105,14 +106,13 @@ class User(Node):
         """
         try:
             self._generate_password()
-            query = " WITH delete_registered AS (DELETE FROM registered_users WHERE phone_number = E'919560488236' ) UPDATE users SET password = %s, show_location = False WHERE username = %s; "
-            variables = (self.password, self.username)
+            query = " WITH delete_registered AS (DELETE FROM registered_users WHERE phone_number = E'919560488236' ) UPDATE users SET password = %s, show_location = %s WHERE username = %s; "
+            variables = (self.password, settings.SHOW_LOCATION_NONE_STATUS, self.username)
             QueryHandler.execute(query, variables)
             response, status = "Success", settings.STATUS_200
         except Exception, e:
             response, status = " Error %e " % e, settings.STATUS_500
-        finally:
-            return response, status
+        return response, status
 
 
     def _is_token_correct(self, auth_code):
