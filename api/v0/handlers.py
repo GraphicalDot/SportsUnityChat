@@ -577,12 +577,17 @@ class GetNearbyUsers(UserApiRequestHandler):
     def get_nearby_users(self):
         query = " WITH user_pref AS"\
             + "      ( "\
-            + "            SELECT show_location_status FROM users WHERE username = %s  "\
+            + "            SELECT show_location FROM users WHERE username = %s AND show_location != %s "\
             + "      ),"\
             + " uinterest AS "\
             + "      ( "\
             + "            SELECT array_agg(interest.interest_name) AS uinterest FROM interest, users_interest  "\
             + "            WHERE users_interest.username = %s AND users_interest.interest_id = interest.interest_id "\
+            + "      ),"\
+            + " user_roster AS "\
+            + "      ( "\
+            + "            SELECT split_part(rosterusers.jid, '@', 1) AS friends from rosterusers WHERE username = %s "\
+            + "               AND subscription = 'B' "\
             + "      ),"\
             + " banned_users AS "\
             + "      ("\
@@ -598,13 +603,9 @@ class GetNearbyUsers(UserApiRequestHandler):
             + "      earth_distance(ll_to_earth(%s, %s), ll_to_earth(users.lat, users.lng)) as distance, "\
             + "      users.lat AS lat, "\
             + "      users.lng AS lng, "\
-            + "      array_intersect(array_agg(interest.interest_name), uinterest.uinterest) as interests, "\
-            + "      CASE WHEN EXISTS (SELECT 1 from rosterusers WHERE username = %s "\
-            + "         AND users.username = split_part(rosterusers.jid, '@', 1) AND subscription = 'B') "\
-            + "      THEN 'friends' "\
-            + "      ELSE 'anonymous' "\
-            + "      END AS friendship_status "\
-            + "      FROM uinterest, users "\
+            + "      CASE WHEN users.username IN (SELECT friends FROM user_roster) THEN 'friends' ELSE 'anonymous' END AS friendship_status, "\
+            + "      array_intersect(array_agg(interest.interest_name), uinterest.uinterest) as interests "\
+            + "      FROM user_pref, uinterest, users "\
             + "      LEFT OUTER JOIN users_interest on (users.username = users_interest.username) "\
             + "      LEFT OUTER JOIN interest on (users_interest.interest_id = interest.interest_id)"\
             + " WHERE earth_box(ll_to_earth(%s, %s),  %s) @> ll_to_earth(users.lat, users.lng)  "\
@@ -612,32 +613,32 @@ class GetNearbyUsers(UserApiRequestHandler):
             + "      AND users.username != %s "\
             + "      AND users.username NOT IN  "\
             + "      ("\
-            + "      ( SELECT bjids FROM banned_users)"\
+            + "          SELECT bjids FROM banned_users"\
             + "      )"\
             + "      AND "\
             + "      ("\
             + "         CASE "\
-            + "             WHEN user_pref = 'a' AND users.friendship_status = 'anonymous' AND users.show_location = 'a' THEN True "\
-            + "             WHEN (user_pref = 'a' OR  user_pref = 'f') AND users.friendship_status = 'friend' AND (users.show_location = 'a' OR user.show_location = 'f') THEN True "\
+            + "             WHEN users.show_location = 'n' THEN False "\
+            + "             WHEN  user_pref.show_location = 'a' AND users.show_location = 'a' OR (users.username IN (SELECT friends FROM user_roster) AND users.show_location = 'f' ) THEN True "\
+            + "             WHEN user_pref.show_location = 'f' AND users.username IN (SELECT friends FROM user_roster) AND (users.show_location = 'a' OR users.show_location = 'f') THEN True "\
             + "             ELSE False "\
             + "         END "\
             + "      ) = True"\
             + " GROUP BY  friendship_status, users.username, uinterest.uinterest  "\
             + " ORDER BY users.username, friendship_status DESC;"
         variables = (self.username,
+                settings.SHOW_LOCATION_NONE_STATUS,
+                self.username,
                 self.username,
                 self.username,
                 self.lat,
                 self.lng,
-                self.username,
                 self.lat,
                 self.lng,
                 self.radius,
                 int(time.time() - self.was_online_limit),
                 self.username,
         )
-        from IPython import embed
-        embed()
         records = QueryHandler.get_results(query, variables)
         return records
 
@@ -741,7 +742,7 @@ class LocationPrivacyHandler(UserApiRequestHandler):
         response = {}
         self.username = str(self.get_argument('username'))
         self.show_location_status = str(self.get_argument('show_location_status'))
-        if not self.show_location_status in ["true", "false", "f", "a", "n"]:
+        if not self.show_location_status in ["true", "false"]:
             raise BadInfoSuppliedError("location_status")
         self.show_location_status = "a" if self.show_location_status == "true" else "n" 
         self.set_location_privacy()
