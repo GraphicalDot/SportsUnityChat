@@ -139,6 +139,7 @@ class CreationTest(unittest.TestCase):
         self.assertEqual(res['password'], record[0]['password'])
         self.assertEqual(res['username'], record[0]['username'])
         old_username = record[0]['username']
+        assert not record[0]['show_location'] 
 
         query = " SELECT * FROM registered_users WHERE phone_number = %s; "
         variables = (self._phone_number,)
@@ -510,8 +511,8 @@ class NearbyUsersWithSameInterestsTests(unittest.TestCase):
 
     def create_test_users(self):
         for user in self.users:
-            query = "INSERT INTO users(username, password, phone_number, lat, lng, last_seen, is_available, show_location) values(%s, %s, %s, %s, %s, %s, True, True);"
-            variables = (user[0], user[1], user[2], user[3], user[4], user[5])
+            query = "INSERT INTO users(username, password, phone_number, lat, lng, last_seen, is_available, show_location) values(%s, %s, %s, %s, %s, %s, True, %s);"
+            variables = (user[0], user[1], user[2], user[3], user[4], user[5], settings.SHOW_LOCATION_ALL_STATUS)
             try:
                 QueryHandler.execute(query, variables)
             except psycopg2.IntegrityError, e:
@@ -637,8 +638,8 @@ class NearbyUsersWithSameInterestsTests(unittest.TestCase):
             assert  set(expected_result["anonymous"].keys()).issubset(set(modified_user_interest_dict["anonymous"].keys()))
 
 
-    def test_get_nearby_users(self):
-        # case 2: when 'test_2' was online 10 hours back
+    def test_get_nearby_users_when_show_location_is_all(self):
+        # case : when 'test_2' was online 10 hours back
         query = "UPDATE users SET last_seen=%s WHERE username='test_2';"
         QueryHandler.execute(query, (time.time() - 36000,))
         self.expected_result_dict = {"friends": {"test_5": ["test_interest_2", "test_interest_1"]},
@@ -648,7 +649,7 @@ class NearbyUsersWithSameInterestsTests(unittest.TestCase):
         user_dict = {}
         self.assert_response_status(response, settings.SUCCESS_RESPONSE, settings.STATUS_200, self.expected_result_dict)
 
-        # case 1: when 'test_2' was online 15 minutes back
+        # case : when 'test_2' was online 15 minutes back
         query = "UPDATE users SET last_seen=%s WHERE username='test_2';"
         QueryHandler.execute(query, (time.time() - 900,))
         self.expected_result_dict = {"friends": {"test_5": ["test_interest_2", "test_interest_1"]},
@@ -658,7 +659,7 @@ class NearbyUsersWithSameInterestsTests(unittest.TestCase):
         self.assert_response_status(response, settings.SUCCESS_RESPONSE, settings.STATUS_200, self.expected_result_dict)
 
 
-        # case 3: when 'test_6' is also a friend
+        # case : when 'test_6' is also a friend
         self.add_roster_entry('test_6@mm.io')
         self.expected_result_dict = {"friends": {"test_6": ["test_interest_2"],
                                                  "test_5": ["test_interest_2", "test_interest_1"]}, 
@@ -667,7 +668,7 @@ class NearbyUsersWithSameInterestsTests(unittest.TestCase):
         response = requests.get(self.url, data=self.data)
         self.assert_response_status(response, settings.SUCCESS_RESPONSE, settings.STATUS_200, self.expected_result_dict)
 
-        # case 4: when 'test_2' has roster entry for none (not a friend)
+        # case : when 'test_2' has roster entry for none (not a friend)
         self.add_roster_entry('test_2@mm.io', subscription = 'N')
         response = requests.get(self.url, data=self.data)
         self.expected_result_dict = {"friends": {"test_6": ["test_interest_2"],
@@ -675,7 +676,7 @@ class NearbyUsersWithSameInterestsTests(unittest.TestCase):
                                     "anonymous": {"test_2": ["test_interest_2"]}}
         self.assert_response_status(response, settings.SUCCESS_RESPONSE, settings.STATUS_200, self.expected_result_dict)
 
-        #case 5: when 'test_2' has a both way subscription 
+        #case : when 'test_2' has a both way subscription 
         self.update_roster_entry('test_2@mm.io', subscription = 'B')
         response = requests.get(self.url, data=self.data)
         self.expected_result_dict = {"friends": {"test_6": ["test_interest_2"],
@@ -684,47 +685,105 @@ class NearbyUsersWithSameInterestsTests(unittest.TestCase):
                                     "anonymous": {}}
         self.assert_response_status(response, settings.SUCCESS_RESPONSE, settings.STATUS_200, self.expected_result_dict)
 
-        # case 6: when 'test_2' has disabled his location
+        # case : when 'test_2' has disabled his location
         self.expected_result_dict = {"friends": {"test_6": ["test_interest_2"],
                                                  "test_5": ["test_interest_2", "test_interest_1"]}, 
                                     "anonymous": {}}
-        query = " UPDATE users SET show_location = FALSE WHERE username = %s;"
-        variables = ('test_2',)
+        query = " UPDATE users SET show_location = %s WHERE username = %s;"
+        variables = (settings.SHOW_LOCATION_NONE_STATUS ,'test_2',)
         QueryHandler.execute(query, variables)
         response = requests.get(self.url, data=self.data)
         self.assert_response_status(response, settings.SUCCESS_RESPONSE, settings.STATUS_200, self.expected_result_dict)
 
-        #case 7: when 'test_2' has enabled his location
+        #case : when 'test_2' has set his location to all
         self.expected_result_dict = {"friends": {"test_6": ["test_interest_2"],
                                                  "test_5": ["test_interest_2", "test_interest_1"],
                                                  "test_2": ["test_interest_2"]}, 
                                     "anonymous": {}}
-        query = " UPDATE users SET show_location = TRUE WHERE username = %s;"
-        variables = ('test_2',)
+        query = " UPDATE users SET show_location = %s WHERE username = %s;"
+        variables = (settings.SHOW_LOCATION_ALL_STATUS, 'test_2',)
         QueryHandler.execute(query, variables)
         response = requests.get(self.url, data=self.data)
         self.assert_response_status(response, settings.SUCCESS_RESPONSE, settings.STATUS_200, self.expected_result_dict)
 
-        #case 8: when 'test_2' has a 'F' subscription
+        #case 7: when 'test_2' has set his location to friends
+        self.expected_result_dict = {"friends": {"test_6": ["test_interest_2"],
+                                                 "test_5": ["test_interest_2", "test_interest_1"],
+                                                 "test_2": ["test_interest_2"]}, 
+                                    "anonymous": {}}
+        query = " UPDATE users SET show_location = %s WHERE username = %s;"
+        variables = (settings.SHOW_LOCATION_FRIENDS_STATUS, 'test_2',)
+        QueryHandler.execute(query, variables)
+        response = requests.get(self.url, data=self.data)
+        self.assert_response_status(response, settings.SUCCESS_RESPONSE, settings.STATUS_200, self.expected_result_dict)
+
+        #case 8: when 'test_2' has a 'F' subscription and location to all
         self.update_roster_entry('test_2@mm.io', subscription = 'F')
+        query = " UPDATE users SET show_location = %s WHERE username = %s;"
+        variables = (settings.SHOW_LOCATION_ALL_STATUS, 'test_2',)
+        QueryHandler.execute(query, variables)
         response = requests.get(self.url, data=self.data)
         self.expected_result_dict = {"friends": {"test_6": ["test_interest_2"],
                                                  "test_5": ["test_interest_2", "test_interest_1"]}, 
                                     "anonymous": {"test_2": ["test_interest_2"]}}
         self.assert_response_status(response, settings.SUCCESS_RESPONSE, settings.STATUS_200, self.expected_result_dict)
 
-        # case 9: when 'test_2' has a 'T' subscription
+        #case 8: when 'test_2' has a 'F' subscription and location to friends
+        self.update_roster_entry('test_2@mm.io', subscription = 'F')
+        query = " UPDATE users SET show_location = %s WHERE username = %s;"
+        variables = (settings.SHOW_LOCATION_FRIENDS_STATUS, 'test_2',)
+        QueryHandler.execute(query, variables)
+        response = requests.get(self.url, data=self.data)
+        self.expected_result_dict = {"friends": {"test_6": ["test_interest_2"],
+                                                 "test_5": ["test_interest_2", "test_interest_1"]}, 
+                                    "anonymous": {}}
+        self.assert_response_status(response, settings.SUCCESS_RESPONSE, settings.STATUS_200, self.expected_result_dict)
+
+        # case 9: when 'test_2' has a 'T' subscription and location to all
+        self.expected_result_dict = {"friends": {"test_6": ["test_interest_2"],
+                                         "test_5": ["test_interest_2", "test_interest_1"]}, 
+                            "anonymous": {"test_2": ["test_interest_2"]}}
         self.update_roster_entry('test_2@mm.io', subscription = 'T')
+        query = " UPDATE users SET show_location = %s WHERE username = %s;"
+        variables = (settings.SHOW_LOCATION_ALL_STATUS, 'test_2',)
+        QueryHandler.execute(query, variables)
         response = requests.get(self.url, data=self.data)
         self.assert_response_status(response, settings.SUCCESS_RESPONSE, settings.STATUS_200, self.expected_result_dict)
         
+        # case 9: when 'test_2' has a 'T' subscription and location to friends
+        self.expected_result_dict = {"friends": {"test_6": ["test_interest_2"],
+                                         "test_5": ["test_interest_2", "test_interest_1"]}, 
+                            "anonymous": {}}
+        self.update_roster_entry('test_2@mm.io', subscription = 'T')
+        query = " UPDATE users SET show_location = %s WHERE username = %s;"
+        variables = (settings.SHOW_LOCATION_FRIENDS_STATUS, 'test_2',)
+        QueryHandler.execute(query, variables)
+        response = requests.get(self.url, data=self.data)
+        self.assert_response_status(response, settings.SUCCESS_RESPONSE, settings.STATUS_200, self.expected_result_dict)
 
-        # case 10: when user has NO friends
+
+        # case 10: when user has NO friends :( and test_2's location is visible to all
         self.delete_user_friends()
+        query = " UPDATE users SET show_location = %s WHERE username = %s;"
+        variables = (settings.SHOW_LOCATION_ALL_STATUS, 'test_2',)
+        QueryHandler.execute(query, variables)
         self.expected_result_dict = {"friends": {}, 
                                     "anonymous": {"test_6": ["test_interest_2"], 
                                                 "test_5": ["test_interest_2", "test_interest_1"],
                                                 "test_2": ["test_interest_2"]}}
+        self.data = {'username': 'test_4', 'password': 'pswd_4', 'lat': '0.0', 'lng': '0.0', 'radius': 5, 'apk_version': self.apk_version, 'udid': self.udid}
+        response = requests.get(self.url, data=self.data)
+        self.assert_response_status(response, settings.SUCCESS_RESPONSE, settings.STATUS_200, self.expected_result_dict)
+
+
+        # case 10: when user has NO friends :( and test_2's location is visible to friends
+        self.delete_user_friends()
+        query = " UPDATE users SET show_location = %s WHERE username = %s;"
+        variables = (settings.SHOW_LOCATION_FRIENDS_STATUS, 'test_2',)
+        QueryHandler.execute(query, variables)
+        
+        self.expected_result_dict = {"friends": {}, 
+                                    "anonymous": {}}
         self.data = {'username': 'test_4', 'password': 'pswd_4', 'lat': '0.0', 'lng': '0.0', 'radius': 5, 'apk_version': self.apk_version, 'udid': self.udid}
         response = requests.get(self.url, data=self.data)
         self.assert_response_status(response, settings.SUCCESS_RESPONSE, settings.STATUS_200, self.expected_result_dict)
@@ -738,15 +797,14 @@ class NearbyUsersWithSameInterestsTests(unittest.TestCase):
                                     "anonymous": {
                                         "test_6": ["test_interest_2"], 
                                         "test_5": ["test_interest_2", "test_interest_1"], 
-                                        "test_1": ["test_interest_1"],
-                                        "test_2": ["test_interest_2"]}}
+                                        "test_1": ["test_interest_1"]}}
         self.data = {'username': 'test_4', 'password': 'pswd_4', 'lat': '0.0', 'lng': '0.0', 'radius': 5, 'apk_version': self.apk_version, 'udid': self.udid}
         response = requests.get(self.url, data=self.data)
         self.assert_response_status(response, settings.SUCCESS_RESPONSE, settings.STATUS_200, self.expected_result_dict)
 
         #case 12: when the user has disabled his privacy
-        query = "UPDATE users SET show_location = False WHERE username = %s;"
-        variables = (self.username, )
+        query = "UPDATE users SET show_location = %s WHERE username = %s;"
+        variables = (settings.SHOW_LOCATION_NONE_STATUS, self.username, )
         QueryHandler.execute(query, variables)
         self.expected_result_dict = {"friends": {}, 
                                     "anonymous": {}}
@@ -766,6 +824,151 @@ class NearbyUsersWithSameInterestsTests(unittest.TestCase):
         self.data = {'username': 'test_4', 'password': 'pswd_4', 'lat': '0', 'lng': '0', 'radius': 5, 'apk_version': self.apk_version, 'udid': self.udid}
         response = requests.get(self.url, data=self.data)
         self.assert_response_status(response, settings.SUCCESS_RESPONSE, settings.STATUS_200, self.expected_result_dict)
+
+    def test_get_nearby_users_when_show_location_status_is_friends(self):
+        query = "UPDATE users SET show_location=%s WHERE username='test_4';"
+        variables = (settings.SHOW_LOCATION_FRIENDS_STATUS,)
+        QueryHandler.execute(query, variables)
+        
+        # case : when 'test_2' was online 10 hours back
+        query = "UPDATE users SET last_seen=%s WHERE username='test_2';"
+        QueryHandler.execute(query, (time.time() - 36000,))
+        self.expected_result_dict = {"friends": {"test_5": ["test_interest_2", "test_interest_1"]},
+                                     "anonymous": {}}
+        self.data = {'username': 'test_4', 'password': 'pswd_4', 'lat': '0.0', 'lng': '0.0', 'radius': 5, 'apk_version': self.apk_version, 'udid': self.udid}
+        response = requests.get(self.url, data=self.data)
+        user_dict = {}
+        self.assert_response_status(response, settings.SUCCESS_RESPONSE, settings.STATUS_200, self.expected_result_dict)
+
+        # case : when 'test_2' was online 15 minutes back
+        query = "UPDATE users SET last_seen=%s WHERE username='test_2';"
+        QueryHandler.execute(query, (time.time() - 900,))
+        self.expected_result_dict = {"friends": {"test_5": ["test_interest_2", "test_interest_1"]},
+                                     "anonymous": {}}
+        self.data = {'username': 'test_4', 'password': 'pswd_4', 'lat': '0.0', 'lng': '0.0', 'radius': 5, 'apk_version': self.apk_version, 'udid': self.udid}
+        response = requests.get(self.url, data=self.data)
+        self.assert_response_status(response, settings.SUCCESS_RESPONSE, settings.STATUS_200, self.expected_result_dict)
+
+
+        # case : when 'test_6' is also a friend
+        self.add_roster_entry('test_6@mm.io')
+        self.expected_result_dict = {"friends": {"test_6": ["test_interest_2"],
+                                                 "test_5": ["test_interest_2", "test_interest_1"]}, 
+                                    "anonymous": {}}
+        self.data = {'username': 'test_4', 'password': 'pswd_4', 'lat': '0.0', 'lng': '0.0', 'radius': 5, 'apk_version': self.apk_version, 'udid': self.udid}
+        response = requests.get(self.url, data=self.data)
+        self.assert_response_status(response, settings.SUCCESS_RESPONSE, settings.STATUS_200, self.expected_result_dict)
+
+        # case : when 'test_2' has roster entry for none (not a friend)
+        self.add_roster_entry('test_2@mm.io', subscription = 'N')
+        response = requests.get(self.url, data=self.data)
+        self.expected_result_dict = {"friends": {"test_6": ["test_interest_2"],
+                                                 "test_5": ["test_interest_2", "test_interest_1"]}, 
+                                    "anonymous": {}}
+        self.assert_response_status(response, settings.SUCCESS_RESPONSE, settings.STATUS_200, self.expected_result_dict)
+
+        #case : when 'test_2' has a both way subscription 
+        self.update_roster_entry('test_2@mm.io', subscription = 'B')
+        response = requests.get(self.url, data=self.data)
+        self.expected_result_dict = {"friends": {"test_6": ["test_interest_2"],
+                                                 "test_5": ["test_interest_2", "test_interest_1"],
+                                                 "test_2": ["test_interest_2"]}, 
+                                    "anonymous": {}}
+        self.assert_response_status(response, settings.SUCCESS_RESPONSE, settings.STATUS_200, self.expected_result_dict)
+
+        # case : when 'test_2' has disabled his location
+        self.expected_result_dict = {"friends": {"test_6": ["test_interest_2"],
+                                                 "test_5": ["test_interest_2", "test_interest_1"]}, 
+                                    "anonymous": {}}
+        query = " UPDATE users SET show_location = %s WHERE username = %s;"
+        variables = (settings.SHOW_LOCATION_NONE_STATUS ,'test_2',)
+        QueryHandler.execute(query, variables)
+        response = requests.get(self.url, data=self.data)
+        self.assert_response_status(response, settings.SUCCESS_RESPONSE, settings.STATUS_200, self.expected_result_dict)
+
+        #case : when 'test_2' has enabled his location
+        self.expected_result_dict = {"friends": {"test_6": ["test_interest_2"],
+                                                 "test_5": ["test_interest_2", "test_interest_1"],
+                                                 "test_2": ["test_interest_2"]}, 
+                                    "anonymous": {}}
+        query = " UPDATE users SET show_location = %s WHERE username = %s;"
+        variables = (settings.SHOW_LOCATION_ALL_STATUS, 'test_2',)
+        QueryHandler.execute(query, variables)
+        response = requests.get(self.url, data=self.data)
+        self.assert_response_status(response, settings.SUCCESS_RESPONSE, settings.STATUS_200, self.expected_result_dict)
+
+
+        #case : when 'test_2' has a 'F' subscription and location to all
+        self.update_roster_entry('test_2@mm.io', subscription = 'F')
+        query = " UPDATE users SET show_location = %s WHERE username = %s;"
+        variables = (settings.SHOW_LOCATION_ALL_STATUS, 'test_2',)
+        QueryHandler.execute(query, variables)
+        response = requests.get(self.url, data=self.data)
+        self.expected_result_dict = {"friends": {"test_6": ["test_interest_2"],
+                                                 "test_5": ["test_interest_2", "test_interest_1"]}, 
+                                    "anonymous": {}}
+        self.assert_response_status(response, settings.SUCCESS_RESPONSE, settings.STATUS_200, self.expected_result_dict)
+
+        #case : when 'test_2' has a 'F' subscription and location to friends
+        self.update_roster_entry('test_2@mm.io', subscription = 'F')
+        query = " UPDATE users SET show_location = %s WHERE username = %s;"
+        variables = (settings.SHOW_LOCATION_FRIENDS_STATUS, 'test_2',)
+        QueryHandler.execute(query, variables)
+        response = requests.get(self.url, data=self.data)
+        self.expected_result_dict = {"friends": {"test_6": ["test_interest_2"],
+                                                 "test_5": ["test_interest_2", "test_interest_1"]}, 
+                                    "anonymous": {}}
+        self.assert_response_status(response, settings.SUCCESS_RESPONSE, settings.STATUS_200, self.expected_result_dict)
+
+        # case 9: when 'test_2' has a 'T' subscription and location to all
+        self.expected_result_dict = {"friends": {"test_6": ["test_interest_2"],
+                                         "test_5": ["test_interest_2", "test_interest_1"]}, 
+                            "anonymous": {}}
+        self.update_roster_entry('test_2@mm.io', subscription = 'T')
+        query = " UPDATE users SET show_location = %s WHERE username = %s;"
+        variables = (settings.SHOW_LOCATION_ALL_STATUS, 'test_2',)
+        QueryHandler.execute(query, variables)
+        response = requests.get(self.url, data=self.data)
+        self.assert_response_status(response, settings.SUCCESS_RESPONSE, settings.STATUS_200, self.expected_result_dict)
+        
+        # case 9: when 'test_2' has a 'T' subscription and location to friends
+        self.expected_result_dict = {"friends": {"test_6": ["test_interest_2"],
+                                         "test_5": ["test_interest_2", "test_interest_1"]}, 
+                            "anonymous": {}}
+        self.update_roster_entry('test_2@mm.io', subscription = 'T')
+        query = " UPDATE users SET show_location = %s WHERE username = %s;"
+        variables = (settings.SHOW_LOCATION_FRIENDS_STATUS, 'test_2',)
+        QueryHandler.execute(query, variables)
+        response = requests.get(self.url, data=self.data)
+        self.assert_response_status(response, settings.SUCCESS_RESPONSE, settings.STATUS_200, self.expected_result_dict)
+
+        # case 10: when user has NO friends
+        self.delete_user_friends()
+        self.expected_result_dict = {"friends": {}, 
+                                    "anonymous": {}}
+        self.data = {'username': 'test_4', 'password': 'pswd_4', 'lat': '0.0', 'lng': '0.0', 'radius': 5, 'apk_version': self.apk_version, 'udid': self.udid}
+        response = requests.get(self.url, data=self.data)
+        self.assert_response_status(response, settings.SUCCESS_RESPONSE, settings.STATUS_200, self.expected_result_dict)
+
+
+        # case 11: when no banned users
+        query = "UPDATE users SET last_seen=%s WHERE username='test_1';"
+        QueryHandler.execute(query, (time.time(),))
+        self.delete_user_privacy_list()
+        self.expected_result_dict = {"friends": {}, 
+                                    "anonymous": {}}
+        self.data = {'username': 'test_4', 'password': 'pswd_4', 'lat': '0.0', 'lng': '0.0', 'radius': 5, 'apk_version': self.apk_version, 'udid': self.udid}
+        response = requests.get(self.url, data=self.data)
+        self.assert_response_status(response, settings.SUCCESS_RESPONSE, settings.STATUS_200, self.expected_result_dict)
+
+        #case 12: when the user has disabled his privacy
+        query = "UPDATE users SET show_location = %s WHERE username = %s;"
+        variables = (settings.SHOW_LOCATION_NONE_STATUS, self.username, )
+        QueryHandler.execute(query, variables)
+        self.expected_result_dict = {"friends": {}, 
+                                    "anonymous": {}}
+        response = requests.get(self.url, data=self.data)
+        self.assert_response_status(response, settings.SUCCESS_RESPONSE, settings.STATUS_200, self.expected_result_dict)    
 
     def tearDown(self):
         self.delete_users()
@@ -987,7 +1190,7 @@ class SetLocationPrivacyTest(unittest.TestCase):
 
         record = test_utils.select_user(username = self._username)[0]
         assert record['username'] == self._username
-        assert record['show_location']
+        assert record['show_location'] == 'a'
 
         payload = {'username': self._username, 'password': self._password, "show_location_status": "false"}
         payload.update(extra_params_dict)
@@ -996,7 +1199,26 @@ class SetLocationPrivacyTest(unittest.TestCase):
 
         record = test_utils.select_user(username = self._username)[0]
         assert record['username'] == self._username
-        assert not record['show_location']
+        assert record['show_location'] == 'n'
+
+    def test_show_location_status(self):
+        payload = {"username": self._username, "password": self._password, "show_location_status": "false"}
+        payload.update(extra_params_dict)
+        response = json.loads(requests.post(self._set_location_privacy_url, data=payload).content)
+        assert response['status'] == settings.STATUS_200
+
+        record = test_utils.select_user(username = self._username)[0]
+        assert record['username'] == self._username
+        assert record['show_location'] == 'n'
+
+        payload = {"username": self._username, "password": self._password, "show_location_status": "true"}
+        payload.update(extra_params_dict)
+        response = json.loads(requests.post(self._set_location_privacy_url, data=payload).content)
+        assert response['status'] == settings.STATUS_200
+
+        record = test_utils.select_user(username = self._username)[0]
+        assert record['username'] == self._username
+        assert record['show_location'] == 'a'
 
     def tearDown(self):
         test_utils.delete_user(username = self._username)

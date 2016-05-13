@@ -1,5 +1,5 @@
 import importlib
-api_versions = ["v0"]
+api_versions = ["v0", "v1"]
 urls = []
 for version in api_versions:
 	api_version_url_file = importlib.import_module("api.{}.routes".format(version))
