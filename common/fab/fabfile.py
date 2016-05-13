@@ -29,7 +29,7 @@ def basic_setup():
     required to install virtual environment
     """
     virtual_environment = VIRTUAL_ENVIRONMENT.format(env["user"])
-    run("sudo apt-get update")
+    run("sudo apt-get update ")
     run("sudo apt-get install -y python-pip")
     run("sudo apt-get install -y libevent-dev")
     run("sudo apt-get install -y python-all-dev")
@@ -41,8 +41,8 @@ def basic_setup():
     run("sudo apt-get install -y python-virtualenv")
     run("sudo apt-get install -y tor")
     run("sudo apt-get install -y git")
-    run("sudo apt-get install -y apt-get install libffi-dev libssl-dev")
-    run("sudo apt-get install -y apt-get install libpng12-dev libtiff4-dev libwebp-dev python-pip python-dev g++")
+    run("sudo apt-get install -y libffi-dev libssl-dev")
+    run("sudo apt-get install -y libpng12-dev libtiff4-dev libwebp-dev python-pip python-dev g++")
     run("virtualenv VirtualEnvironment --no-site-packages")
     run("sudo chown -R "+env["user"]+":"+env["user"]+" "+virtual_environment)
     run("sudo chmod -R a+rX "+virtual_environment)

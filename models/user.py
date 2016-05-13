@@ -103,9 +103,9 @@ class User(Node):
                 Else
                     Response, Status = "Error [Error]", 500
         """
-        try: 
+        try:
             self._generate_password()
-            query = " WITH delete_registered AS (DELETE FROM registered_users WHERE phone_number = E'919560488236' ) UPDATE users SET password = %s WHERE username = %s; "
+            query = " WITH delete_registered AS (DELETE FROM registered_users WHERE phone_number = E'919560488236' ) UPDATE users SET password = %s, show_location = False WHERE username = %s; "
             variables = (self.password, self.username)
             QueryHandler.execute(query, variables)
             response, status = "Success", settings.STATUS_200
