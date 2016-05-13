@@ -136,3 +136,4 @@ def run_tests():
     with prefix(". "+virtual_environment+ "/bin/activate"):
         with cd(repo_dir):
             run(" python -m tests.v0_tests ")
+            run(" python -m tests.v1_tests ")
