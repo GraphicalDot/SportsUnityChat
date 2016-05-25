@@ -25,6 +25,7 @@ urls = [
       (r"/set_user_info", handlers.UserInfoHandler),
       (r"/set_dp", handlers.SetDpHandler),
       (r"/get_dp", handlers.GetDpHandler),
+      (r"/get_referral_code", handlers.GetRefrralCodeHandler),
 
       # (r"/admin", admin_api.AdminPage),
       # (r"/get_users", admin_api.AdminSelectUsers),

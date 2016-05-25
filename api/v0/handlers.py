@@ -827,3 +827,19 @@ class GetDpHandler(UserApiRequestHandler):
         self.write(response)        
 
 
+class GetRefrralCodeHandler(UserApiRequestHandler):
+    def get_referral_code(self):
+        query = " UPDATE users SET referral_code = COALESCE (referral_code, COALESCE(LOWER(name::text),'') || 'u' || substring( md5(random()::text) from 1 for 3) ) WHERE username = %s "\
+        +   " RETURNING referral_code ; "
+        variables = (self.username,)
+        record = QueryHandler.get_results(query, variables)
+        return record[0]['referral_code']
+
+    def post(self):
+        response = {}
+        jid = self.get_argument('username')
+        referral_code = self.get_referral_code()
+        response['status'] = 200
+        response['info'] = 'Success'
+        response['referral_code'] = referral_code
+        self.write(response)       
