@@ -1093,7 +1093,6 @@ class MatchPushNotificationTest(unittest.TestCase):
         self.delete_match()
 
 
-
 class SetDeviceTokenReturnUserMatchesTest(object):
     _username = "test"
     _phone_number = "911"
@@ -1321,6 +1320,41 @@ class SetUserInfoTest(unittest.TestCase):
 
     def tearDown(self):
         test_utils.delete_user(username = self._username)
+
+class GetReferralCodeTest(unittest.TestCase):
+    _get_referral_code_url = tornado_local_address + "/get_referral_code"
+    _username = "test"
+    _phone_number = "911"
+    _password = "test"
+
+    def setUp(self):
+        test_utils.delete_user(username = self._username)
+        test_utils.create_user(username = self._username, password = self._password, phone_number = self._phone_number)
+
+
+
+    def test_get_user_referral_code(self):
+        payload = {"username": self._username, "password": self._password}
+        payload.update(extra_params_dict)
+        response = json.loads(requests.post(self._get_referral_code_url, data=payload).content)
+        assert response['status'] == settings.STATUS_200
+        referral_code = response['referral_code']
+
+        record = test_utils.select_user(username = self._username)[0]
+        assert record['username'] == self._username
+        assert record['referral_code'] == response['referral_code']
+        referral_code = record['referral_code']
+
+        payload = {"username": self._username, "password": self._password}
+        payload.update(extra_params_dict)
+        response = json.loads(requests.post(self._get_referral_code_url, data=payload).content)
+        assert referral_code == response['referral_code']
+
+
+
+    def tearDown(self):
+        test_utils.delete_user(username = self._username)
+
 
 if __name__ == '__main__':
     unittest.main()
