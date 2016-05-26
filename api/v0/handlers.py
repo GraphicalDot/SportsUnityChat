@@ -837,9 +837,26 @@ class GetRefrralCodeHandler(UserApiRequestHandler):
 
     def post(self):
         response = {}
-        jid = self.get_argument('username')
+        self.username = self.get_argument("username")
         referral_code = self.get_referral_code()
         response['status'] = 200
         response['info'] = 'Success'
         response['referral_code'] = referral_code
+        self.write(response)       
+
+
+class RedeemCodeHandler(UserApiRequestHandler):
+    def apply_referral_code(self):
+        query = " WITH coupon AS (UPDATE coupons SET used_count = used_count + 1 WHERE code = %s AND used_count < coupon_limit RETURNING code) "\
+        +   " INSERT INTO referrals (username, referred_by) VALUES (%s, COALESCE((SELECT code FROM coupon), (SELECT username FROM users WHERE referral_code = %s)) ); "
+        variables = (self.referral_code, self.username, self.referral_code)
+        QueryHandler.execute(query, variables)
+
+    def post(self):
+        response = {}
+        self.username = self.get_argument("username")
+        self.referral_code = self.get_argument('referral_code')
+        self.apply_referral_code()
+        response['status'] = 200
+        response['info'] = 'Success'
         self.write(response)       
