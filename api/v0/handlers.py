@@ -860,3 +860,27 @@ class RedeemCodeHandler(UserApiRequestHandler):
         response['status'] = 200
         response['info'] = 'Success'
         self.write(response)       
+
+class FriendsWatchingHandler(UserApiRequestHandler):
+    def post(self):
+        response = {}
+        self.username = self.get_argument("username")
+        self.matches = tuple(self.get_arguments('matches'))
+        if self.matches:
+            friends_watching = {}
+            records = self.get_friends_matches()
+            for record in records:
+                friends_watching.update({record['match_id']: record['friends']})
+            response['matches'] = friends_watching
+        response['status'] = 200
+        response['info'] = 'Success'
+        self.write(response)    
+
+    def get_friends_matches(self):
+        query = " SELECT match_id, array_agg(username) AS friends FROM users_matches WHERE username IN "\
+        +   " (SELECT split_part(rosterusers.jid, '@', 1) from rosterusers WHERE username = %s "\
+        +   "   AND subscription = 'B') "\
+        +   " AND match_id IN %s GROUP BY match_id; "
+        variables = (self.username, self.matches, )
+        records = QueryHandler.get_results(query, variables)
+        return records
