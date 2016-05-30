@@ -848,8 +848,8 @@ class GetRefrralCodeHandler(UserApiRequestHandler):
 class RedeemCodeHandler(UserApiRequestHandler):
     def apply_referral_code(self):
         query = " WITH coupon AS (UPDATE coupons SET used_count = used_count + 1 WHERE code = %s AND used_count < coupon_limit RETURNING code) "\
-        +   " INSERT INTO referrals (username, referred_by) VALUES (%s, COALESCE((SELECT code FROM coupon), (SELECT username FROM users WHERE referral_code = %s)) ); "
-        variables = (self.referral_code, self.username, self.referral_code)
+        +   " INSERT INTO referrals (username, referred_by) VALUES (%s, COALESCE((SELECT code FROM coupon), (SELECT username FROM users WHERE referral_code = %s AND username != %s)) ); "
+        variables = (self.referral_code, self.username, self.referral_code, self.username, )
         QueryHandler.execute(query, variables)
 
     def post(self):
