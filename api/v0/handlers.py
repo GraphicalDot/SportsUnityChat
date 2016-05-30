@@ -829,7 +829,7 @@ class GetDpHandler(UserApiRequestHandler):
 
 class GetRefrralCodeHandler(UserApiRequestHandler):
     def get_referral_code(self):
-        query = " UPDATE users SET referral_code = COALESCE (referral_code, COALESCE(LOWER(name::text),'') || 'u' || substring( md5(random()::text) from 1 for 3) ) WHERE username = %s "\
+        query = " UPDATE users SET referral_code = COALESCE (referral_code, COALESCE(regexp_replace(LOWER(name::text), '[^[:alpha:]]','' ,'g'), '') || 'u' || substring( md5(random()::text) from 1 for 3) ) WHERE username = %s "\
         +   " RETURNING referral_code ; "
         variables = (self.username,)
         record = QueryHandler.get_results(query, variables)
