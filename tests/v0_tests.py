@@ -17,6 +17,7 @@ from requests_toolbelt import MultipartEncoder
 from shutil import copyfile
 from common.custom_error import BadAuthentication
 from models.user import User
+from models.interest import Interest
 import settings
 import test_utils
 import copy
@@ -65,14 +66,24 @@ class CreationTest(unittest.TestCase):
 	_password = 'password'
 	_username = 'test'
 	_auth_code = 'ASDFG'
+	_name = 'test'
 	_registration_url = tornado_local_address + "/register?phone_number=" + str(_phone_number)
 	_creation_url = tornado_local_address + "/create?phone_number=" + str(_phone_number) \
 					+ "&auth_code=" + str(_auth_code) + extra_params
+
+	_set_user_info_url = tornado_local_address + "/set_user_info"
+	_interests = [{"name": "interest_one", 'id': " test_1"}, 
+				{"name": "interest_two", 'id': "test_2"}, 
+				{"name": "interest_three", 'id': "test_3"}]
+	_set_interest_url = tornado_local_address + "/set_user_interests"
 
 	def setUp(self):
 		super(CreationTest, self).setUp()
 		test_utils.delete_user(username=self._username, phone_number=self._phone_number)
 		test_utils.delete_registered_user(phone_number=self._phone_number)
+		for interest in self._interests:
+			Interest(interest['name'], interest['id']).delete()
+			Interest(interest['name'], interest['id']).create()
 
 	def test_user_registration(self):
 
@@ -133,18 +144,36 @@ class CreationTest(unittest.TestCase):
 		# valid url params
 		response = requests.get(self._creation_url + extra_params)
 		res = json.loads(response.text)
-		record = test_utils.select_user(phone_number = self._phone_number)
+
+
+		query = " SELECT DISTINCT users.name, users.username AS username, password, show_location, array_agg(users_interest.interest_id) AS interests "\
+		+	" FROM users LEFT OUTER JOIN users_interest on (users.username = users_interest.username) WHERE phone_number = %s  GROUP BY users.username;"
+		variables = (self._phone_number, )
+		record = QueryHandler.get_results(query, variables)
 
 		self.assertEqual(res['status'], settings.STATUS_200)
 		self.assertEqual(res['password'], record[0]['password'])
 		self.assertEqual(res['username'], record[0]['username'])
 		old_username = record[0]['username']
+		old_password = record[0]['password']
 		assert not record[0]['show_location'] 
 
 		query = " SELECT * FROM registered_users WHERE phone_number = %s; "
 		variables = (self._phone_number,)
 		record = QueryHandler.get_results(query, variables)
 		self.assertEqual(len(record), 0)
+
+		# set user info
+		payload = {'username': old_username, 'password': old_password, 'interests': [self._interests[0]['id'], self._interests[1]['id']]}
+		payload.update(extra_params_dict)
+		response = json.loads(requests.post(self._set_interest_url, data = payload).content)
+		assert response['status'] == settings.STATUS_200
+
+		payload = {'username': old_username, 'password': old_password, 'name': self._name}
+		payload.update(extra_params_dict)
+		response = json.loads(requests.post(self._set_user_info_url, data = payload).content)
+		assert response['status'] == settings.STATUS_200
+
 
 		expiration_time = int(time.time()) + int(config.get('registration', 'expiry_period_sec'))
 		query = " INSERT INTO registered_users (authorization_code, expiration_time, phone_number) VALUES ( %s, %s, %s); "
@@ -154,7 +183,12 @@ class CreationTest(unittest.TestCase):
 		response = requests.get(self._creation_url)
 		res = json.loads(response.text)
 		self.assertEqual(res['username'], old_username)
+		assert res['name'] == self._name
+		assert len(res['interests']) == 2
+		assert self._interests[0]['id'] in res['interests'] 
+		assert self._interests[1]['id'] in res['interests'] 
 
+		
 		query = " SELECT * FROM registered_users WHERE phone_number = %s; "
 		variables = (self._phone_number,)
 		record = QueryHandler.get_results(query, variables)
@@ -171,6 +205,10 @@ class CreationTest(unittest.TestCase):
 		res = json.loads(response.text)
 		self.assertEqual(res['status'], settings.STATUS_400)
 
+
+	def tearDown(self):
+		for interest in self._interests:
+			Interest(interest['id'], interest['name']).delete()
 
 
 class ProfilePicServiceTest(unittest.TestCase):

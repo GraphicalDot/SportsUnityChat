@@ -239,7 +239,7 @@ class CreationHandler(BaseRequestHandler):
             phone_number = str(self.get_argument("phone_number"))
             auth_code = str(self.get_argument("auth_code"))
             user = User(phone_number)
-            response['info'], response['status'], response['password'], response['username'] = user.handle_creation(auth_code)
+            response['info'], response['status'], response['password'], response['username'], response['name'], response['interests'] = user.handle_creation(auth_code)
         except MissingArgumentError, status:
             response["info"] = status.log_message 
             response["status"] = settings.STATUS_400

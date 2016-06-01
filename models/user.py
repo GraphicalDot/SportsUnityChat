@@ -39,6 +39,8 @@ class User(Node):
     def __init__(self, phone_number = None, password = None, username = None):
         self.username = username
         self.password = password
+        self.name = None
+        self.interests = None
         self.phone_number = phone_number
 
     def authenticate(self):
@@ -68,6 +70,7 @@ class User(Node):
             If wrong or expired auth token
                 " Wrong or Expired Token ",settings.STATUS_400, None
         """
+
         try:
             if self._is_token_correct(auth_code):
                 query = " SELECT * FROM users WHERE phone_number = %s ;"
@@ -76,7 +79,7 @@ class User(Node):
                 
                 if record:
                     self.username = record[0]['username']
-                    response, status = self._reset_password()
+                    response, status = self._reset_password_return_user_info()
                 else:
                     response, status = self._create_new()
             else:
@@ -84,7 +87,7 @@ class User(Node):
         except Exception, e:
             response, status = " Error %e " % e, settings.STATUS_500
         finally:
-            return response, status, self.password, self.username
+            return response, status, self.password, self.username, self.name, self.interests
 
     def _generate_username(self):
         self.username = self._generate_random()
@@ -95,7 +98,7 @@ class User(Node):
     def _generate_random(self, n = 10):
         return (uuid.uuid4().hex)[:n]
 
-    def _reset_password(self):
+    def _reset_password_return_user_info(self):
         """
             This functions resets the password of a user
             Response:-
@@ -106,9 +109,14 @@ class User(Node):
         """
         try:
             self._generate_password()
-            query = " WITH delete_registered AS (DELETE FROM registered_users WHERE phone_number = E'919560488236' ) UPDATE users SET password = %s, show_location = %s WHERE username = %s; "
-            variables = (self.password, settings.SHOW_LOCATION_NONE_STATUS, self.username)
-            QueryHandler.execute(query, variables)
+            query = " WITH delete_registered AS (DELETE FROM registered_users WHERE phone_number = E'919560488236' ), "\
+            +   " updates AS ( UPDATE users SET password = %s, show_location = %s WHERE username = %s )"\
+            +   " SELECT users.username, users.name, users.password, array_agg(interest_id) AS interests FROM users "\
+            +   " LEFT OUTER JOIN users_interest on (users.username = users_interest.username) WHERE users.username = %s  GROUP BY users.username; "
+            variables = (self.password, settings.SHOW_LOCATION_NONE_STATUS, self.username, self.username, )
+            record = QueryHandler.get_results(query, variables)
+            self.name = record[0]['name']
+            self.interests = record[0]['interests']
             response, status = "Success", settings.STATUS_200
         except Exception, e:
             response, status = " Error %e " % e, settings.STATUS_500
