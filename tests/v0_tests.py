@@ -207,6 +207,7 @@ class CreationTest(unittest.TestCase):
 
 
 	def tearDown(self):
+		test_utils.delete_user(phone_number=self._phone_number)
 		for interest in self._interests:
 			Interest(interest['id'], interest['name']).delete()
 
