@@ -111,7 +111,8 @@ class User(Node):
             self._generate_password()
             query = " WITH delete_registered AS (DELETE FROM registered_users WHERE phone_number = E'919560488236' ), "\
             +   " updates AS ( UPDATE users SET password = %s, show_location = %s WHERE username = %s )"\
-            +   " SELECT users.username, users.name, users.password, array_agg(interest_id) AS interests FROM users "\
+            +   " SELECT users.username, users.name, users.password, "\
+            +   " json_agg(row_to_json((SELECT d FROM (SELECT users_interest.interest_id AS id, users_interest.properties) d))) AS  interests FROM users "\
             +   " LEFT OUTER JOIN users_interest on (users.username = users_interest.username) WHERE users.username = %s  GROUP BY users.username; "
             variables = (self.password, settings.SHOW_LOCATION_NONE_STATUS, self.username, self.username, )
             record = QueryHandler.get_results(query, variables)

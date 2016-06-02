@@ -72,10 +72,35 @@ class CreationTest(unittest.TestCase):
 					+ "&auth_code=" + str(_auth_code) + extra_params
 
 	_set_user_info_url = tornado_local_address + "/set_user_info"
-	_interests = [{"name": "interest_one", 'id': " test_1"}, 
-				{"name": "interest_two", 'id': "test_2"}, 
-				{"name": "interest_three", 'id': "test_3"}]
-	_set_interest_url = tornado_local_address + "/set_user_interests"
+	_interests = [{"name": "interest_one", 'id': " test_1", "properties":
+		{
+			"obj_name": "Afghanistan",
+			"sports_type": "cricket",
+			"filter_type": "teams",
+			"obj_id": "212",
+			"obj_flag": "http:\/\/players.images.s3.amazonaws.com\/212.png"
+		}
+	}, 
+	{"name": "interest_two", 'id': "test_2", "properties": 
+		{
+			"obj_name": "Afghanistan",
+			"sports_type": "cricket",
+			"filter_type": "teams",
+			"obj_id": "212",
+			"obj_flag": "http:\/\/players.images.s3.amazonaws.com\/212.png"
+		}
+	}, 
+	{"name": "interest_three", 'id': "test_3", "properties": 
+		{
+			"obj_name": "Afghanistan",
+			"sports_type": "cricket",
+			"filter_type": "teams",
+			"obj_id": "212",
+			"obj_flag": "http:\/\/players.images.s3.amazonaws.com\/212.png"
+		}
+	}]
+
+	_set_interest_url = tornado_local_address + "/v1/set_user_interests"
 
 	def setUp(self):
 		super(CreationTest, self).setUp()
@@ -164,9 +189,9 @@ class CreationTest(unittest.TestCase):
 		self.assertEqual(len(record), 0)
 
 		# set user info
-		payload = {'username': old_username, 'password': old_password, 'interests': [self._interests[0]['id'], self._interests[1]['id']]}
+		payload = {'username': old_username, 'password': old_password, 'interests': [{'id': self._interests[0]['id'], 'properties': self._interests[0]['properties']}, {'id': self._interests[1]['id'], 'properties': self._interests[1]['properties']}]}
 		payload.update(extra_params_dict)
-		response = json.loads(requests.post(self._set_interest_url, data = payload).content)
+		response = json.loads(requests.post(self._set_interest_url, data = json.dumps(payload)).content)
 		assert response['status'] == settings.STATUS_200
 
 		payload = {'username': old_username, 'password': old_password, 'name': self._name}
@@ -185,8 +210,8 @@ class CreationTest(unittest.TestCase):
 		self.assertEqual(res['username'], old_username)
 		assert res['name'] == self._name
 		assert len(res['interests']) == 2
-		assert self._interests[0]['id'] in res['interests'] 
-		assert self._interests[1]['id'] in res['interests'] 
+		assert {'id': self._interests[0]['id'], 'properties': self._interests[0]['properties']} in res['interests']
+		assert {'id': self._interests[1]['id'], 'properties': self._interests[1]['properties']} in res['interests']
 
 		
 		query = " SELECT * FROM registered_users WHERE phone_number = %s; "

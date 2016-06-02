@@ -6,6 +6,7 @@ import settings
 from tornado.web import MissingArgumentError
 import ConfigParser
 import json
+import psycopg2.extras
 from psycopg2 import IntegrityError
 import logging
 import tornado
@@ -87,5 +88,71 @@ class LocationPrivacyHandler(UserApiRequestHandler):
         self.set_location_privacy()
         response["info"], response["status"] = settings.SUCCESS_RESPONSE, settings.STATUS_200
         self.write(response)
+
+class UserInterestHandler(UserApiRequestHandler):
+    """
+    This class creates a link between users and interests. The interests have to
+    stored beforehand.
+
+    Methods : 
+        post :
+            :params 
+                username => username 
+                interests => json array of interest  with properties {'id': 1, 'properties': 'test'} 
+                password => password
+                apk_version 
+                udid
+            :response 
+                :success => {'status':settings.STATUS_200, 'info': 'Success'}
+                :failure => {'status': 500, 'info': 'Error [Error message]'}     
+    """
+    def get_user_interests(self):
+        query = " SELECT interest_id FROM users_interest WHERE username = %s;"
+        variables = (self.username,)
+        return QueryHandler.get_results(query, variables)
+
+    def insert_user_interest(self, interests):
+        query = "INSERT INTO users_interest (interest_id, username, properties) VALUES"\
+        +   ",".join(['(%s, %s, %s)'] * len(interests)) + ";"
+        variables = []
+        for interest in interests:
+            properties = interest['properties'] if type(interest['properties']) == dict else json.loads(interest['properties'])
+            variables += [interest['id'], self.username, psycopg2.extras.Json(properties)]
+        QueryHandler.execute(query, variables)
+
+    def delete_user_interest(self, interests):
+        query = " DELETE FROM users_interest WHERE "\
+        +   "username = %s AND ( " + " OR ".join(["interest_id = %s "]*len(interests)) + " );"
+        variables = [self.username] + interests
+        QueryHandler.execute(query, variables)
+
+    def delete_all_user_interest(self):
+        query = " DELETE FROM users_interest WHERE "\
+        +   " username = %s ;"
+        variables = (self.username,)
+        QueryHandler.execute(query, variables)
+
+    def post(self):
+        response = {}
+        self.delete_all_user_interest()
+        self.username = self.get_argument('username')
+        interests = self.request.arguments['interests']
+        if interests and type(interests) == list:
+            self.insert_user_interest(interests)
+        else:
+            raise BadInfoSuppliedError("interests")
+        response['status'] = settings.STATUS_200
+        response['info'] = settings.SUCCESS_RESPONSE
+        self.write(response)
+
+    def delete(self):
+        response = {}
+        self.username = self.get_argument('username')
+        interests = self.request.arguments['interests']
+        self.delete_user_interest(interests)
+
+        response['status'] =settings.STATUS_200
+        response['info'] = settings.SUCCESS_RESPONSE
+        self.write(response)        
 
 
