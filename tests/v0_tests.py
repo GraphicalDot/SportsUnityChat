@@ -535,7 +535,7 @@ class NearbyUsersWithSameInterestsTests(unittest.TestCase):
 
 	def create_test_users(self):
 		for user in self.users:
-			query = "INSERT INTO users(username, password, phone_number, lat, lng, last_seen, is_available, show_location) values(%s, %s, %s, %s, %s, %s, True, %s);"
+			query = "INSERT INTO users(username, password, phone_number, lat, lng, last_seen, is_available, show_location) values(%s, %s, %s, %s, %s, %s, False, %s);"
 			variables = (user[0], user[1], user[2], user[3], user[4], user[5], settings.SHOW_LOCATION_ALL_STATUS)
 			try:
 				QueryHandler.execute(query, variables)
@@ -667,7 +667,7 @@ class NearbyUsersWithSameInterestsTests(unittest.TestCase):
 		query = "UPDATE users SET last_seen=%s WHERE username='test_2';"
 		QueryHandler.execute(query, (time.time() - 36000,))
 		self.expected_result_dict = {"friends": {"test_5": ["test_interest_2", "test_interest_1"]},
-									 "anonymous": {"test_6": ["test_interest_2"]}}
+									 "anonymous": {"test_6": ["test_interest_2"],  "test_2": ["test_interest_2"]}}
 		self.data = {'username': 'test_4', 'password': 'pswd_4', 'lat': '0.0', 'lng': '0.0', 'radius': 5, 'apk_version': self.apk_version, 'udid': self.udid}
 		response = requests.get(self.url, data=self.data)
 		user_dict = {}
@@ -992,7 +992,27 @@ class NearbyUsersWithSameInterestsTests(unittest.TestCase):
 		self.expected_result_dict = {"friends": {}, 
 									"anonymous": {}}
 		response = requests.get(self.url, data=self.data)
-		self.assert_response_status(response, settings.SUCCESS_RESPONSE, settings.STATUS_200, self.expected_result_dict)    
+		self.assert_response_status(response, settings.SUCCESS_RESPONSE, settings.STATUS_200, self.expected_result_dict) 
+
+	def test_is_available_status(self):
+		query = " UPDATE users SET is_available = True WHERE username = %s;"
+		variables = ("test_5",)
+		QueryHandler.execute(query, variables)
+
+		self.data = {'username': 'test_4', 'password': 'pswd_4', 'lat': '0.0', 'lng': '0.0', 'radius': 5, 'apk_version': self.apk_version, 'udid': self.udid}
+		response = json.loads(requests.get(self.url, data=self.data).content)
+		for user in response['users']:
+			if user['username'] == 'test_5':
+				assert user["is_available"]
+			else:
+				assert not user["is_available"]
+
+	def test_last_seen(self):
+		self.data = {'username': 'test_4', 'password': 'pswd_4', 'lat': '0.0', 'lng': '0.0', 'radius': 5, 'apk_version': self.apk_version, 'udid': self.udid}
+		response = json.loads(requests.get(self.url, data=self.data).content)
+		for user in response['users']:
+			assert user["last_seen"]
+					
 
 	def tearDown(self):
 		self.delete_users()

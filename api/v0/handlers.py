@@ -602,6 +602,8 @@ class GetNearbyUsers(UserApiRequestHandler):
             + "      users.username , users.name, "\
             + "      earth_distance(ll_to_earth(%s, %s), ll_to_earth(users.lat, users.lng)) as distance, "\
             + "      users.lat AS lat, "\
+            + "      users.is_available AS is_available, "\
+            + "      users.last_seen AS last_seen, "\
             + "      users.lng AS lng, "\
             + "      CASE WHEN users.username IN (SELECT friends FROM user_roster) THEN 'friends' ELSE 'anonymous' END AS friendship_status, "\
             + "      array_intersect(array_agg(interest.interest_name), uinterest.uinterest) as interests "\
@@ -609,7 +611,6 @@ class GetNearbyUsers(UserApiRequestHandler):
             + "      LEFT OUTER JOIN users_interest on (users.username = users_interest.username) "\
             + "      LEFT OUTER JOIN interest on (users_interest.interest_id = interest.interest_id)"\
             + " WHERE earth_box(ll_to_earth(%s, %s),  %s) @> ll_to_earth(users.lat, users.lng)  "\
-            + "      AND CASE WHEN isnumeric(last_seen) THEN last_seen::float ELSE 0 END >=  %s "\
             + "      AND users.username != %s "\
             + "      AND users.username NOT IN  "\
             + "      ("\
@@ -636,7 +637,6 @@ class GetNearbyUsers(UserApiRequestHandler):
                 self.lat,
                 self.lng,
                 self.radius,
-                int(time.time() - self.was_online_limit),
                 self.username,
         )
         records = QueryHandler.get_results(query, variables)
