@@ -129,3 +129,11 @@ def is_number(s):
     except ValueError:
         return False
 
+def get_short_url(url):
+    payload = {"longUrl":url}
+    api_key = config.get('google', 'url_shortner_key')
+    url_shortner_endpoint = settings.API_SHORTNER_ENDPOINT.format(api_key)
+    response = requests.post(url_shortner_endpoint, json = payload)
+    assert response.status_code == settings.STATUS_200
+    return json.loads(response.content)["id"]
+

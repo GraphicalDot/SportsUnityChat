@@ -40,4 +40,7 @@ key_file=priv/prod_apns_key.pem
 
 [gcm]
 api_key=AIzaSyAWO-284HUCY2NrGtf-P5r0o9p4RCe65F0
- 
+
+
+[google]
+url_shortner_key=AIzaSyA1IIZ0kuvDanJBDE6pvMr_X6JeCMs_yiU

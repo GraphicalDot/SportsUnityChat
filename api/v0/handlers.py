@@ -1,6 +1,6 @@
 import psycopg2.errorcodes
 from models.user import User
-from common.funcs import QueryHandler, S3, merge_dicts, send_message, merge_body_arguments
+from common.funcs import QueryHandler, S3, merge_dicts, send_message, merge_body_arguments, get_short_url
 from tornado.log import enable_pretty_logging
 from tornado.options import options
 import magic
@@ -839,9 +839,12 @@ class GetRefrralCodeHandler(UserApiRequestHandler):
         response = {}
         self.username = self.get_argument("username")
         referral_code = self.get_referral_code()
+        play_store_referral_url = settings.PLAY_STORE_URL.format(referral_code)
+        referral_url = get_short_url(play_store_referral_url)
         response['status'] = 200
         response['info'] = 'Success'
         response['referral_code'] = referral_code
+        response['referral_url'] = referral_url
         self.write(response)       
 
 

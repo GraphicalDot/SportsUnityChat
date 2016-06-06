@@ -1382,7 +1382,10 @@ class GetReferralCodeTest(unittest.TestCase):
 		payload.update(extra_params_dict)
 		response = json.loads(requests.post(self._get_referral_code_url, data=payload).content)
 		assert response['status'] == settings.STATUS_200
+		assert response['referral_url']
+		assert "goo.gl" in response['referral_url']
 		referral_code = response['referral_code']
+
 
 		record = test_utils.select_user(username = self._username)[0]
 		assert record['username'] == self._username
