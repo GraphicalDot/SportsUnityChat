@@ -1,6 +1,6 @@
 import psycopg2.errorcodes
 from models.user import User
-from common.funcs import QueryHandler, S3, merge_dicts, send_message, merge_body_arguments, get_short_url
+from common.funcs import QueryHandler, S3, merge_dicts, send_message, merge_body_arguments, get_short_url, send_threaded_message
 from tornado.log import enable_pretty_logging
 from tornado.options import options
 import magic
@@ -18,8 +18,10 @@ import random
 import requests
 import time
 import uuid
-from models.node import Node
+from models.dp import Dp
+from models.user_media import UserMedia
 from requests_toolbelt import MultipartDecoder
+import threading
 from common.custom_error import BadAuthentication, BadInfoSuppliedError
 # import admin_api
 from common.notification_handler import NotificationHandler
@@ -254,10 +256,10 @@ class MediaPresentHandler(BaseRequestHandler):
         check_udid_and_apk_version(self)
         response = {}
         try:
-            file_name = "media/" + self.get_argument("name")
-            if os.path.isfile(file_name):
+            file_name = self.get_argument("name")
+            if UserMedia(name = file_name).exists():
                 response['info'] = 'Present'
-                response['status'] =settings.STATUS_200
+                response['status'] = settings.STATUS_200
             else:
                 response['info'] = 'Not Found'
                 response['status'] =settings.STATUS_400
@@ -282,12 +284,10 @@ class MediaHandler(BaseRequestHandler):
         response = {}
         try:
             check_udid_and_apk_version(self)
-            file_name = "media/" + self.request.headers['Checksum']
-            if not os.path.isfile(file_name):
-                media_file = open(file_name, 'w')
-                media_file.write(self.file_content)
-                media_file.flush()
-            response['status'] =settings.STATUS_200
+            file_name = self.request.headers['Checksum']
+            if not UserMedia(name = file_name).exists():
+                UserMedia(name = file_name, content = self.file_content).upload()
+            response['status'] = settings.STATUS_200
             response['info'] = 'Success'
         except MissingArgumentError, status:
             response["info"] = status.log_message
@@ -302,23 +302,20 @@ class MediaHandler(BaseRequestHandler):
         try:
             response = {}
             check_udid_and_apk_version(self)
-            file_name = "media/" + self.get_argument("name")
-            if os.path.isfile(file_name):
-                with open(file_name, 'r') as file_content:
-                    while 1:
-                        data = file_content.read(16384) # or some other nice-sized chunk
-                        if not data:
-                            break
-                        self.write(data)
-                    file_content.close()
-                    self.finish()
-            else:
-                response['info'] = 'Not Found'
-                response['status'] = settings.STATUS_400
-                self.write(response)
+            file_name = self.get_argument("name")
+            file_content = UserMedia(name = file_name).download()
+            chunk_length = 16384
+            for part in [file_content[0+i: chunk_length + i] for i in xrange(0, len(file_content), chunk_length)]:
+                self.write(part)
+                self.flush()
+        except ClientError:
+            response['info'] = 'Not Found'
+            response['status'] = settings.STATUS_400
+            self.write(response)
         except MissingArgumentError, status:
             response["info"] = status.log_message 
             response["status"] = settings.STATUS_400
+            self.write(response)
         except Exception, e:
             response['status'] = settings.STATUS_500
             response['info'] = 'error is: %s' % e
@@ -473,44 +470,30 @@ class IOSSetUserDeviceTokenReturnsUsersMatches(UserApiRequestHandler):
         self.write(response)
 
 
-# class SendAppInvitation(tornado.web.RequestHandler):
-#     """
-#     Sends invitation invite from app user to any of its contacts.
-#     """
+class SendAppInvitation(tornado.web.RequestHandler):
+    """
+    Sends invitation invite from app user to any of its contacts.
+    """
 
-#     def data_validation(self, app_user, invited_user):
-#         query = "SELECT * FROM users WHERE username=%s;"
-#         variables = (app_user,)
-#         result = QueryHandler.get_results(query, variables)
-#         if not result:
-#             return ("Bad Request: User is not Registered!", settings.STATUS_400)
+    def post(self):
+        response = {}
+        self.phone_number = str(self.get_argument('phone_number')).strip()
+        self.message = settings.APP_INVITATION_MESSAGE
+        threading.Thread(group = None, target = self.handle_message_sending, name = None, args = ()).start()
+        
+        response['info'] = settings.SUCCESS_RESPONSE
+        response['status'] = settings.STATUS_200
+        self.write(response)
 
-#         query = "SELECT * FROM users WHERE phone_number=%s;"
-#         variables = (invited_user,)
-#         return ("Bad Request: Invited User is Already Registered!", settings.STATUS_400) \
-#             if QueryHandler.get_results(query, variables) else ('Valid', settings.STATUS_200)
+    def handle_message_sending(self):
+        status_info, status_code, gateway_response = send_message(number=self.phone_number, message=self.message)
 
-#     def post(self):
-#         response = {}
-#         try:
-#             app_user = str(self.get_argument('user'))
-#             invited_user = str(self.get_argument('invited_user')).strip()
+        query = " INSERT INTO invited_users (phone_number, gateway_response) VALUES (%s, %s);"
+        variables = (self.phone_number, str(gateway_response))
+        QueryHandler.execute(query, variables)
 
-#             # data validation
-#             response['info'], response['status'] = self.data_validation(app_user, invited_user)
 
-#             if response['status'] not in settings.STATUS_ERROR_LIST:
-#                 message = settings.APP_INVITATION_MESSAGE.format(app_user)
-#                 response['info'], response['status'] = send_message(invited_user, message)
 
-#         except MissingArgumentError, status:
-#             response['info'] = status.log_message
-#             response['status'] = settings.STATUS_400
-#         except Exception as e:
-#             response['info'] = 'Error: %s' % e
-#             response['status'] = settings.STATUS_500
-#         finally:
-#             self.write(response)
 
 
 # class FootballEvents(tornado.web.RequestHandler):
@@ -810,7 +793,7 @@ class SetDpHandler(UserApiRequestHandler):
         response = {}
         jid = self.get_argument('jid')
         content = self.get_argument('content')
-        Node(jid).upload_dp(content)
+        Dp(jid).upload_dp(content)
         response['status'] = 200
         response['info'] = 'Success'
         self.write(response)
@@ -820,7 +803,7 @@ class GetDpHandler(UserApiRequestHandler):
         response = {}
         jid = self.get_argument('jid')
         version = self.get_argument('version')
-        content = base64.b64encode(Node(jid).get_dp_version(version))
+        content = base64.b64encode(Dp(jid).get_dp_version(version))
         response['status'] = 200
         response['info'] = 'Success'
         response['content'] = content

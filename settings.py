@@ -49,7 +49,7 @@ SINFINI_API_KEY = 'A8e2b6ece6237e5ebc6a0631e51e4ec43'
 SINFINI_SENDER_ID = 'SPORTU'
 
 OTP_MESSAGE = 'Welcome to Sports Unity. Your authorization code is {}'
-APP_INVITATION_MESSAGE = 'Hi! {} has invited you to join SportsUnity App.'
+APP_INVITATION_MESSAGE = 'Click here to download Sports Unity https://goo.gl/QOrcRg'
 
 
 DEFAULT_USER_NAME = "N/A"

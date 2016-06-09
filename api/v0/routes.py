@@ -14,7 +14,7 @@ urls = [
       (r"/set_user_interests", handlers.UserInterestHandler),
       (r"/set_ios_token_and_return_user_matches", handlers.IOSSetUserDeviceTokenReturnsUsersMatches),
       (r"/get_contact_jids", handlers.ContactJidsHandler),
-      # (r"/send_app_invite", SendAppInvitation),
+      (r"/send_app_invite", handlers.SendAppInvitation),
       (r"/user_register_match", handlers.RegisterUserMatchHandler),
       (r"/user_unregister_match", handlers.UnRegisterUserMatchHandler),
       (r"/set_android_token_and_return_user_matches", handlers.AndroidSetUserDeviceTokenReturnsUsersMatches),

@@ -11,8 +11,10 @@ import json
 from gcm import GCM
 import time
 import ConfigParser
+import boto3
 config = ConfigParser.ConfigParser()
 config.read(os.path.dirname(__file__) + '/../config.py')
+import threading
 class QueryHandler(object):
 
     _instance = None
@@ -58,32 +60,36 @@ class QueryHandler(object):
 
 
 class S3(object):
-    def __init__(self, bucket_name):
+    def __init__(self, bucket_name, name = None, content = None, acl = 'private'):
         amazon_access_key = str.strip(str(config.get('amazon', 'amazon_access_key')))
         amazon_secret_key = str.strip(str(config.get('amazon', 'amazon_secret_key')))
-        connection = S3Connection(amazon_access_key, amazon_secret_key)
-        self.bucket = connection.get_bucket(bucket_name, validate=False)
-        self.key = Key(self.bucket)
+        self.acl = acl
+        self.client = boto3.client(
+            's3',
+            aws_access_key_id = amazon_access_key,
+            aws_secret_access_key = amazon_secret_key
+        )
+        self.bucket_name = bucket_name
+        self.name = name
+        self.content = content
 
-    def upload(self, key, file):
-        self.key.key = key
-        file_size = self.key.set_contents_from_string(file)
-        acl = str.strip(str(config.get('amazon', 'acl')))
-        self.key.set_acl(acl)
-        return file_size
+    def upload(self):
+        self.client.put_object(Bucket = self.bucket_name, Key = self.name, Body=self.content, ACL = self.acl)
+        
+    def check_exists(self):
+        try:
+            self.client.get_object_acl(Bucket = self.bucket_name, Key = self.name)
+        except Exception, e:
+            return False
+        return True
 
-    def check_exists(self, key):
-        return self.bucket.get_key(key)
+    def delete_key(self):
+        self.client.delete_object(Bucket = self.bucket_name, Key = self.name)
+        
 
-    def delete_key(self, key):
-        return self.bucket.delete_key(key)
+    def get_file(self):
+        return self.client.get_object(Bucket = self.bucket_name, Key = self.name)["Body"].read()
 
-    def get_file(self, key):
-        key = self.check_exists(key)
-        if key:
-            return key.get_contents_as_string()
-        else:
-            return None
 
 def merge_dicts(dict_list):
     '''Given two dicts, merge them into a new dict as a shallow copy.'''
@@ -119,8 +125,10 @@ def send_message(number, message):
     }
     response = requests.get(settings.SINFINI_MESSAGE_GATEWAY, params=payload)
     json_response = response.json()
-    return (settings.SUCCESS_RESPONSE, settings.STATUS_200, json_response) if json_response['status'] == 'OK' \
-        else (json_response['message'], settings.STATUS_500)
+    return settings.SUCCESS_RESPONSE, settings.STATUS_200, json_response
+
+def send_threaded_message(number, message):
+    threading.Thread(group = None, target = send_message, name = None, args = (number, message)).start()
 
 def is_number(s):
     try:

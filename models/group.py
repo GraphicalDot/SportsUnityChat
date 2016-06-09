@@ -2,6 +2,7 @@ import ConfigParser
 config = ConfigParser.ConfigParser()
 config.read('config.py')
 from s3_image import S3Image
+from s3_object import S3Object
 from node import Node
 class Group(Node):
 	def __init__(self, name):
@@ -17,4 +18,4 @@ class Group(Node):
 		if not version in ["L", "S"]:
 			raise BadInfoSuppliedError("photo version")
 		key = self.name + "/" + version + ".jpg"
-		return S3Image(self.name, self.dp_bucket).get_file(key)
+		return S3Object(name = self.jid, bucket_name = self.dp_bucket).download()

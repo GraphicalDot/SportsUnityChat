@@ -24,6 +24,8 @@ import copy
 from wand.color import Color
 from wand.image import Image as wImage
 from models.s3_image import S3Image
+from models.s3_object import S3Object
+from models.user_media import UserMedia
 import base64
 
 config = ConfigParser()
@@ -251,8 +253,8 @@ class ProfilePicServiceTest(unittest.TestCase):
 	def setUp(self):
 		test_utils.delete_user(username = self._username, phone_number=self._phone_number)
 		test_utils.create_user(username = self._username, password = self._password, phone_number = self._phone_number)
-		S3(self._profile_pic_bucket).delete_key(self._small_version_name)
-		S3(self._profile_pic_bucket).delete_key(self._large_version_name)
+		S3Object(bucket_name = self._profile_pic_bucket, name = self._small_version_name).delete_key()
+		S3Object(bucket_name = self._profile_pic_bucket, name = self._large_version_name).delete_key()
 
 	def test_profile_pic_updation(self):
 		image_data = base64.b64encode(wImage(width=640, height=640, background=Color('red')).make_blob(format='png'))
@@ -269,8 +271,8 @@ class ProfilePicServiceTest(unittest.TestCase):
 
 		time.sleep(10)
 
-		assert S3(self._profile_pic_bucket).check_exists(self._large_version_name)
-		assert S3(self._profile_pic_bucket).check_exists(self._small_version_name)
+		assert S3Object(bucket_name = self._profile_pic_bucket, name = self._large_version_name).check_exists()
+		assert S3Object(bucket_name = self._profile_pic_bucket, name = self._small_version_name).check_exists()
 
 		payload = {
 			'username': self._username,
@@ -282,7 +284,7 @@ class ProfilePicServiceTest(unittest.TestCase):
 		payload.update(extra_params_dict)
 		response = json.loads(requests.post(self._test_get_url , data = json.dumps(payload)).content)
 		assert response['status'] == 200
-		assert base64.b64decode(response['content']) == S3(self._profile_pic_bucket).get_file(self._large_version_name)
+		assert base64.b64decode(response['content']) == S3Object(bucket_name = self._profile_pic_bucket, name = self._large_version_name).download()
 
 	def tearDown(self):
 		pass
@@ -392,13 +394,51 @@ class InterestTest(unittest.TestCase):
 		test_utils.delete_user(username = self._username, phone_number=self._phone_number)
 
 
+class UserMediaTest(unittest.TestCase):
+	def setUp(self):
+		self.bare_file_name = sys.argv[0].split("/")[-1]
+		UserMedia(name = self.bare_file_name).delete()
+
+	def test_upload(self):
+		file_name = sys.argv[0]
+		file_content = open(file_name, 'r').read()
+		UserMedia(name = self.bare_file_name, content = file_content).upload()
+		assert UserMedia(name = self.bare_file_name).check_exists()
+
+	def test_delete(self):
+		file_name = sys.argv[0]
+		file_content = open(file_name, 'r').read()
+		UserMedia(name = self.bare_file_name, content = file_content).upload()
+		assert UserMedia(name = self.bare_file_name).check_exists()
+		
+		UserMedia(name = self.bare_file_name).delete()
+		assert not UserMedia(name = self.bare_file_name).check_exists()
+
+	def test_check_exists(self):
+		file_name = sys.argv[0]
+		file_content = open(file_name, 'r').read()
+		UserMedia(name = self.bare_file_name, content = file_content).upload()
+		assert UserMedia(name = self.bare_file_name).check_exists()
+		
+		UserMedia(name = self.bare_file_name).delete()
+		assert not UserMedia(name = self.bare_file_name).check_exists()
+
+		assert not UserMedia(name = "fraud").check_exists()
+
+	def test_download(self):
+		file_name = sys.argv[0]
+		file_content = open(file_name, 'r').read()
+		UserMedia(name = self.bare_file_name, content = file_content).upload()
+		assert UserMedia(name = self.bare_file_name).check_exists()
+		
+		download = UserMedia(name = self.bare_file_name).download()
+		assert download == file_content
+
 class MediaTest(unittest.TestCase):
 
 	def setUp(self):
 		super(MediaTest, self).setUp()
-		file_storage_name = "media/md5_sample"
-		if os.path.isfile(file_storage_name):
-			os.remove(file_storage_name)
+		UserMedia(name = 'md5_sample').delete()
 
 	def test_upload_download_media_presence(self):
 		self.url = tornado_local_address + "/media" + '?apk_version=v0.1&udid=TEST@UDID'
@@ -409,17 +449,17 @@ class MediaTest(unittest.TestCase):
 		headers = {'Checksum': 'md5_sample'}
 		response = requests.post(self.url, headers=headers, data=file_content)
 		self.assertEqual(json.loads(response.content)['status'], settings.STATUS_200)
-		assert os.path.isfile('media/md5_sample')
+
+		assert UserMedia(name = 'md5_sample').exists()
 
 		self.url = tornado_local_address + "/media?name=md5_sample" + extra_params
 		response = requests.get(self.url)
-		assert response.content
+		assert response.content == file_content
 
 		response = requests.get(self.media_presence_url)
 		self.assertEqual(json.loads(response.content)["status"], settings.STATUS_200)
 
-		file_storage_name = "media/md5_sample"
-		os.remove(file_storage_name)
+		UserMedia(name = 'md5_sample').delete()
 
 		response = requests.get(self.media_presence_url)
 		self.assertEqual(json.loads(response.content)["status"], settings.STATUS_400)
@@ -431,52 +471,52 @@ class MediaTest(unittest.TestCase):
 		pass
 
 
-class IOSMediaHandlerTests(unittest.TestCase):
-	url = None
-	filename = None
+# class IOSMediaHandlerTests(unittest.TestCase):
+# 	url = None
+# 	filename = None
 
-	def setUp(self):
-		self.url = tornado_local_address + '/media_multipart' + '?apk_version=v0.1&udid=TEST@UDID'
-		self.test_file = sys.argv[0]
-		self.filename = "test_file"
-		try:
-			os.remove('media/' + self.filename)
-		except Exception, e:
-			pass
+# 	def setUp(self):
+# 		self.url = tornado_local_address + '/media_multipart' + '?apk_version=v0.1&udid=TEST@UDID'
+# 		self.test_file = sys.argv[0]
+# 		self.filename = "test_file"
+# 		try:
+# 			os.remove('media/' + self.filename)
+# 		except Exception, e:
+# 			pass
 
-	def test_upload_media(self):
+# 	def test_upload_media(self):
 
-		# test on different media files
-		mime = magic.Magic(mime=True)
-		mime_type = mime.from_file(self.test_file)
-		encoder = MultipartEncoder(
-			fields={'name': 'image', 'filename': self.filename, 'Content-Disposition': 'form-data',
-					'Content-Type': mime_type, 'file': (self.filename, open(self.test_file, 'rb'), mime_type)}
-			)
+# 		# test on different media files
+# 		mime = magic.Magic(mime=True)
+# 		mime_type = mime.from_file(self.test_file)
+# 		encoder = MultipartEncoder(
+# 			fields={'name': 'image', 'filename': self.filename, 'Content-Disposition': 'form-data',
+# 					'Content-Type': mime_type, 'file': (self.filename, open(self.test_file, 'rb'), mime_type)}
+# 			)
 
-		response = requests.post(self.url, data=encoder.to_string(),
-								 headers={'Content-Type': encoder.content_type, 'Checksum': self.filename})
-		res = json.loads(response.content)
-		self.assertEqual(response.status_code, settings.STATUS_200)
-		self.assertEqual(res['info'], 'Success')
-		self.assertEqual(res['status'], settings.STATUS_200)
+# 		response = requests.post(self.url, data=encoder.to_string(),
+# 								 headers={'Content-Type': encoder.content_type, 'Checksum': self.filename})
+# 		res = json.loads(response.content)
+# 		self.assertEqual(response.status_code, settings.STATUS_200)
+# 		self.assertEqual(res['info'], 'Success')
+# 		self.assertEqual(res['status'], settings.STATUS_200)
 
 
-		# if file already exists
-		mime = magic.Magic(mime=True)
-		mime_type = mime.from_file(self.test_file)
-		encoder = MultipartEncoder(
-			fields={'name': 'image', 'filename': self.filename, 'Content-Disposition': 'form-data',
-					'Content-Type': mime_type, 'file': (self.filename, open(self.test_file, 'rb'), mime_type)}
-		)
-		response = requests.post(self.url, data=encoder.to_string(),
-								 headers={'Content-Type': encoder.content_type, 'Checksum': self.filename})
-		res = json.loads(response.content)
-		self.assertEqual(response.status_code, settings.STATUS_200)
-		self.assertEqual(res['status'], settings.STATUS_422)
+# 		# if file already exists
+# 		mime = magic.Magic(mime=True)
+# 		mime_type = mime.from_file(self.test_file)
+# 		encoder = MultipartEncoder(
+# 			fields={'name': 'image', 'filename': self.filename, 'Content-Disposition': 'form-data',
+# 					'Content-Type': mime_type, 'file': (self.filename, open(self.test_file, 'rb'), mime_type)}
+# 		)
+# 		response = requests.post(self.url, data=encoder.to_string(),
+# 								 headers={'Content-Type': encoder.content_type, 'Checksum': self.filename})
+# 		res = json.loads(response.content)
+# 		self.assertEqual(response.status_code, settings.STATUS_200)
+# 		self.assertEqual(res['status'], settings.STATUS_422)
 
-	def tearDown(self):
-		os.remove('media/' + self.filename)
+# 	def tearDown(self):
+# 		os.remove('media/' + self.filename)
 
 
 class ContactListTest(unittest.TestCase):
@@ -1560,9 +1600,10 @@ class UsersFriendsWatchingTest(unittest.TestCase):
 		self.unregister_matches(self._first_friends_username)
 		self.unregister_matches(self._second_friends_username)
 
-
 		self.register_match(self._first_friends_username, self._match_id_1)
 		self.register_match(self._second_friends_username, self._match_id_1)
+
+
 
 
 	def update_roster_entry(self, friend, subscription):

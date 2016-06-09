@@ -2,13 +2,12 @@ import wand.image
 import base64
 import settings
 import threading
-from common.funcs import S3
+from s3_object import S3Object
 import copy
 
-class S3Image(S3):
+class S3Image(object):
 
 	def __init__(self, name, bucket_name, content = None):
-		super(S3Image, self).__init__(bucket_name)
 		self.name = name
 		self.bucket_name = bucket_name
 		self.content = content
@@ -32,4 +31,4 @@ class S3Image(S3):
 
 	def upload_to_s3(self, index):
 		for name, content in self.versions[index].iteritems():
-			S3(self.bucket_name).upload(name, content)
+			S3Object(bucket_name = self.bucket_name, name = name, content = content).upload()
