@@ -6,6 +6,7 @@ from tornado.options import options
 import magic
 import settings
 from tornado.web import MissingArgumentError
+from psycopg2.extras import Json
 from psycopg2 import IntegrityError
 import logging
 import base64
@@ -489,7 +490,7 @@ class SendAppInvitation(tornado.web.RequestHandler):
         status_info, status_code, gateway_response = send_message(number=self.phone_number, message=self.message)
 
         query = " INSERT INTO invited_users (phone_number, gateway_response) VALUES (%s, %s);"
-        variables = (self.phone_number, str(gateway_response))
+        variables = (self.phone_number, Json(gateway_response), )
         QueryHandler.execute(query, variables)
 
 
