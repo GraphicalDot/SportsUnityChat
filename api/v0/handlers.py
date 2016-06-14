@@ -782,8 +782,10 @@ class UserInfoHandler(UserApiRequestHandler):
     def post(self):
         response = {}
         user_info = {}
-        self.username = str(self.get_argument('username'))
-        user_info['name'] = str(self.get_argument('name', settings.DEFAULT_USER_NAME))
+        self.username = self.get_argument('username')
+        user_info['status'] = self.get_argument('status', None)
+        user_info['photo'] = self.get_argument('photo', None)
+        user_info['name'] = self.get_argument('name', None)
         user = User(username = self.username)
         user.set_info(user_info)
         response["info"], response["status"] = settings.SUCCESS_RESPONSE, settings.STATUS_200

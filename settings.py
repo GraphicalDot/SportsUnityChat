@@ -52,7 +52,6 @@ OTP_MESSAGE = 'Welcome to Sports Unity. Your authorization code is {}'
 APP_INVITATION_MESSAGE = 'Thank you for reaching out \n Android users can download the app at http://sportsunity.co/sports \n IOS users we are soon coming in the app store too \n Thank you'
 
 
-DEFAULT_USER_NAME = "N/A"
 TOKEN_ANDROID_TYPE = 'a'
 TOKEN_IOS_TYPE = 'i'
 DP_S_WIDTH = 150

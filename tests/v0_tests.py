@@ -1378,31 +1378,60 @@ class SetUserInfoTest(unittest.TestCase):
 	_phone_number = "911"
 	_password = "test"
 	_token = "test_token"
+	_status = "test"
+	_photo_content = "test"
+	_image_data = base64.b64encode(wImage(width=640, height=640, background=Color('red')).make_blob(format='png'))
+	_payload = {"username": _username, "password": _password, "name": _name, "status": _status, "photo": _image_data}
+	_small_version_name = str(_username) + "/S" + ".jpg"
+	_large_version_name = str(_username) + "/L" + ".jpg"
+	_profile_pic_bucket = config.get('amazon', 'dp_bucket_name')
 	
 	def setUp(self):
 		test_utils.delete_user(username = self._username)
 		test_utils.create_user(username = self._username, password = self._password, phone_number = self._phone_number)
+		S3Object(bucket_name = self._profile_pic_bucket, name = self._small_version_name).delete_key()
+		S3Object(bucket_name = self._profile_pic_bucket, name = self._large_version_name).delete_key()
+		assert not S3Object(bucket_name = self._profile_pic_bucket, name = self._large_version_name).check_exists()
+		assert not S3Object(bucket_name = self._profile_pic_bucket, name = self._small_version_name).check_exists()
 
-	def test_add_user_info(self):
-		payload = {"username": self._username, "password": self._password, "name": self._name}
-		payload.update(extra_params_dict)
-		response = json.loads(requests.post(self._set_user_info_url, data=payload).content)
-		assert response['status'] == settings.STATUS_200
-
+	def check_user_info(self):
 		record = test_utils.select_user(username = self._username)[0]
 		assert record['username'] == self._username
 		assert record['name'] == self._name
+		assert record['status'] == self._status
+		time.sleep(10)
+		assert S3Object(bucket_name = self._profile_pic_bucket, name = self._large_version_name).check_exists()
+		assert S3Object(bucket_name = self._profile_pic_bucket, name = self._small_version_name).check_exists()
 
-		payload = {"username": self._username, "password": self._password}
+	def update_user_info(self, payload):
 		payload.update(extra_params_dict)
 		response = json.loads(requests.post(self._set_user_info_url, data=payload).content)
 		assert response['status'] == settings.STATUS_200
 
-		record = test_utils.select_user(username = self._username)[0]
-		assert record['username'] == self._username
-		assert record['name'] == settings.DEFAULT_USER_NAME
+	def update_and_check_user_info(self, payload):
+		self.update_user_info(payload)
+		self.check_user_info()
+
+	def test_add_user_info(self):
+
+		payload = copy.deepcopy(self._payload)
+		self.update_and_check_user_info(payload)
+
+		payload = copy.deepcopy(self._payload)
+		payload.pop("name")
+		self.update_and_check_user_info(payload)
+
+		payload = copy.deepcopy(self._payload)
+		payload.pop("status")
+		self.update_and_check_user_info(payload)
+
+		payload = copy.deepcopy(self._payload)
+		payload.pop("photo")
+		self.update_and_check_user_info(payload)
 
 	def tearDown(self):
+		S3Object(bucket_name = self._profile_pic_bucket, name = self._small_version_name).delete_key()
+		S3Object(bucket_name = self._profile_pic_bucket, name = self._large_version_name).delete_key()
 		test_utils.delete_user(username = self._username)
 
 class GetReferralCodeTest(unittest.TestCase):

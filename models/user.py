@@ -1,4 +1,5 @@
 from common.funcs import QueryHandler, S3, merge_dicts, send_message
+from dp import Dp
 from psycopg2 import IntegrityError
 import base64
 import threading
@@ -219,6 +220,19 @@ class User(Node):
             return " Error while sending message : % s" % e, settings.STATUS_500
 
     def set_info(self, info):
-        query = " UPDATE users SET name = %s WHERE username = %s ;"
-        variables = (info['name'], self.username)
-        QueryHandler.execute(query, variables) 
+        info_keys = ['name', 'status']
+        set_query_part = []
+        variables = []
+
+        for key in info_keys:
+            set_query_part += [" {} = %s ".format(key)]  if info[key] else []
+            variables += [info[key]] if info[key] else []
+
+        if variables:
+            query = " UPDATE users SET " +  ', '.join(set_query_part)  + " WHERE username = %s ;"
+            variables += [self.username]
+            QueryHandler.execute(query, variables) 
+
+
+        if info['photo']:
+            Dp(self.username).upload_dp(info['photo'])
