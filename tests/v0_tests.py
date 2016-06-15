@@ -74,6 +74,7 @@ class CreationTest(unittest.TestCase):
 					+ "&auth_code=" + str(_auth_code) + extra_params
 
 	_set_user_info_url = tornado_local_address + "/set_user_info"
+	_status = "testing 123"
 	_interests = [{"name": "interest_one", 'id': " test_1", "properties":
 		{
 			"obj_name": "Afghanistan",
@@ -101,16 +102,30 @@ class CreationTest(unittest.TestCase):
 			"obj_flag": "http:\/\/players.images.s3.amazonaws.com\/212.png"
 		}
 	}]
+	_friends = [('test_1', 'pswd_1', '1'),
+			  ('test_2', 'pswd_2', '2')]
 
 	_set_interest_url = tornado_local_address + "/v1/set_user_interests"
 
 	def setUp(self):
 		super(CreationTest, self).setUp()
+		for user in self._friends:
+			test_utils.delete_user(username = user[0])
+			test_utils.create_user(username = user[0], password = user[1], phone_number = user[2])
 		test_utils.delete_user(username=self._username, phone_number=self._phone_number)
 		test_utils.delete_registered_user(phone_number=self._phone_number)
 		for interest in self._interests:
 			Interest(interest['name'], interest['id']).delete()
 			Interest(interest['name'], interest['id']).create()
+
+	def add_friend(self, friend, subscription = 'B', user = _username):
+		query = "INSERT INTO rosterusers(username, jid, nick, subscription, ask, askmessage, server) VALUES" \
+				"(%s, %s, %s, %s, %s, %s, %s);"
+		variables = (user, friend, 't5', subscription, '', 'N', 'N')
+		try:
+			QueryHandler.execute(query, variables)
+		except psycopg2.IntegrityError as e:
+			pass
 
 	def test_user_registration(self):
 
@@ -196,7 +211,7 @@ class CreationTest(unittest.TestCase):
 		response = json.loads(requests.post(self._set_interest_url, data = json.dumps(payload)).content)
 		assert response['status'] == settings.STATUS_200
 
-		payload = {'username': old_username, 'password': old_password, 'name': self._name}
+		payload = {'username': old_username, 'password': old_password, 'name': self._name, 'status': self._status}
 		payload.update(extra_params_dict)
 		response = json.loads(requests.post(self._set_user_info_url, data = payload).content)
 		assert response['status'] == settings.STATUS_200
@@ -207,10 +222,17 @@ class CreationTest(unittest.TestCase):
 		variables = (self._auth_code, expiration_time, self._phone_number)
 		QueryHandler.execute(query, variables)
 
+
+
+		self.add_friend(self._friends[0][0], user = old_username)
+		self.add_friend(self._friends[1][0], user = old_username)
 		response = requests.get(self._creation_url)
 		res = json.loads(response.text)
 		self.assertEqual(res['username'], old_username)
 		assert res['name'] == self._name
+		assert res['user_status'] == self._status
+		# assert res['photo']
+		assert len(res['friends']) == 2
 		assert len(res['interests']) == 2
 		assert {'id': self._interests[0]['id'], 'properties': self._interests[0]['properties']} in res['interests']
 		assert {'id': self._interests[1]['id'], 'properties': self._interests[1]['properties']} in res['interests']
@@ -235,6 +257,8 @@ class CreationTest(unittest.TestCase):
 
 	def tearDown(self):
 		test_utils.delete_user(phone_number=self._phone_number)
+		for user in self._friends:
+			test_utils.delete_user(username = user[0])
 		for interest in self._interests:
 			Interest(interest['id'], interest['name']).delete()
 

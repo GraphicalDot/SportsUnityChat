@@ -19,3 +19,10 @@ class Dp(object):
 			raise BadInfoSuppliedError("photo version")
 		key = self.jid + "/" + version + ".jpg"
 		return S3Object(name = key, bucket_name = self.dp_bucket).download()
+
+	def exists(self, version):
+		if not version in ["L", "S"]:
+			raise BadInfoSuppliedError("photo version")
+		key = self.jid + "/" + version + ".jpg"
+		return S3Object(name = key, bucket_name = self.dp_bucket).exists()
+		

@@ -145,3 +145,5 @@ def get_short_url(url):
     assert response.status_code == settings.STATUS_200
     return json.loads(response.content)["id"]
 
+def get_random_avatar(self):
+    return None

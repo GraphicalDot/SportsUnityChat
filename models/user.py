@@ -1,4 +1,4 @@
-from common.funcs import QueryHandler, S3, merge_dicts, send_message
+from common.funcs import QueryHandler, S3, merge_dicts, send_message, get_random_avatar
 from dp import Dp
 from psycopg2 import IntegrityError
 import base64
@@ -13,6 +13,7 @@ import time
 import uuid
 import settings
 from requests_toolbelt import MultipartDecoder
+from s3_object import S3Object
 from common.custom_error import BadAuthentication, BadInfoSuppliedError
 # import admin_api
 config = ConfigParser.ConfigParser()
@@ -43,6 +44,9 @@ class User(Node):
         self.name = None
         self.interests = None
         self.phone_number = phone_number
+        self.status = None
+        self.photo = None
+        self.friends = None
 
     def authenticate(self):
         """
@@ -77,7 +81,6 @@ class User(Node):
                 query = " SELECT * FROM users WHERE phone_number = %s ;"
                 variables = (self.phone_number, )
                 record = QueryHandler.get_results(query, variables)
-                
                 if record:
                     self.username = record[0]['username']
                     response, status = self._reset_password_return_user_info()
@@ -88,7 +91,7 @@ class User(Node):
         except Exception, e:
             response, status = " Error %e " % e, settings.STATUS_500
         finally:
-            return response, status, self.password, self.username, self.name, self.interests
+            return response, status, self.password, self.username, self.name, self.interests, self.status, self.photo, self.friends
 
     def _generate_username(self):
         self.username = self._generate_random()
@@ -99,6 +102,7 @@ class User(Node):
     def _generate_random(self, n = 10):
         return (uuid.uuid4().hex)[:n]
 
+
     def _reset_password_return_user_info(self):
         """
             This functions resets the password of a user
@@ -108,17 +112,30 @@ class User(Node):
                 Else
                     Response, Status = "Error [Error]", 500
         """
+        small_version_image_name = self.username + "/S.jpg"
+        if Dp(self.username).exists('S'):
+            self.photo = Dp(self.username).get_dp_version('S')
+        else:
+            self.photo = get_random_avatar(self.username)
+            # self.photo = requests.
+
+
         try:
             self._generate_password()
             query = " WITH delete_registered AS (DELETE FROM registered_users WHERE phone_number = E'919560488236' ), "\
-            +   " updates AS ( UPDATE users SET password = %s, show_location = %s WHERE username = %s )"\
-            +   " SELECT users.username, users.name, users.password, "\
-            +   " json_agg(row_to_json((SELECT d FROM (SELECT users_interest.interest_id AS id, users_interest.properties) d))) AS  interests FROM users "\
+            +   " updates AS ( UPDATE users SET password = %s, show_location = %s WHERE username = %s ), "\
+            +   " friends AS ( SELECT split_part(rosterusers.jid, '@', 1) as username FROM rosterusers WHERE username = %s AND subscription = 'B') "\
+            +   " SELECT users.username, users.name, users.password, users.status, "\
+            +   " json_agg(row_to_json((SELECT d FROM (SELECT users_interest.interest_id AS id, users_interest.properties) d))) AS  interests ,"\
+            +   " array_to_json(array(select row_to_json(t) from ( select name as name, username as username from users where username in (select username from friends))as t)) AS friends "\
+            +   " FROM users "\
             +   " LEFT OUTER JOIN users_interest on (users.username = users_interest.username) WHERE users.username = %s  GROUP BY users.username; "
-            variables = (self.password, settings.SHOW_LOCATION_NONE_STATUS, self.username, self.username, )
+            variables = (self.password, settings.SHOW_LOCATION_NONE_STATUS, self.username, self.username, self.username,)
             record = QueryHandler.get_results(query, variables)
             self.name = record[0]['name']
             self.interests = record[0]['interests']
+            self.status = record[0]['status']
+            self.friends = record[0]['friends']
             response, status = "Success", settings.STATUS_200
         except Exception, e:
             response, status = " Error %e " % e, settings.STATUS_500
@@ -167,6 +184,7 @@ class User(Node):
                     variables = (self.phone_number, self.username, self.phone_number, self.password)
                     QueryHandler.execute(query, variables)
                     break
+            self.photo = get_random_avatar(self.username)
             response, status = "Success", settings.STATUS_200
         except Exception, e:
             response, status = " %s " % e, settings.STATUS_500
