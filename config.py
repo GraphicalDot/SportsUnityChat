@@ -21,6 +21,7 @@ dp_bucket_name=sports_unity_profile_pics
 dp_objects_acl=private
 user_media_bucket_name=sports.unity.user.upload
 user_media_acl=private
+random_avatar_bucket=random.avatars
 
 [xmpp]
 domain=@mm.io

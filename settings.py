@@ -65,3 +65,5 @@ SHOW_LOCATION_NONE_STATUS = 'n'
 
 PLAY_STORE_URL="https://play.google.com/store/apps/details?id=co.sports.unity&referrer=utm_source%3D{}%26utm_medium%3Dsp-andr"
 API_SHORTNER_ENDPOINT="https://www.googleapis.com/urlshortener/v1/url?key={}"
+
+RANDOM_PICTURE_COUNT = 1000

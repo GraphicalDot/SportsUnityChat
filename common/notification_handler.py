@@ -70,6 +70,8 @@ class NotificationHandler:
     def __init__(self, match_id, payload):
         self.match_id = match_id
         self.payload = payload
+        self.apns_response = None
+        self.gcm_response = None
     
     def notify(self):
         threading.Thread(group = None, target = self.handle_notification, name = None, args = ()).start()
@@ -83,7 +85,7 @@ class NotificationHandler:
     def handle_notification(self):
         subscribing_users = self.get_subscribing_users(self.match_id)
         try:
-            self.apns_response = ApnsHandler().send_notifications(subscribing_users, self.payload)
+            # self.apns_response = ApnsHandler().send_notifications(subscribing_users, self.payload)
             self.gcm_response = GCMHandler().send_notifications(subscribing_users, self.payload)
             self.sending_error = None
         except Exception, e:

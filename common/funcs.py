@@ -3,6 +3,7 @@ import requests
 import settings
 from boto.s3.connection import S3Connection
 from boto.s3.key import Key
+import random
 import psycopg2
 import psycopg2.extras
 from apns import APNs, Payload
@@ -13,7 +14,7 @@ import time
 import ConfigParser
 import boto3
 config = ConfigParser.ConfigParser()
-config.read(os.path.dirname(__file__) + '/../config.py')
+config.read('config.py')
 import threading
 class QueryHandler(object):
 
@@ -144,6 +145,3 @@ def get_short_url(url):
     response = requests.post(url_shortner_endpoint, json = payload)
     assert response.status_code == settings.STATUS_200
     return json.loads(response.content)["id"]
-
-def get_random_avatar(self):
-    return None

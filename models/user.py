@@ -1,4 +1,4 @@
-from common.funcs import QueryHandler, S3, merge_dicts, send_message, get_random_avatar
+from common.funcs import QueryHandler, S3, merge_dicts, send_message
 from dp import Dp
 from psycopg2 import IntegrityError
 import base64
@@ -114,9 +114,9 @@ class User(Node):
         """
         small_version_image_name = self.username + "/S.jpg"
         if Dp(self.username).exists('S'):
-            self.photo = Dp(self.username).get_dp_version('S')
+            self.photo = base64.b64encode(Dp(self.username).get_dp_version('S'))
         else:
-            self.photo = get_random_avatar(self.username)
+            self.photo = self.get_random_avatar()
             # self.photo = requests.
 
 
@@ -184,7 +184,7 @@ class User(Node):
                     variables = (self.phone_number, self.username, self.phone_number, self.password)
                     QueryHandler.execute(query, variables)
                     break
-            self.photo = get_random_avatar(self.username)
+            self.photo = self.get_random_avatar()
             response, status = "Success", settings.STATUS_200
         except Exception, e:
             response, status = " %s " % e, settings.STATUS_500
@@ -254,3 +254,10 @@ class User(Node):
 
         if info['photo']:
             Dp(self.username).upload_dp(info['photo'])
+
+
+
+    def get_random_avatar(self):
+        key = str(random.randint(1, 1000))
+        bucket = config.get('amazon', 'random_avatar_bucket')
+        return base64.b64encode(S3Object(key, bucket).download())

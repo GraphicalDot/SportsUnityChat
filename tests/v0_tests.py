@@ -231,7 +231,7 @@ class CreationTest(unittest.TestCase):
 		self.assertEqual(res['username'], old_username)
 		assert res['name'] == self._name
 		assert res['user_status'] == self._status
-		# assert res['photo']
+		assert res['photo']
 		assert len(res['friends']) == 2
 		assert len(res['interests']) == 2
 		assert {'id': self._interests[0]['id'], 'properties': self._interests[0]['properties']} in res['interests']
