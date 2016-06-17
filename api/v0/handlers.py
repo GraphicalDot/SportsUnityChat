@@ -785,7 +785,7 @@ class RegisterMatchHandler(BaseRequestHandler):
         finally:
             self.write(response)
 
-class UserInfoHandler(UserApiRequestHandler):
+class SetUserInfoHandler(UserApiRequestHandler):
 
     def post(self):
         response = {}
@@ -798,6 +798,19 @@ class UserInfoHandler(UserApiRequestHandler):
         user.set_info(user_info)
         response["info"], response["status"] = settings.SUCCESS_RESPONSE, settings.STATUS_200
         self.write(response)
+
+class GetUserInfoHandler(UserApiRequestHandler):
+
+    def post(self):
+        response = {}
+        user_info = {}
+        requested_jid = self.get_argument('r_jid', None)
+        requested_info = self.get_arguments('r_info')
+        user = User(username = requested_jid)
+        response['user_info'] = user.get_info(requested_info)
+        response["info"], response["status"] = settings.SUCCESS_RESPONSE, settings.STATUS_200
+        self.write(response)
+
 
 class SetDpHandler(UserApiRequestHandler):
     def post(self):
