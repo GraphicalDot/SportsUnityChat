@@ -121,7 +121,7 @@ def setup_server():
     with prefix(". "+virtual_environment+ "/bin/activate"):
         run("pip install -U pip")        
         with cd(repo_dir):
-            run(virtual_environment+"/bin/pip install -r requirement.txt")
+            # run(virtual_environment+"/bin/pip install -r requirement.txt")
             execute(run_migrations)
             run("sudo  touch tornado_log ")
             run(" sudo chmod 777 tornado_log ")

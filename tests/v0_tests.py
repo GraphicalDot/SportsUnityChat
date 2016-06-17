@@ -17,6 +17,7 @@ from requests_toolbelt import MultipartEncoder
 from shutil import copyfile
 from common.custom_error import BadAuthentication
 from models.user import User
+from models.dp import Dp
 from models.interest import Interest
 import settings
 import test_utils
@@ -1395,7 +1396,7 @@ class RegisterMatch(unittest.TestCase):
 		query = " DELETE FROM matches WHERE id IN {};".format(ids)
 		QueryHandler.execute(query, (ids,))
 
-class SetUserInfoTest(unittest.TestCase):
+class UserInfoTest(unittest.TestCase):
 	_set_user_info_url = tornado_local_address + "/set_user_info"
 	_username = "test"
 	_name = "test"
@@ -1453,10 +1454,89 @@ class SetUserInfoTest(unittest.TestCase):
 		payload.pop("photo")
 		self.update_and_check_user_info(payload)
 
+	def test_get_user_info(self):
+		payload = copy.deepcopy(self._payload)
+		self.update_and_check_user_info(payload)
+
+
 	def tearDown(self):
 		S3Object(bucket_name = self._profile_pic_bucket, name = self._small_version_name).delete_key()
 		S3Object(bucket_name = self._profile_pic_bucket, name = self._large_version_name).delete_key()
 		test_utils.delete_user(username = self._username)
+
+class GetUserInfo(unittest.TestCase):
+	_get_user_info_url = tornado_local_address + "/get_user_info"
+	_set_user_info_url = tornado_local_address + "/set_user_info"
+	_username = "test"
+	_name = "test"
+	_phone_number = "911"
+	_password = "test"
+	_token = "test_token"
+	_status = "test"
+	_photo_content = "test"
+	_image_data = base64.b64encode(wImage(width=640, height=640, background=Color('red')).make_blob(format='png'))
+	_set_payload = {"username": _username, "password": _password, "name": _name, "status": _status, "photo": _image_data}
+	_small_version_name = str(_username) + "/S" + ".jpg"
+	_large_version_name = str(_username) + "/L" + ".jpg"
+	_profile_pic_bucket = config.get('amazon', 'dp_bucket_name')
+	_user_info_keys = ["name", "status", "l_photo", "s_photo", "interests"]
+	_requesting_username = "test1"
+	_requesting_password = "test2"
+	_requesting_phone_number = "test2"
+
+
+	def setUp(self):
+		test_utils.delete_user(username = self._username)
+		test_utils.delete_user(username = self._requesting_username)
+		test_utils.create_user(username = self._username, password = self._password, phone_number = self._phone_number)
+		test_utils.create_user(username = self._requesting_username, password = self._requesting_password, phone_number = self._requesting_phone_number)
+		self._set_payload.update(extra_params_dict)
+		response = json.loads(requests.post(self._set_user_info_url, data = self._set_payload).content)
+		time.sleep(10)
+
+	def test_get_user_info(self):
+		keys = copy.deepcopy(self._user_info_keys)
+		payload = {"username": self._requesting_username, "password": self._requesting_password, "r_jid": self._username, "r_info": keys}
+		payload.update(extra_params_dict)
+		response = json.loads(requests.post(self._get_user_info_url, data = json.dumps(payload)).content)
+		assert response["status"] == settings.STATUS_200
+		for key in keys:
+			assert response['user_info'][key]
+
+		for key in  ["name", "status"]:
+			assert response['user_info'][key] == self._set_payload[key]
+		assert Dp(self._username).get_dp_version("L") == base64.b64decode(response['user_info']["l_photo"])	
+		assert Dp(self._username).get_dp_version("S") == base64.b64decode(response['user_info']["s_photo"])				
+
+		for x in range(0, len(self._user_info_keys)):
+			keys = copy.deepcopy(self._user_info_keys)
+			keys.pop(x)
+			payload = {"username": self._requesting_username, "password": self._requesting_password, "r_jid": self._username, "r_info": keys}
+			payload.update(extra_params_dict)
+			response = json.loads(requests.post(self._get_user_info_url, data = payload).content)
+			assert response["status"] == settings.STATUS_200
+			for key in keys:
+				assert response['user_info'][key]
+
+			for key in  ["name", "status"]:
+				if key in keys:
+					assert response['user_info'][key] == self._set_payload[key]
+
+			if "l_photo" in keys:
+				assert Dp(self._username).get_dp_version("L") == base64.b64decode(response["user_info"]["l_photo"])	
+
+			if "s_photo" in keys:
+				assert Dp(self._username).get_dp_version("S") == base64.b64decode(response['user_info']["s_photo"])				
+
+			assert self._user_info_keys[x] not in response['user_info']
+
+
+	def tearDown(self):
+		S3Object(bucket_name = self._profile_pic_bucket, name = self._small_version_name).delete_key()
+		S3Object(bucket_name = self._profile_pic_bucket, name = self._large_version_name).delete_key()
+		test_utils.delete_user(username = self._username)
+		test_utils.delete_user(username = self._requesting_username)
+
 
 class GetReferralCodeTest(unittest.TestCase):
 	_get_referral_code_url = tornado_local_address + "/get_referral_code"
