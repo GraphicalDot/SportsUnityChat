@@ -1530,6 +1530,14 @@ class GetUserInfo(unittest.TestCase):
 
 			assert self._user_info_keys[x] not in response['user_info']
 
+	def test_no_user_pic_present(self):
+		keys = copy.deepcopy(self._user_info_keys)
+		S3Object(bucket_name = self._profile_pic_bucket, name = self._small_version_name).delete_key()
+		S3Object(bucket_name = self._profile_pic_bucket, name = self._large_version_name).delete_key()
+		payload = {"username": self._requesting_username, "password": self._requesting_password, "r_jid": self._username, "r_info": keys}
+		payload.update(extra_params_dict)
+		response = json.loads(requests.post(self._get_user_info_url, data = json.dumps(payload)).content)
+		assert response["status"] == settings.STATUS_200
 
 	def tearDown(self):
 		S3Object(bucket_name = self._profile_pic_bucket, name = self._small_version_name).delete_key()

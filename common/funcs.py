@@ -7,6 +7,7 @@ import random
 import psycopg2
 import psycopg2.extras
 from apns import APNs, Payload
+import botocore
 import os
 import json
 from gcm import GCM
@@ -80,7 +81,7 @@ class S3(object):
     def check_exists(self):
         try:
             self.client.get_object_acl(Bucket = self.bucket_name, Key = self.name)
-        except Exception, e:
+        except botocore.exceptions.ClientError:
             return False
         return True
 
@@ -89,7 +90,10 @@ class S3(object):
         
 
     def get_file(self):
-        return self.client.get_object(Bucket = self.bucket_name, Key = self.name)["Body"].read()
+        if self.check_exists():
+            return self.client.get_object(Bucket = self.bucket_name, Key = self.name)["Body"].read()
+        else:
+            return ''
 
 
 def merge_dicts(dict_list):
