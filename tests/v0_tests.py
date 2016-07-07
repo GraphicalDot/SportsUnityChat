@@ -1745,8 +1745,6 @@ class UsersFriendsWatchingTest(unittest.TestCase):
 		self.register_match(self._second_friends_username, self._match_id_1)
 
 
-
-
 	def update_roster_entry(self, friend, subscription):
 		query = "UPDATE rosterusers SET subscription = %s " \
 				"WHERE username = %s AND jid = %s;"

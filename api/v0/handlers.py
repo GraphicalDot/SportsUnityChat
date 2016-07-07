@@ -608,6 +608,7 @@ class GetNearbyUsers(UserApiRequestHandler):
             + "      ("\
             + "          SELECT bjids FROM banned_users"\
             + "      )"\
+            + "      AND users.type = %s"\
             + "      AND "\
             + "      ("\
             + "         CASE "\
@@ -630,6 +631,7 @@ class GetNearbyUsers(UserApiRequestHandler):
                 self.lng,
                 self.radius,
                 self.username,
+                settings.USER_TYPE_HUMAN,
         )
         records = QueryHandler.get_results(query, variables)
         return records
