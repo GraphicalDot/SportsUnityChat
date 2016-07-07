@@ -67,3 +67,8 @@ PLAY_STORE_URL="https://play.google.com/store/apps/details?id=co.sports.unity&re
 API_SHORTNER_ENDPOINT="https://www.googleapis.com/urlshortener/v1/url?key={}"
 
 RANDOM_PICTURE_COUNT = 1000
+
+USER_TYPE_HUMAN = 'u'
+USER_TYPE_SERVER_BOT = 's'
+
+PUBSUB_COMMENTARY__NODE_NAME_SUFFIX = "match_"

@@ -205,5 +205,163 @@ class InterestTest(unittest.TestCase):
         QueryHandler.execute(query, variables)
         test_utils.delete_user(username = self._username, phone_number=self._phone_number)
 
+class UsersWatchingMatchTest(unittest.TestCase):
+    _username = "test"
+    _phone_number = "911"
+    _password = "test"
+    _test_storage_url = tornado_local_address + "/v1/set_user_watching_match"
+    _test_deletion_url = tornado_local_address + "/v1/delete_user_watching_match"
+    _test_retrieval_url = tornado_local_address + "/v1/get_users_watching_matches"
+
+    _first_friends_username = "test1"
+    _first_friends_password = "password"
+    _first_friends_phone_number = "912"
+
+
+    _second_friends_username = "test2"
+    _second_friends_password = "password"
+    _second_friends_phone_number = "913"
+
+    _match_id_1 = "test|1"
+    _match_id_2 = "test|2"
+
+
+    def setUp(self):
+        test_utils.delete_user(username = self._username)
+        test_utils.create_user(username = self._username, password = self._password, phone_number = self._phone_number)
+
+        test_utils.delete_user(username = self._first_friends_username)
+        test_utils.create_user(username = self._first_friends_username, password = self._first_friends_password, phone_number = self._first_friends_phone_number)
+
+        test_utils.delete_user(username = self._second_friends_username)
+        test_utils.create_user(username = self._second_friends_username, password = self._second_friends_password, phone_number = self._second_friends_phone_number)
+
+        self.add_friend(self._first_friends_username, 'B')
+        self.add_friend(self._second_friends_username, 'B')
+
+        self.unregister_matches(self._first_friends_username)
+        self.unregister_matches(self._second_friends_username)
+
+        self.register_match(self._first_friends_username, self._match_id_1)
+        self.register_match(self._second_friends_username, self._match_id_1)
+
+
+    def test_storage(self):
+        payload = {"username": self._username, "password": self._password, "match_id": self._match_id_1}
+        payload.update(extra_params_dict)
+        response = requests.post(self._test_storage_url, data = json.dumps(payload))
+        res = json.loads(response.text)
+        assert response
+        self.assertEqual(res['status'], settings.STATUS_200)
+
+
+        query = "SELECT * FROM users_watching_matches"\
+            + " WHERE username = %s;"
+        variables = (self._username,)
+        record = QueryHandler.get_results(query, variables)
+        assert record
+        assert record[0]['username'] == self._username
+        assert record[0]['match_id'] == self._match_id_1
+
+
+        response = requests.post(self._test_deletion_url, data = json.dumps(payload))
+        res = json.loads(response.text)
+        assert response
+        self.assertEqual(res['status'], settings.STATUS_200)
+
+
+        query = "SELECT * FROM users_watching_matches"\
+            + " WHERE username = %s;"
+        variables = (self._username,)
+        record = QueryHandler.get_results(query, variables)
+        assert not record
+
+
+    def update_roster_entry(self, friend, subscription):
+        query = "UPDATE rosterusers SET subscription = %s " \
+                "WHERE username = %s AND jid = %s;"
+        variables = (subscription, self._username, friend)
+        QueryHandler.execute(query, variables)
+
+    def add_friend(self, friend, subscription = 'B'):
+        query = "INSERT INTO rosterusers(username, jid, nick, subscription, ask, askmessage, server) VALUES" \
+                "(%s, %s, %s, %s, %s, %s, %s);"
+        variables = (self._username, friend, 't5', subscription, '', 'N', 'N')
+        try:
+            QueryHandler.execute(query, variables)
+        except psycopg2.IntegrityError as e:
+            pass
+
+    def register_match(self, username, match_id):
+        query = " INSERT INTO users_watching_matches (username, match_id) VALUES (%s, %s);"
+        variables = (username, match_id,)
+        QueryHandler.execute(query, variables)
+
+    def unregister_match(self, username, match_id):
+        query = " DELETE FROM users_watching_matches WHERE username = %s AND match_id = %s;"
+        variables = (username, match_id,)
+        QueryHandler.execute(query, variables)
+
+    def unregister_matches(self, username):
+        query = " DELETE FROM users_watching_matches WHERE username = %s;"
+        variables = (username,)
+        QueryHandler.execute(query, variables)      
+
+    def delete_user_friends(self, username):
+        query = "DELETE FROM rosterusers WHERE username=%s;"
+        variables = (username,)
+        QueryHandler.execute(query, variables)
+
+
+    def test_retrieve_friends_watching_the_match(self):
+        # from IPython import embed
+        # embed()
+        payload = {"username": self._username, "password": self._password, "matches": [self._match_id_1, self._match_id_2]}
+        payload.update(extra_params_dict)
+        response = json.loads(requests.post(self._test_retrieval_url, data=payload).content)
+        assert response['status'] == settings.STATUS_200
+        assert response['matches'][self._match_id_1]
+        assert not response['matches'].get(self._match_id_2)
+
+        assert type(response['matches'][self._match_id_1]) == list
+        assert len(response['matches'][self._match_id_1]) == 2
+        assert self._first_friends_username in response['matches'][self._match_id_1]
+        assert self._second_friends_username in response['matches'][self._match_id_1]
+
+        # Case: When one of the friends has unregistered the match
+
+        self.unregister_match(self._second_friends_username, self._match_id_1)
+        response = json.loads(requests.post(self._test_retrieval_url, data=payload).content)
+        assert self._first_friends_username in response['matches'][self._match_id_1]
+        assert not self._second_friends_username in response['matches'][self._match_id_1]
+
+        # Case: When one of the friends has subscribed to the second match
+        self.register_match(self._second_friends_username, self._match_id_2)
+        response = json.loads(requests.post(self._test_retrieval_url, data=payload).content)
+        assert self._first_friends_username in response['matches'][self._match_id_1]
+        assert self._second_friends_username in response['matches'][self._match_id_2]
+
+        # Case: When first user  is not friends
+        self.update_roster_entry(self._first_friends_username, 'N')
+        response = json.loads(requests.post(self._test_retrieval_url, data=payload).content)
+        assert not response['matches'].get(self._match_id_1)
+        assert self._second_friends_username in response['matches'][self._match_id_2]
+
+    def test_empty_match_list(self):
+        payload = {"username": self._username, "password": self._password, "matches": []}
+        payload.update(extra_params_dict)
+        response = json.loads(requests.post(self._test_retrieval_url, data=payload).content)
+        assert response['status'] == settings.STATUS_200
+        assert not response.get('matches')
+
+    def tearDown(self):
+        test_utils.delete_user(username = self._username)
+        test_utils.delete_user(username = self._first_friends_username)
+        test_utils.delete_user(username = self._second_friends_username)
+        self.unregister_matches(self._first_friends_username)
+        self.unregister_matches(self._second_friends_username)
+        self.delete_user_friends(self._username)
+
+
 if __name__ == '__main__':
     unittest.main()

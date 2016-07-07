@@ -609,6 +609,7 @@ class GetNearbyUsers(UserApiRequestHandler):
             + "          SELECT bjids FROM banned_users"\
             + "      )"\
             + "      AND "\
+            + "      AND users.type = %s"\
             + "      ("\
             + "         CASE "\
             + "             WHEN users.show_location = 'n' THEN False "\
@@ -630,6 +631,7 @@ class GetNearbyUsers(UserApiRequestHandler):
                 self.lng,
                 self.radius,
                 self.username,
+                settings.USER_TYPE
         )
         records = QueryHandler.get_results(query, variables)
         return records

@@ -151,8 +151,62 @@ class UserInterestHandler(UserApiRequestHandler):
         interests = self.request.arguments['interests']
         self.delete_user_interest(interests)
 
-        response['status'] =settings.STATUS_200
+        response['status'] = settings.STATUS_200
         response['info'] = settings.SUCCESS_RESPONSE
-        self.write(response)        
+        self.write(response)
 
 
+class SetUserWatchingMatchHandler(UserApiRequestHandler):
+    def set_user_watching_match(self):
+        query = " WITH selected AS ( SELECT * FROM users_watching_matches WHERE username = %s AND match_id = %s ) "\
+        +   " INSERT INTO users_watching_matches (username, match_id) SELECT %s, %s WHERE NOT EXISTS (SELECT * FROM selected); "
+        variables = (self.username, self.match_id, self.username, self.match_id,)
+        QueryHandler.execute(query, variables)
+
+    def post(self):
+        response = {}
+        self.username = self.get_argument('username')
+        self.match_id = self.get_argument('match_id')
+        self.set_user_watching_match()  
+        response['status'] = settings.STATUS_200
+        response['info'] = settings.SUCCESS_RESPONSE
+        self.write(response)
+
+class DeleteUserWatchingMatchHandler(UserApiRequestHandler):
+    def delete_user_watching_match(self):
+        query = " DELETE FROM users_watching_matches WHERE username = %s AND match_id = %s;"
+        variables = (self.username, self.match_id, )
+        QueryHandler.execute(query, variables)
+
+    def post(self):
+        response = {}
+        self.username = self.get_argument('username')
+        self.match_id = self.get_argument('match_id')
+        self.delete_user_watching_match()  
+        response['status'] = settings.STATUS_200
+        response['info'] = settings.SUCCESS_RESPONSE
+        self.write(response)
+
+class GetUserWatchingMatchHandler(UserApiRequestHandler):
+    def post(self):
+        response = {}
+        self.username = self.get_argument("username")
+        self.matches = tuple(self.get_arguments('matches'))
+        if self.matches:
+            friends_watching = {}
+            records = self.get_friends_matches()
+            for record in records:
+                friends_watching.update({record['match_id']: record['friends']})
+            response['matches'] = friends_watching
+        response['status'] = 200
+        response['info'] = 'Success'
+        self.write(response)    
+
+    def get_friends_matches(self):
+        query = " SELECT match_id, array_agg(username) AS friends FROM users_watching_matches WHERE username IN "\
+        +   " (SELECT split_part(rosterusers.jid, '@', 1) from rosterusers WHERE username = %s "\
+        +   "   AND subscription = 'B') "\
+        +   " AND match_id IN %s GROUP BY match_id; "
+        variables = (self.username, self.matches, )
+        records = QueryHandler.get_results(query, variables)
+        return records
