@@ -211,7 +211,7 @@ class UsersWatchingMatchTest(unittest.TestCase):
     _password = "test"
     _test_storage_url = tornado_local_address + "/v1/set_user_watching_match"
     _test_deletion_url = tornado_local_address + "/v1/delete_user_watching_match"
-    _test_retrieval_url = tornado_local_address + "/v1/get_users_watching_matches"
+    _test_retrieval_url = tornado_local_address + "/v1/friends_watching"
 
     _first_friends_username = "test1"
     _first_friends_password = "password"
