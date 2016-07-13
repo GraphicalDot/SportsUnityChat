@@ -10,8 +10,16 @@ import psycopg2.extras
 from psycopg2 import IntegrityError
 import logging
 import tornado
+import threading
 from requests_toolbelt import MultipartDecoder
 from common.custom_error import BadAuthentication, BadInfoSuppliedError
+from sleekxmpp import ClientXMPP
+from xml.etree import cElementTree as ET
+import xmltodict
+import dicttoxml
+from sleekxmpp.plugins.base import PluginManager, PluginNotFound, BasePlugin
+from sleekxmpp.plugins.base import register_plugin, load_plugin
+from sleekxmpp.exceptions import IqError, IqTimeout
 config = ConfigParser.ConfigParser()
 config.read('config.py')
 
@@ -155,4 +163,96 @@ class UserInterestHandler(UserApiRequestHandler):
         response['info'] = settings.SUCCESS_RESPONSE
         self.write(response)        
 
+
+
+def check_udid_and_apk_version(request_handler_object):
+    request_handler_object.get_argument('apk_version')
+    request_handler_object.get_argument('udid')
+
+
+class PubSubMessageClient(ClientXMPP):
+
+    def __init__(self, client_jid, client_password, match_id, series_id, group_node_id):
+        print 'insid init'
+        self.client_jid = client_jid + '@mm.io'
+        self.client_password = client_password
+        self.match_id = match_id
+        self.series_id = series_id
+        self.group_node_id = str(group_node_id)
+        ClientXMPP.__init__(self, self.client_jid, self.client_password)
+        self._start_thread("get_subscriptions", self.get_subscriptions)
+
+    def callback_function(self, *args, **kwargs):
+        print 'inside callback_function'
+        print 'args:', args
+        print 'kwargs::', kwargs
+
+    def get_subscriptions(self):
+        print 'inside get_subscriptions'
+        try:
+            m = self.plugin['xep_0060']
+            msg = m.get_node_subscriptions(jid=self.client_jid, node=self.group_node_id, ifrom=self.client_jid, block=True, callback=self.callback_function)
+            print '####', msg
+            # msg = self.plugin['xep_0060'].get_node_subscriptions(jid=self.client_jid, node=self.group_node_id, ifrom=self.client_jid, block=True)
+            # print 'msg:::', msg
+        except IqError as e:
+            print e
+
+
+    # def chat_send(self):
+    #     print 'inside chat send'
+    #     self.send_message(mto='pubsub.mm.io', mbody=self.match_to_subscribe_to, msubject="New Live matches", mtype='chat',
+    #                       mfrom=self.client_jid)
+
+
+class SubscribeToCommentary(tornado.web.RequestHandler):
+    """
+
+    """
+    # def send_pubsub_msg(self, match_id, series_id, group_id):
+    #     print 'inside send_pubsub_msg'
+    #     xmpp = PubSubMessageClient(client_jid='aakarshi@mm.io', client_password='password', match_to_subscribe_to=str(series_id) + ':' + str(match_id) + '-' + str(group_id))
+    #     print "xmpp::", xmpp
+    #     # start separate thread
+    #     if xmpp.connect(('localhost', 5222)):
+    #         xmpp.process(block=True)
+    #         print("Done")
+    #     else:
+    #         print("Unable to connect.")
+
+    def subscribe_group_to_match(self, match_id, series_id, group_node_id, sender, password):
+        print 'inside subscribe_group_to_match'
+        xmpp = PubSubMessageClient(sender, password, match_id, series_id, group_node_id)
+        xmpp.register_plugin('xep_0060')
+        if xmpp.connect(('localhost', 5222)):
+            xmpp.process(block=True)
+            print("Done")
+        else:
+            print("Unable to connect.")
+
+
+    def get(self):
+        response = {}
+        try:
+            check_udid_and_apk_version(self)
+            print 'inside get of SubscribeToCommentary'
+            match_id = str(self.get_argument('match_id'))
+            series_id = str(self.get_argument('series_id'))
+            group_node_id = str(self.get_argument('group_node_id'))
+            username = str(self.get_argument('username'))
+            password = str(self.get_argument('password'))
+
+            # start separate thread for each group subscription
+            threading.Thread(group = None, target = self.subscribe_group_to_match, name = None, args = (match_id, series_id, group_node_id, username, password)).start()
+
+
+            # self.send_pubsub_msg(match_id, series_id, group_id)
+        except MissingArgumentError, status:
+            response["info"] = status.log_message
+            response["status"] =settings.STATUS_400
+        except Exception as e:
+            response['status'] = settings.STATUS_500
+            response['info'] = " Error is: %s" % e
+        finally:
+            self.write(response)
 

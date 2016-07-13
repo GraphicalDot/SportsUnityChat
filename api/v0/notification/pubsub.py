@@ -14,7 +14,7 @@ class PubSubNotificationClient(ClientXMPP):
 		ClientXMPP.__init__(self,
 			config.get('pubsub','pubsub_jid'), 
 			config.get('pubsub','pubsub_password'))
-		self.add_event_handler	('session_start', self.start)
+		self.add_event_handler('session_start', self.start)
 
 	def start(self, event):
 		iq = self.handle_pubsub_iq()

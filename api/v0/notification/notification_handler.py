@@ -78,7 +78,8 @@ class NotificationHandler:
         query = " SELECT device_token, token_type FROM users, users_matches"\
         + " WHERE users_matches.match_id = %s AND users_matches.username = users.username;"
         variables = (match_id,)
-        return QueryHandler.get_results(query, variables)
+        return
+        .get_results(query, variables)
 
     def handle_notification(self):
         subscribing_users = self.get_subscribing_users(self.match_id)
