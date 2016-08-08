@@ -896,3 +896,17 @@ class FriendsWatchingHandler(UserApiRequestHandler):
         variables = (self.username, self.matches, )
         records = QueryHandler.get_results(query, variables)
         return records
+
+
+class PollAnswerHandler(UserApiRequestHandler):
+    def post(self):
+        response = {}
+        self.username = self.get_argument("username")
+        self.article_id = self.get_argument('article_id')
+        self.poll_answer = self.get_argument('poll_answer')
+        if not self.poll_answer in settings.ARTICLE_POLL_ANSWER_TYPES:
+            raise BadInfoSuppliedError("poll_answer")
+        ArticleDiscussionGroup(self.article_id).allocate_group(self.username, self.set_user_response)
+        response['status'] = 200
+        response['info'] = 'Success'
+        self.write(response)
