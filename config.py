@@ -4,6 +4,13 @@ host=masterdb
 user=madmachines
 password=password_production_db
 
+# [database]
+# database=production_db
+# host=localhost
+# user=madmachines
+# password=password_production_db
+
+
 [registration]
 expiry_period_sec=1800
 
@@ -22,6 +29,10 @@ dp_objects_acl=private
 user_media_bucket_name=sports.unity.user.upload
 user_media_acl=private
 random_avatar_bucket=random.avatars
+article_stats_bucket=article_stats
+article_images_bucket=article_images
+article_ice_breaker_images_bucket=article_ice_breaker_images
+article_memes_bucket=article_memes
 
 [xmpp]
 domain=@mm.io

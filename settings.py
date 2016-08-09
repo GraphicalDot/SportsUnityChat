@@ -8,6 +8,8 @@ STATUS_200 = 200
 STATUS_404 = 404
 STATUS_422 = 422
 STATUS_403 = 403
+STATUS_409 = 409
+STATUS_405 = 405
 STATUS_ERROR_LIST = [STATUS_400, STATUS_404, STATUS_500, STATUS_422, STATUS_403]
 
 SUCCESS_RESPONSE = "Success"
@@ -16,6 +18,11 @@ BAD_AUTHENTICATION_ERROR = " Bad Authentication Info"
 USER_FORBIDDEN_ERROR = "Forbidden: The user is BLOCKED!"
 BAD_INFO_ERROR = " Bad Info Supplied for {}"
 INTERNAL_SERVER_ERROR = "Internal server error"
+USER_ALEADY_EXISTS = "Error: User already exists with this username"
+MISSING_ARGUMENT_ERROR = "Missing Argument: {}"
+OBJECT_ALREADY_EXISTS = "CONFLICT ERROR! {} already exists with this name!"
+INVALID_OBJECT_TYPE = 'ERROR: Invalid Image type!'
+
 # admin templates path
 ADMIN_TEMPLATES_PATH = 'admin_templates/'
 ADMIN_TEMPLATES = [
@@ -25,6 +32,11 @@ ADMIN_TEMPLATES = [
     'update_user.html',
     'delete_user.html',
     'block_unblock_user.html']
+
+# console related paths
+STATIC_PATH = 'static/'
+TEMPLATES_PATH = STATIC_PATH + 'templates/'
+NEWS_CONSOLE_TEMPLATE_PATH = TEMPLATES_PATH + 'news_templates/'
 
 # App testing
 TESTING_NUMBER_1 = '918989898989'
@@ -72,3 +84,11 @@ USER_TYPE_HUMAN = 'u'
 USER_TYPE_SERVER_BOT = 's'
 
 PUBSUB_COMMENTARY__NODE_NAME_SUFFIX = "match_"
+
+# curated articles' buckets' mapping
+CURATED_ARTICLES_BUCKETS = {
+    'stats': 'curated.article.stats',
+    'news_image': 'curated.article.images',
+    'ice_breaker_image': 'curated.article.icebreaker.images',
+    'memes': 'curated.article.memes'
+}
