@@ -14,7 +14,7 @@ STATUS_ERROR_LIST = [STATUS_400, STATUS_404, STATUS_500, STATUS_422, STATUS_403]
 
 SUCCESS_RESPONSE = "Success"
 MISSING_APK_AND_UDID_ERROR = "Bad Request: Please provide 'apk_version' and 'udid'"
-BAD_AUTHENTICATION_ERROR = " Bad Authentication Info"
+BAD_AUTHENTICATION_ERROR = "Bad Authentication Info"
 USER_FORBIDDEN_ERROR = "Forbidden: The user is BLOCKED!"
 BAD_INFO_ERROR = " Bad Info Supplied for {}"
 INTERNAL_SERVER_ERROR = "Internal server error"
