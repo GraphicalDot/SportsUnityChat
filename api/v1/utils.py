@@ -3,7 +3,6 @@ from models.s3_object import S3Object
 
 
 def upload_s3_object(name, content, object_type):
-    print 'inside upload_s3_object'
     response = {}
     s3_bucket_name = settings.CURATED_ARTICLES_BUCKETS.get(object_type, None)
     if s3_bucket_name:
@@ -11,7 +10,7 @@ def upload_s3_object(name, content, object_type):
         if s3_object.exists():
             response.update({'status': settings.STATUS_409, 'info': settings.OBJECT_ALREADY_EXISTS.format(object_type)})
         else:
-            s3_object.upload()
+            s3_object.handle_upload()
             s3_object_link = "{}/{}/{}".format(s3_object.client.meta.endpoint_url, s3_bucket_name, name)
             response.update({'status': settings.STATUS_200, 'info': settings.SUCCESS_RESPONSE, 'link': s3_object_link})
     else:

@@ -12,42 +12,47 @@ from tornado.web import asynchronous
 from common.funcs import QueryHandler
 from models.s3_object import S3Object
 from utils import upload_s3_object
-# from tornado.web import MissingArgumentError
 
 
 def execution_trace(arguments):
-    print 'inside execution trace'
-
     def true_decorator(func):
-        print 'inside __wrap'
         @wraps(func)
         def wrapped(self, *args, **kwargs):
-            print 'inside wrapped'
             result = None
-            print 'arguments::', arguments
             if arguments:
                 for arg in arguments:
-                    print 'arg::::', arg, self.get_argument(arg, None)
                     if not self.get_argument(arg, None):
-                        print 'inside if not'
                         result =  {"status": settings.STATUS_400, "info": settings.MISSING_ARGUMENT_ERROR.format(arg)}
                         break
 
-            print 'here 1 result::', result
             if not result:
-                print 'INSIDE'
                 result = func(self, *args, **kwargs)
-
-            print 'result:', result
-
             self.write(result)
             return
         return wrapped
     return true_decorator
 
 
+class NewsConsoleLogin(tornado.web.RequestHandler):
 
-# allowed to console admin only
+    @execution_trace(['username', 'password'])
+    def post(self):
+        response = {}
+        username = str(self.get_argument('username'))
+        password = str(self.get_argument('password'))
+        try:
+            query = "SELECT role FROM content_writers WHERE username=%s AND password=%s;"
+            variables = (username, password)
+            user = QueryHandler.get_results(query, variables)
+            response.update({'status': settings.STATUS_200, 'info': settings.SUCCESS_RESPONSE,
+                             'user_role': user[0]['role']} if user
+                            else {'status': settings.STATUS_404, 'info': settings.BAD_AUTHENTICATION_ERROR})
+        except Exception, e:
+            response.update({'status': settings.STATUS_500, 'info': 'ERROR: %s' % e})
+        finally:
+            return response
+
+
 class NewsConsoleAddUser(tornado.web.RequestHandler):
 
     @execution_trace(['username', 'password', 'user_role'])
@@ -73,27 +78,6 @@ class NewsConsoleAddUser(tornado.web.RequestHandler):
             return response
 
 
-class NewsConsoleLogin(tornado.web.RequestHandler):
-
-    @execution_trace(['username', 'password'])
-    def post(self):
-        response = {}
-        username = str(self.get_argument('username'))
-        password = str(self.get_argument('password'))
-        try:
-            query = "SELECT role FROM content_writers WHERE username=%s AND password=%s;"
-            variables = (username, password)
-            user = QueryHandler.get_results(query, variables)
-            print 'user:', user
-            response.update({'status': settings.STATUS_200, 'info': settings.SUCCESS_RESPONSE,
-                             'user_role': user[0]['role']} if user
-                            else {'status': settings.STATUS_404, 'info': settings.BAD_AUTHENTICATION_ERROR})
-        except Exception, e:
-            response.update({'status': settings.STATUS_500, 'info': 'ERROR: %s' % e})
-        finally:
-            return response
-
-
 class NewsConsoleUploadS3Object(tornado.web.RequestHandler):
 
     @execution_trace(['name', 'content', 'type'])
@@ -105,7 +89,6 @@ class NewsConsoleUploadS3Object(tornado.web.RequestHandler):
 
         try:
             response = upload_s3_object(name, content, type)
-            print 'RESPONSE::::', response
         except Exception, e:
             response.update({'status': settings.STATUS_500, 'info': 'ERROR: %s' % e})
         finally:
@@ -115,7 +98,6 @@ class NewsConsoleUploadS3Object(tornado.web.RequestHandler):
 class NewsConsoleAddCuratedArticle(tornado.web.RequestHandler):
 
     def update_database(self):
-        print 'inside update database'
         query = "INSERT INTO curated_articles (article_headline, article_content, article_image, article_poll_question, " \
                 "article_ice_breaker_image, article_sport_type, article_publish_date, article_stats, article_memes, " \
                 "article_state) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s);"
@@ -143,7 +125,6 @@ class NewsConsoleAddCuratedArticle(tornado.web.RequestHandler):
         self.publish_date = parser.parse(str(self.get_argument('publish_date')))
         self.article_state = str(self.get_argument('state'))
 
-        print 'STATS:', type(self.stats)
         try:
             response = upload_s3_object(self.news_image_name, self.news_image_content, 'news_image')
             if response['status'] == settings.STATUS_200:
@@ -164,7 +145,6 @@ class NewsConsoleAddCuratedArticle(tornado.web.RequestHandler):
 class NewsConsoleFetchArticles(tornado.web.RequestHandler):
 
     def get(self):
-        print 'inside get of NewsConsoleFetchArticles'
         response = {}
         try:
             filter_field = str(self.get_argument('filter_field', 'created_at'))
@@ -172,7 +152,6 @@ class NewsConsoleFetchArticles(tornado.web.RequestHandler):
             query = "SELECT article_id, article_headline, article_sport_type, to_char(article_publish_date, 'DD MM YYYY') as publish_date, article_state FROM " \
                     "curated_articles " + "ORDER BY %s %s;" % (filter_field, order)
             articles = QueryHandler.get_results(query)
-            print 'ARTICLES:::::', type(articles)
             response.update({'status': settings.STATUS_200, 'info': settings.SUCCESS_RESPONSE, 'articles': json.dumps(articles)})
         except Exception, e:
             response.update({'status': settings.STATUS_500, 'info': 'ERROR: %s' % e})
@@ -184,7 +163,6 @@ class NewsConsoleEditArticle(tornado.web.RequestHandler):
 
     @execution_trace(['article_id'])
     def get(self):
-        print 'inside get of NewsConsoleEditArticle'
         response = {}
         self.article_id = str(self.get_argument('article_id'))
         try:
@@ -200,14 +178,10 @@ class NewsConsoleEditArticle(tornado.web.RequestHandler):
             return response
 
     # def post(self):
-    #     print 'inside post'
     #     response = {}
     #     try:
-    #         print 'response body:::', self.request.body
     #         arguments = urlparse.parse_qs(self.request.body)
-    #         print 'ARGUMENTSSS:::', arguments
     #         if arguments.has_key('article_id'):
-    #             print 'inside'
     #             self.article_id = arguments.pop('article_id')[0]
     #             query = "UPDATE curated_articles SET " + map(arguments)
     #

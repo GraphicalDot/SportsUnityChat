@@ -33,11 +33,6 @@ ADMIN_TEMPLATES = [
     'delete_user.html',
     'block_unblock_user.html']
 
-# console related paths
-STATIC_PATH = 'static/'
-TEMPLATES_PATH = STATIC_PATH + 'templates/'
-NEWS_CONSOLE_TEMPLATE_PATH = TEMPLATES_PATH + 'news_templates/'
-
 # App testing
 TESTING_NUMBER_1 = '918989898989'
 TESTING_NUMBER_2 = '911010101010'

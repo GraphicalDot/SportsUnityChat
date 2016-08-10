@@ -4,13 +4,6 @@ host=masterdb
 user=madmachines
 password=password_production_db
 
-# [database]
-# database=production_db
-# host=localhost
-# user=madmachines
-# password=password_production_db
-
-
 [registration]
 expiry_period_sec=1800
 
