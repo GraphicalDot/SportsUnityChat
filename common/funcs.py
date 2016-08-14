@@ -15,8 +15,10 @@ import time
 import ConfigParser
 import boto3
 config = ConfigParser.ConfigParser()
-config.read(os.path.dirname(os.path.abspath(__file__)) + '/../config.py')
+config.read('config.py')
 import threading
+
+
 class QueryHandler(object):
 
     _instance = None

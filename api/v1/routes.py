@@ -1,5 +1,5 @@
 import handlers
-import news_console_api as news_handlers
+import console_handlers
 
 urls = [
     (r"/v1/set_location_privacy", handlers.LocationPrivacyHandler),
@@ -9,10 +9,13 @@ urls = [
     (r"/v1/friends_watching", handlers.GetUserWatchingMatchHandler),
 
     ## console urls
-    (r"/news_login", news_handlers.NewsConsoleLogin),
-    (r"/news_add_user", news_handlers.NewsConsoleAddUser),
-    (r"/news_upload_s3_object", news_handlers.NewsConsoleUploadS3Object),
-    (r"/add_article", news_handlers.NewsConsoleAddCuratedArticle),
-    (r"/fetch_articles", news_handlers.NewsConsoleFetchArticles),
-    (r"/edit_article", news_handlers.NewsConsoleEditArticle),
+    (r"/news_login", console_handlers.NewsConsoleLogin),
+    (r"/news_add_user", console_handlers.NewsConsoleAddUser),
+    (r"/news_upload_s3_object", console_handlers.NewsConsoleUploadS3Object),
+    (r"/add_article", console_handlers.NewsConsoleAddCuratedArticle),
+    (r"/fetch_articles", console_handlers.NewsConsoleFetchArticles),
+    (r"/edit_article", console_handlers.NewsConsoleEditArticle),
+    (r"/delete_article", console_handlers.NewsConsoleDeleteArticle),
+    (r"/publish_article", console_handlers.NewsConsolePublishArticle),
+    (r"/post_carousel_articles", console_handlers.NewsConsolePostArticlesOnCarousel)
 ]

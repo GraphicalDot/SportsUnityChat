@@ -17,11 +17,10 @@ MISSING_APK_AND_UDID_ERROR = "Bad Request: Please provide 'apk_version' and 'udi
 BAD_AUTHENTICATION_ERROR = "Bad Authentication Info"
 USER_FORBIDDEN_ERROR = "Forbidden: The user is BLOCKED!"
 BAD_INFO_ERROR = " Bad Info Supplied for {}"
+DUPLICATE_KEY_ERROR = "Database Error: This {} already exists"
+INVALID_BUCKET_ERROR = "Bad Bucket Request"
+KEY_ALREADY_EXISTS = "Bad Request: This Key already exists in the bucket"
 INTERNAL_SERVER_ERROR = "Internal server error"
-USER_ALEADY_EXISTS = "Error: User already exists with this username"
-MISSING_ARGUMENT_ERROR = "Missing Argument: {}"
-OBJECT_ALREADY_EXISTS = "CONFLICT ERROR! {} already exists with this name!"
-INVALID_OBJECT_TYPE = 'ERROR: Invalid Image type!'
 
 # admin templates path
 ADMIN_TEMPLATES_PATH = 'admin_templates/'
@@ -87,3 +86,7 @@ CURATED_ARTICLES_BUCKETS = {
     'ice_breaker_image': 'curated.article.icebreaker.images',
     'memes': 'curated.article.memes'
 }
+
+NEWS_SERVER = 'http://NewsLB-388179569.ap-northeast-2.elb.amazonaws.com'
+PUBLISH_ARTICLES_POST_URL = NEWS_SERVER + '/publish_article'
+CAROUSEL_ARTICLES_POST_URL = NEWS_SERVER + '/carousel_articles'
