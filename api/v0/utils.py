@@ -23,7 +23,7 @@ class ConsoleS3Object(S3):
         if self.check_exists():
             raise KeyAlreadyExists
         else:
-		    threading.Thread(group = None, target = self.upload, name = None, args = ()).start()
+            threading.Thread(group = None, target = self.upload, name = None, args = ()).start()
 
     def upload(self):
         self.client.put_object(Bucket = self.bucket_name, Key = self.name, Body=self.content, ACL = self.acl)

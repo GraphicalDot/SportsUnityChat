@@ -34,7 +34,7 @@ class NewsConsoleLoginTests(unittest.TestCase):
     def setUp(self):
         self.login_url = TORNADO_SERVER +  '/news_login'
         self.data = dict()
-        test_utils.register_user(username='test_user_1', password='test_user_1', role='admin')
+        test_utils.register_content_writer(username='test_user_1', password='test_user_1', role='admin')
 
     def test_get(self):
         response = requests.get(self.login_url)
@@ -79,23 +79,15 @@ class NewsConsoleAddUserTests(unittest.TestCase):
     def setUp(self):
         self.add_user_url = TORNADO_SERVER + '/news_add_user'
         self.data = dict()
-        test_utils.register_user(username='test_user_1', password='test_user_1', role='admin')
+        test_utils.register_content_writer(username='test_user_1', password='test_user_1', role='admin')
 
     def test_get(self):
         response = requests.get(self.add_user_url)
         self.assertEqual(response.status_code, settings.STATUS_405)
 
     def test_post(self):
-
-        # case: POST data incomplete
-        self.data = {'username': 'test_user_1', 'password': 'test_user_1'}
-        response = requests.post(url=self.add_user_url, data=self.data)
-        res = json.loads(response.text)
-        self.assertEqual(res['status'], settings.STATUS_400)
-        self.assertEqual(res['info'], "Missing argument user_role")
-
         # case: user already registered
-        self.data['user_role'] = 'admin'
+        self.data = {'username': 'test_user_1', 'password': 'test_user_1', 'user_role': 'admin'}
         response = requests.post(url=self.add_user_url, data=self.data)
         res = json.loads(response.text)
         self.assertEqual(res['status'], settings.STATUS_409)
@@ -114,6 +106,8 @@ class NewsConsoleAddUserTests(unittest.TestCase):
         res = json.loads(response.text)
         self.assertEqual(res['status'], settings.STATUS_200)
         self.assertEqual(res['info'], settings.SUCCESS_RESPONSE)
+        query = "SELECT username FROM content_writers WHERE username = '%s';" % (self.data['username'],)
+        self.assertEqual(len(QueryHandler.get_results(query)), 1)
 
     def tearDown(self):
         test_utils.delete_user_from_table(field='username', table='content_writers', field_value='test_user_1')
@@ -171,13 +165,13 @@ class NewsConsoleAddCuratedArticleTests(unittest.TestCase):
 
     def setUp(self):
         self.data = dict()
+        self.article_id = None
         self.add_curated_article_url = TORNADO_SERVER + '/add_article'
         self.news_image_bucket = settings.CURATED_ARTICLES_BUCKETS.get('news_image')
         self.ice_breaker_bucket = settings.CURATED_ARTICLES_BUCKETS.get('ice_breaker_image')
         self.news_image_content = base64.b64encode(wImage(width=640, height=640, background=Color('blue')).make_blob(format='png'))
         self.icebreaker_content = base64.b64encode(wImage(width=640, height=640, background=Color('red')).make_blob(format='png'))
         self.s3_client = boto3.client('s3', aws_access_key_id = amazon_access_key, aws_secret_access_key = amazon_secret_key)
-        self.s3_client.put_object(Bucket=self.news_image_bucket, Key=base64.encodestring('test_image_1'), Body=self.news_image_content, ACL='public-read')
 
     def test_post(self):
 
@@ -186,46 +180,42 @@ class NewsConsoleAddCuratedArticleTests(unittest.TestCase):
         response = requests.post(url=self.add_curated_article_url, data=self.data)
         res = json.loads(response.text)
         self.assertEqual(res['status'], settings.STATUS_400)
-        self.assertEqual(res['info'], 'Missing argument article_image_name')
-
-        # uploading already existing news image
-        self.data.update({'article_image_name': 'test_image_1', 'article_image_content': self.news_image_content,
-                          'article_content': 'TEST_CONTENT', 'ice_breaker_name': 'test_breaker_image_1',
-                          'ice_breaker_content': self.icebreaker_content, 'poll_question': 'TEST_POLL_QUESTION',
-                          'notification_content': 'TEST_HEADLINE', 'sport_type': 'cricket', 'stats': ['link_1', 'link_2'],
-                          'memes': ['meme_1'], 'publish_date': '24/06/2016', 'state': 'UnPublished'})
-        response = requests.post(url=self.add_curated_article_url, data=self.data)
-        res = json.loads(response.text)
-        self.assertEqual(res['status'], settings.STATUS_409)
-        self.assertEqual(res['info'], settings.KEY_ALREADY_EXISTS)
+        self.assertEqual(res['info'], 'Missing argument article_content')
 
         # valid POST data
-        self.data['article_image_name'] = 'test_image_2'
-        self.data['article_image_content'] = self.news_image_content
+        self.data.update({'article_image_content': self.news_image_content, 'article_content': 'TEST_CONTENT',
+                          'ice_breaker_content': self.icebreaker_content, 'poll_question': 'TEST_POLL_QUESTION',
+                          'notification_content': 'TEST_HEADLINE', 'sport_type': 'c', 'stats': ['link_1', 'link_2'],
+                          'memes': ['meme_1'], 'publish_date': '24/06/2016', 'state': 'UnPublished'})
+
         response = requests.post(url=self.add_curated_article_url, data=self.data)
         res = json.loads(response.text)
         self.assertEqual(res['status'], settings.STATUS_200)
         self.assertEqual(res['info'], settings.SUCCESS_RESPONSE)
-        self.s3_client.get_object(Bucket = self.news_image_bucket, Key = base64.encodestring(self.data['article_image_name']))
-        self.s3_client.get_object(Bucket = self.ice_breaker_bucket, Key = base64.encodestring(self.data['ice_breaker_name']))
-        query = "SELECT article_headline FROM curated_articles WHERE article_headline = '%s';" % (self.data['headline'],)
-        self.assertEqual(len(QueryHandler.get_results(query)), 1)
+        query = "SELECT article_id FROM curated_articles WHERE article_headline = '%s';" % (self.data['headline'],)
+        result = QueryHandler.get_results(query)
+        self.assertEqual(len(result), 1)
+        self.article_id = str(result[0]['article_id'])
+        self.s3_client.get_object(Bucket = self.news_image_bucket, Key = str(self.article_id))
+        self.s3_client.get_object(Bucket = self.ice_breaker_bucket, Key = str(self.article_id))
 
     def tearDown(self):
         test_utils.delete_field_from_table('curated_articles', 'article_headline', 'TEST_HEADLINE')
-        self.s3_client.delete_object(Bucket=self.news_image_bucket, Key=base64.encodestring('test_image_1'))
-        self.s3_client.delete_object(Bucket=self.news_image_bucket, Key=base64.encodestring('test_image_2'))
-        self.s3_client.delete_object(Bucket=self.ice_breaker_bucket, Key=base64.encodestring('test_breaker_image_1'))
+        self.s3_client.delete_object(Bucket=self.news_image_bucket, Key=str(self.article_id))
+        self.s3_client.delete_object(Bucket=self.ice_breaker_bucket, Key=str(self.article_id))
 
 
 class NewsConsoleFetchArticlesTests(unittest.TestCase):
 
     def setUp(self):
         self.fetch_articles_url = TORNADO_SERVER + '/fetch_articles'
-        self.last_article_id = test_utils.get_max_id('curated_articles', 'article_id')
-        self.articles = [(self.last_article_id + 1000, 'article_1', '01/03/2015', 'cricket', 'UnPublished'), (self.last_article_id + 1001, 'article_2', '04/01/2015', 'football', 'Published'),
-                         (self.last_article_id + 1002, 'article_3', '07/01/2014', 'cricket', 'Published')]
-        test_utils.create_articles(self.articles)
+        self.articles = [{'headline': 'article_1', 'sport_type': 'c',
+                          'publish_date': '01/03/2015', 'state': 'UnPublished'},
+                         {'headline': 'article_2', 'sport_type': 'f',
+                          'publish_date': '04/01/2015', 'state': 'Published'},
+                         {'headline': 'article_3', 'sport_type': 'c',
+                          'publish_date': '07/01/2014', 'state': 'Published'}]
+        self.article_ids = test_utils.create_articles(self.articles)
 
     def test_post(self):
         response = requests.post(self.fetch_articles_url)
@@ -276,7 +266,7 @@ class NewsConsoleFetchArticlesTests(unittest.TestCase):
         self.assertEqual([article['article_headline'] for article in articles_result], ['article_2', 'article_3'])
 
         # filter on 'sport_type'
-        response = requests.get(self.fetch_articles_url + '?filter_field=article_sport_type&article_sport_type=football')
+        response = requests.get(self.fetch_articles_url + '?filter_field=article_sport_type&article_sport_type=f')
         res = json.loads(response.text)
         articles_result = json.loads(res['articles'])
         self.assertEqual(res['status'], settings.STATUS_200)
@@ -291,25 +281,20 @@ class NewsConsoleFetchArticlesTests(unittest.TestCase):
         self.assertEqual(res['info'], 'Missing argument article_sport_type')
 
     def tearDown(self):
-        test_utils.delete_articles(self.articles)
+        test_utils.delete_articles(self.article_ids)
 
 
 class NewsConsoleEditArticleTests(unittest.TestCase):
 
     def setUp(self):
         self.edit_article_url = TORNADO_SERVER + '/edit_article'
-        self.last_article_id = test_utils.get_max_id('curated_articles', 'article_id')
-        self.articles = [(self.last_article_id + 1000, 'article_1', '01/03/2015', 'cricket', 'UnPublished'),
-                         (self.last_article_id + 1001, 'article_2', '04/01/2015', 'football', 'Published')]
-        test_utils.create_articles(self.articles)
+        self.articles = [{'headline': 'article_1', 'sport_type': 'c',
+                          'publish_date': '01/03/2015', 'state': 'UnPublished'},
+                         {'headline': 'article_2', 'sport_type': 'f',
+                          'publish_date': '04/01/2015', 'state': 'Published'}]
+        self.article_ids = test_utils.create_articles(self.articles)
 
     def test_get(self):
-
-        # 'article_id' not provided
-        response = requests.get(self.edit_article_url)
-        res = json.loads(response.text)
-        self.assertEqual(res['status'], settings.STATUS_400)
-        self.assertEqual(res['info'], 'Missing argument article_id')
 
         # invalid 'article_id' provided
         response = requests.get(self.edit_article_url + '?article_id=1004')
@@ -318,45 +303,40 @@ class NewsConsoleEditArticleTests(unittest.TestCase):
         self.assertEqual(res['info'], settings.BAD_INFO_ERROR.format('article_id'))
 
         # valid 'aricle_id' provided
-        response = requests.get(self.edit_article_url + '?article_id=%s' % str(self.last_article_id + 1001))
+        response = requests.get(self.edit_article_url + '?article_id=%s' % str(self.article_ids[1]))
         res = json.loads(response.text)
         self.assertEqual(res['status'], settings.STATUS_200)
         self.assertEqual(res['info'], settings.SUCCESS_RESPONSE)
         self.assertEqual(res['article']['article_headline'], 'article_2')
 
     def test_post(self):
-        # 'article_id' not provided
-        response = requests.post(self.edit_article_url)
-        res = json.loads(response.text)
-        self.assertEqual(res['status'], settings.STATUS_400)
-        self.assertEqual(res['info'], 'Missing argument article_id')
 
         # valid 'article_id'
-        self.data = {'article_id': self.last_article_id + 1001, 'article_content': 'CHANGED_TEXT', 'article_stats': ['STAT_LINK_1', 'STAT_LINK_2']}
+        self.data = {'article_id': self.article_ids[1], 'article_content': 'CHANGED_TEXT', 'article_stats': ['STAT_LINK_1', 'STAT_LINK_2']}
         response = requests.post(self.edit_article_url, self.data)
         res = json.loads(response.text)
         self.assertEqual(res['status'], settings.STATUS_200)
         self.assertEqual(res['info'], settings.SUCCESS_RESPONSE)
         query = "SELECT article_content FROM curated_articles WHERE article_id = %s;"
-        variables = (self.last_article_id + 1001,)
+        variables = (self.data['article_id'],)
         result = QueryHandler.get_results(query, variables)
         self.assertEqual(len(result), 1)
         self.assertEqual(result[0]['article_content'], self.data['article_content'])
 
         # update with new publish_date
-        self.data = {'article_id': self.last_article_id + 1001, 'article_publish_date': '05/01/2015'}
+        self.data = {'article_id': self.article_ids[1], 'article_publish_date': '05/01/2015'}
         response = requests.post(self.edit_article_url, self.data)
         res = json.loads(response.text)
         self.assertEqual(res['status'], settings.STATUS_200)
         self.assertEqual(res['info'], settings.SUCCESS_RESPONSE)
         query = "SELECT to_char(article_publish_date, 'DD/MM/YYYY') as publish_date FROM curated_articles WHERE article_id = %s;"
-        variables = (self.last_article_id + 1001,)
+        variables = (self.article_ids[1],)
         result = QueryHandler.get_results(query, variables)
         self.assertEqual(len(result), 1)
         self.assertEqual(result[0]['publish_date'], self.data['article_publish_date'])
 
     def tearDown(self):
-        test_utils.delete_articles(self.articles)
+        test_utils.delete_articles(self.article_ids)
 
 
 class NewsConsoleDeleteArticleTests(unittest.TestCase):
@@ -364,12 +344,11 @@ class NewsConsoleDeleteArticleTests(unittest.TestCase):
     def setUp(self):
         self.delete_article_url = TORNADO_SERVER + '/delete_article'
         self.data = dict()
-        self.last_article_id = test_utils.get_max_id('curated_articles', 'article_id')
-        self.articles = [(self.last_article_id + 1000, 'article_1', '01/03/2015', 'cricket', 'Published'),]
-        test_utils.create_articles(self.articles)
+        self.articles = [{'headline': 'article_1', 'sport_type': 'c', 'publish_date': '01/03/2015', 'state': 'Published'}]
+        self.article_ids = test_utils.create_articles(self.articles)
 
     def test_get(self):
-        self.data = {'article_id': self.last_article_id + 1000}
+        self.data = {'article_id': self.article_ids[0]}
         response = requests.get(self.delete_article_url, self.data)
         self.assertEqual(response.status_code, settings.STATUS_405)
 
@@ -383,7 +362,7 @@ class NewsConsoleDeleteArticleTests(unittest.TestCase):
         self.assertEqual(res['info'], 'Missing argument article_id')
 
         # valid article_id provided
-        self.data = {'article_id': self.last_article_id + 1000}
+        self.data = {'article_id': self.article_ids[0]}
         response = requests.post(self.delete_article_url, self.data)
         res = json.loads(response.text)
         self.assertEqual(res['status'], settings.STATUS_200)
@@ -394,53 +373,42 @@ class NewsConsoleDeleteArticleTests(unittest.TestCase):
         self.assertEqual(result, [])
 
     def tearDown(self):
-        test_utils.delete_articles(self.articles)
+        test_utils.delete_articles(self.article_ids)
 
 
 class NewsConsolePublishArticleTests(unittest.TestCase):
 
     def setUp(self):
         self.publish_article_url = TORNADO_SERVER + '/publish_article'
-        query = "SELECT max(article_id) as last FROM curated_articles;"
-        result = QueryHandler.execute(query)
-        self.last_article_id = int(result[0]['last']) if result else 1
-        self.articles = [(self.last_article_id + 1000, 'article_1', '01/03/2015', 'cricket', 'UnPublished'),
-                         (self.last_article_id + 1001, 'article_2', '04/01/2015', 'cricket', 'UnPublished')]
-        test_utils.create_articles(self.articles)
+        self.articles = [{'headline': 'article_1', 'sport_type': 'c', 'publish_date': '01/03/2015', 'state': 'UnPublished'},
+                         {'headline': 'article_2', 'sport_type': 'c', 'publish_date': '04/01/2015', 'state': 'UnPublished'}]
+        self.article_ids = test_utils.create_articles(self.articles)
 
     def test_post(self):
-        # 'article_id' not provided
-        response = requests.post(self.publish_article_url)
-        res = json.loads(response.text)
-        self.assertEqual(res['status'], settings.STATUS_400)
-        self.assertEqual(res['info'], 'Missing argument article_id')
 
         # invalid 'article_id' provided
-        response = requests.post(self.publish_article_url, {'article_id': self.last_article_id + 2000})
+        response = requests.post(self.publish_article_url, {'article_id': self.article_ids[0] + 2000})
         res = json.loads(response.text)
         self.assertEqual(res['status'], settings.STATUS_400)
         self.assertEqual(res['info'], settings.BAD_INFO_ERROR.format('article_id'))
 
         # valid 'article_id' provided
-        response = requests.post(self.publish_article_url, {'article_id': self.last_article_id + 1000})
+        response = requests.post(self.publish_article_url, {'article_id': self.article_ids[0]})
         res = json.loads(response.text)
         self.assertEqual(res['status'], settings.STATUS_200)
         self.assertEqual(res['info'], settings.SUCCESS_RESPONSE)
 
     def tearDown(self):
-        test_utils.delete_articles(self.articles)
+        test_utils.delete_articles(self.article_ids)
 
 
 class NewsConsolePostArticlesOnCarouselTests(unittest.TestCase):
 
     def setUp(self):
         self.post_carousel_article_url = TORNADO_SERVER + '/post_carousel_articles'
-        query = "SELECT max(article_id) as last FROM curated_articles;"
-        result = QueryHandler.execute(query)
-        self.last_article_id = int(result[0]['last']) if result else 1
-        self.articles = [(self.last_article_id + 1000, 'article_1', '01/03/2015', 'cricket', 'Published'),
-                         (self.last_article_id + 1001, 'article_2', '04/01/2015', 'football', 'Published')]
-        test_utils.create_articles(self.articles)
+        self.articles = [{'headline': 'article_1', 'publish_date': '01/03/2015', 'sport_type': 'c', 'state': 'Published'},
+                         {'headline': 'article_2', 'publish_date': '04/01/2015', 'sport_type': 'f', 'state': 'Published'}]
+        self.article_ids = test_utils.create_articles(self.articles)
 
     def test_get(self):
         response = requests.get(self.post_carousel_article_url)
@@ -451,16 +419,20 @@ class NewsConsolePostArticlesOnCarouselTests(unittest.TestCase):
         response = requests.post(self.post_carousel_article_url)
         res = json.loads(response.text)
         self.assertEqual(res['status'], settings.STATUS_400)
-        self.assertEqual(res['info'], settings.BAD_INFO_ERROR.format('articles'))
+        self.assertEqual(res['info'], 'Missing argument articles')
 
         # valid article_ids provided
-        response = requests.post(self.post_carousel_article_url, {'articles': [self.last_article_id + 1000, self.last_article_id + 1001]})
+        response = requests.post(self.post_carousel_article_url,
+                                 {'articles': json.dumps({'1': self.article_ids[0], '3': self.article_ids[1]})})
         res = json.loads(response.text)
         self.assertEqual(res['status'], settings.STATUS_200)
         self.assertEqual(res['info'], settings.SUCCESS_RESPONSE)
+        query = "SELECT article_id FROM carousel_articles WHERE priority = 1;"
+        result = QueryHandler.get_results(query)
+        self.assertEqual(result[0]['article_id'], self.article_ids[0])
 
     def tearDown(self):
-        test_utils.delete_articles(self.articles)
+        test_utils.delete_articles(self.article_ids)
 
 
 if __name__ == '__main__':

@@ -1,22 +1,20 @@
 import base64
 import json
-import threading
+import psycopg2.extras
+import requests
 import tornado
 import tornado.escape
 import tornado.web
-import requests
-import settings
+import threading
 import urlparse
-
 from dateutil import parser
-from functools import wraps
 from psycopg2 import IntegrityError
-from tornado.web import asynchronous, MissingArgumentError
+from tornado.web import MissingArgumentError
 
-from common.funcs import QueryHandler
-from common.custom_error import BadAuthentication, BadInfoSuppliedError, DuplicateKeyError, InvalidBucketRequest, KeyAlreadyExists
-from models.s3_object import S3Object
+import settings
 from utils import ConsoleS3Object
+from common.custom_error import BadAuthentication, BadInfoSuppliedError, DuplicateKeyError, InvalidBucketRequest, KeyAlreadyExists
+from common.funcs import QueryHandler
 
 
 class BaseRequestHandler(tornado.web.RequestHandler):
@@ -101,31 +99,33 @@ class NewsConsoleUploadS3Object(BaseRequestHandler):
 class NewsConsoleAddCuratedArticle(BaseRequestHandler):
 
     def update_database(self):
-        query = "INSERT INTO curated_articles (article_headline, article_content, article_image, article_poll_question, " \
-                "article_ice_breaker_image, article_sport_type, article_publish_date, article_stats, article_memes, " \
-                "article_state) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s);"
-        variables = (self.headline, self.article_content, self.article_image_link, self.poll_question, self.ice_breaker_link,
-                     self.sport_type, self.publish_date, self.stats, self.memes, self.article_state)
-        QueryHandler.execute(query, variables)
+        query = "INSERT INTO curated_articles (article_headline, article_content, article_poll_question, " \
+                "article_sport_type, article_publish_date, article_stats, article_memes, " \
+                "article_state) VALUES (%s, %s, %s, %s, %s, %s, %s, %s) RETURNING article_id;"
+        variables = (self.headline, self.article_content, self.poll_question, self.sport_type, self.publish_date,
+                     self.stats, self.memes, self.article_state)
+        return QueryHandler.get_results(query, variables)[0]['article_id']
 
     def upload_news_ice_breaker_images(self):
-        s3_object = ConsoleS3Object(object_type='news_image', image_name=base64.encodestring(self.article_image_name),
+        s3_object = ConsoleS3Object(object_type='news_image', image_name=str(self.article_id),
                         content=self.article_image_content, acl='public-read')
         s3_object.handle_upload()
         self.article_image_link = "{}/{}/{}".format(s3_object.client.meta.endpoint_url, s3_object.bucket_name, s3_object.name)
 
-        s3_object = ConsoleS3Object(object_type='ice_breaker_image', image_name=base64.encodestring(self.ice_breaker_image_name),
+        s3_object = ConsoleS3Object(object_type='ice_breaker_image', image_name=str(self.article_id),
                         content=self.ice_breaker_image_content, acl='public-read')
         s3_object.handle_upload()
         self.ice_breaker_link = "{}/{}/{}".format(s3_object.client.meta.endpoint_url, s3_object.bucket_name, s3_object.name)
 
+        query = "UPDATE curated_articles SET article_image = %s, article_ice_breaker_image = %s WHERE article_id = %s;"
+        variables = (self.article_image_link, self.ice_breaker_link, self.article_id)
+        QueryHandler.execute(query, variables)
+
     def post(self):
         response = {}
         self.headline = str(self.get_argument('headline'))
-        self.article_image_name = str(self.get_argument('article_image_name'))
-        self.article_image_content = self.get_argument('article_image_content')
         self.article_content = str(self.get_argument('article_content'))
-        self.ice_breaker_image_name = str(self.get_argument('ice_breaker_name'))
+        self.article_image_content = self.get_argument('article_image_content')
         self.ice_breaker_image_content = self.get_argument('ice_breaker_content')
         self.poll_question = str(self.get_argument('poll_question'))
         self.notification_content = str(self.get_argument('notification_content'))
@@ -135,8 +135,8 @@ class NewsConsoleAddCuratedArticle(BaseRequestHandler):
         self.publish_date = parser.parse(str(self.get_argument('publish_date')))
         self.article_state = str(self.get_argument('state'))
 
+        self.article_id = self.update_database()
         self.upload_news_ice_breaker_images()
-        self.update_database()
         response.update({'status': settings.STATUS_200, 'info': settings.SUCCESS_RESPONSE})
         self.write(response)
 
@@ -155,7 +155,7 @@ class NewsConsoleFetchArticles(BaseRequestHandler):
         elif self.filter_field == 'article_sport_type':
             if not self.article_sport_type:
                 raise MissingArgumentError('article_sport_type')
-            if self.article_sport_type not in ['cricket', 'football']:
+            if self.article_sport_type not in ['c', 'f']:
                 raise BadInfoSuppliedError('article_sport_type')
             return "WHERE article_sport_type='%s';" % self.article_sport_type
 
@@ -231,14 +231,16 @@ class NewsConsoleDeleteArticle(BaseRequestHandler):
 class NewsConsolePublishArticle(BaseRequestHandler):
 
     def publish_article(self):
-        requests.post(url=settings.PUBLISH_ARTICLES_POST_URL, data={'published_articles': self.articles})
+        article = self.articles[0]
+        article.update({'type': 'published'})
+        requests.post(url=settings.CURATED_ARTICLES_POST_URL, data=article)
 
     def post(self):
         response = {}
         article_id = self.get_argument('article_id')
         query = "UPDATE curated_articles SET article_state='Published' WHERE article_id = %s RETURNING article_id, " \
-                "article_headline, article_content, article_image, article_poll_question, article_ice_breaker_image, " \
-                "article_sport_type, to_char(article_publish_date, 'DD/MM/YYYY') as article_publish_date;"
+                "article_headline, article_content, article_image, article_poll_question, article_sport_type, " \
+                "to_char(article_publish_date, 'DD/MM/YYYY') as article_publish_date;"
         variables = (article_id,)
         self.articles = QueryHandler.get_results(query, variables)
         if not self.articles:
@@ -251,13 +253,18 @@ class NewsConsolePublishArticle(BaseRequestHandler):
 class NewsConsolePostArticlesOnCarousel(BaseRequestHandler):
 
     def post_carousel_articles(self):
-        requests.post(url=settings.CAROUSEL_ARTICLES_POST_URL, data={'articles': self.articles})
+        data = {'articles': self.articles, 'type': 'carousel'}
+        requests.post(url=settings.CURATED_ARTICLES_POST_URL, data=json.dumps(data))
 
     def post(self):
         response = {}
-        self.articles = self.get_arguments('articles')
-        if not self.articles:
-            raise BadInfoSuppliedError('articles')
+        self.articles = json.loads(self.get_argument('articles'))
+
+        for key, value in self.articles.items():
+            query = "INSERT INTO carousel_articles (article_id, priority) VALUES (%s, %s);"
+            variables = (value, int(key))
+            QueryHandler.execute(query, variables)
+
         threading.Thread(group=None, target=self.post_carousel_articles, name=None, args=()).start()
         response.update({'status': settings.STATUS_200, 'info': settings.SUCCESS_RESPONSE})
         self.write(response)

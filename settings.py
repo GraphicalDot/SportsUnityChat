@@ -88,5 +88,4 @@ CURATED_ARTICLES_BUCKETS = {
 }
 
 NEWS_SERVER = 'http://NewsLB-388179569.ap-northeast-2.elb.amazonaws.com'
-PUBLISH_ARTICLES_POST_URL = NEWS_SERVER + '/publish_article'
-CAROUSEL_ARTICLES_POST_URL = NEWS_SERVER + '/carousel_articles'
+CURATED_ARTICLES_POST_URL = NEWS_SERVER + '/curated_articles'
