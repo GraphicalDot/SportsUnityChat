@@ -5,8 +5,8 @@ import copy
 
 class S3Object(S3):
 
-	def __init__(self, name, bucket_name, content = None):
-		super(S3Object, self).__init__(bucket_name = bucket_name, name = name, content = content)
+	def __init__(self, name, bucket_name, content = None, acl='private'):
+		super(S3Object, self).__init__(bucket_name = bucket_name, name = name, content = content, acl = acl)
 		self.name = name
 		self.bucket_name = bucket_name
 		self.content = content
