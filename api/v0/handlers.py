@@ -22,7 +22,6 @@ import uuid
 from models.dp import Dp
 from models.user_media import UserMedia
 from requests_toolbelt import MultipartDecoder
-from models.article_discussion_group import ArticleDiscussionGroup
 import threading
 from common.custom_error import BadAuthentication, BadInfoSuppliedError, InternalServerError
 # import admin_api
