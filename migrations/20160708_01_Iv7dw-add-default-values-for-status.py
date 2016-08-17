@@ -7,5 +7,5 @@ from yoyo import step
 __depends__ = {}
 
 steps = [
-    step("ALTER TABLE users ADD CONSTRAINT DEFAULT 'Available' FOR status")
+    step(" ALTER TABLE users ALTER COLUMN status SET DEFAULT 'Available' ;")
 ]
