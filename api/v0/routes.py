@@ -30,6 +30,7 @@ urls = [
       (r"/redeem_code", handlers.RedeemCodeHandler),
       (r"/friends_watching", handlers.FriendsWatchingHandler),
       (r"/submit_poll_answer", handlers.PollAnswerHandler),
+      (r"/exit_discussion", handlers.DiscussionHandler),
       # (r"/admin", admin_api.AdminPage),
       # (r"/get_users", admin_api.AdminSelectUsers),
       # (r"/create_user", admin_api.AdminCreateUser),

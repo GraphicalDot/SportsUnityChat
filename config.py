@@ -15,8 +15,8 @@ sample_message=Lorem Ipsum is simply dummy text of the printing and typesetting 
 node=princely_musings
 
 [amazon]
-amazon_access_key=AKIAJQ4YKSYEDJGYH7ZA
-amazon_secret_key=qiAUd88huVDDouixsfu9iVgI2zYPI11hgQGbSyHQ
+amazon_access_key=AKIAIJVCZGHIZLQ7EAXQ
+amazon_secret_key=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
 dp_bucket_name=sports_unity_profile_pics
 dp_objects_acl=private
 user_media_bucket_name=sports.unity.user.upload
@@ -47,3 +47,9 @@ api_key=AIzaSyAWO-284HUCY2NrGtf-P5r0o9p4RCe65F0
 
 [google]
 url_shortner_key=AIzaSyA1IIZ0kuvDanJBDE6pvMr_X6JeCMs_yiU
+
+[server_component]
+server=localhost
+port=8888
+discussion_admin_jid=admin@mm.io
+discussion_admin_password=awestrtyuioi

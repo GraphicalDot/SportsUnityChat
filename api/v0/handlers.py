@@ -22,10 +22,12 @@ import uuid
 from models.dp import Dp
 from models.user_media import UserMedia
 from requests_toolbelt import MultipartDecoder
+from models.article_discussion_group import ArticleDiscussionGroup
 import threading
-from common.custom_error import BadAuthentication, BadInfoSuppliedError
+from common.custom_error import BadAuthentication, BadInfoSuppliedError, InternalServerError
 # import admin_api
 from common.notification_handler import NotificationHandler
+from models.discussion import Discussion
 config = ConfigParser.ConfigParser()
 config.read('config.py')
 
@@ -906,7 +908,51 @@ class PollAnswerHandler(UserApiRequestHandler):
         self.poll_answer = self.get_argument('poll_answer')
         if not self.poll_answer in settings.ARTICLE_POLL_ANSWER_TYPES:
             raise BadInfoSuppliedError("poll_answer")
-        ArticleDiscussionGroup(self.article_id).allocate_group(self.username, self.set_user_response)
+        result = self.allocate_group()
         response['status'] = 200
         response['info'] = 'Success'
         self.write(response)
+
+    def allocate_group(self):
+        query = " SELECT * FROM assign_discussion(%s, %s, %s);"
+        variables = (self.article_id, self.username, self.poll_answer)
+        result = QueryHandler.get_results(query, variables)
+        self.handle_result(result)
+
+    def handle_result(self, results):
+        if results[0]['action_taken'] == "new_discussion":
+            discussion_id = results[0]["discussion_id"]
+            discussion_info = {"name": results[0]['discussion_id'], "users": map(lambda info: info ["username"], results)}
+            Discussion(discussion_id).create_and_add_users(discussion_info)
+        elif results[0]['action_taken'] == "existing_discussion":
+            discussion_id = results[0]["discussion_id"]
+            discussion_info = {"name": results[0]['discussion_id'], "users": map(lambda info: info ["username"], results)}
+            Discussion(discussion_id).add_users(discussion_info)
+        elif results[0]['action_taken'] == "stored_preference":
+            pass
+        else:
+            raise InternalServerError
+
+class DiscussionHandler(BaseRequestHandler):
+    def post(self):
+        response = {}
+        self.username = self.get_argument("username")
+        self.discussion_id = self.get_argument('discussion_id')
+        result = self.exit_discussion()
+        response['status'] = 200
+        response['info'] = 'Success'
+        self.write(response)
+
+    def exit_discussion(self): 
+        query = " SELECT * FROM exit_discussion(%s, %s);"
+        variables = (self.article_id, self.username)
+        result = QueryHandler.get_results(query, variables)
+        self.handle_result(result)                       
+
+    def handle_result(self, result):
+        if results[0]['action_taken'] == 'deleted_discussion':
+            Discussion(self.discussion_id).unsubsribe_user_and_delete(results[0]['username'])
+        elif results[0]['action_taken'] == "deleted_user_from_discussion":
+            pass
+        else:
+            raise InternalServerError        

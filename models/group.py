@@ -4,6 +4,7 @@ config.read('config.py')
 from s3_image import S3Image
 from s3_object import S3Object
 from node import Node
+from server_component_factory import ServerComponentFactory
 class Group(Node):
 	def __init__(self, name):
 		self.name = name
