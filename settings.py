@@ -77,6 +77,7 @@ RANDOM_PICTURE_COUNT = 1000
 USER_TYPE_HUMAN = 'u'
 USER_TYPE_SERVER_BOT = 's'
 
+ARTICLE_POLL_ANSWER_TYPES = ['y', 'n']
 PUBSUB_COMMENTARY__NODE_NAME_SUFFIX = "match_"
 
 # curated articles' buckets' mapping

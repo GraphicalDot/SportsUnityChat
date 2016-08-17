@@ -31,6 +31,8 @@ urls = [
     (r"/get_referral_code", handlers.GetRefrralCodeHandler),
     (r"/redeem_code", handlers.RedeemCodeHandler),
     (r"/friends_watching", handlers.FriendsWatchingHandler),
+    (r"/submit_poll_answer", handlers.PollAnswerHandler),
+    (r"/exit_discussion", handlers.DiscussionHandler),
 
     ## console urls
     (r"/news_login", console_handlers.NewsConsoleLogin),

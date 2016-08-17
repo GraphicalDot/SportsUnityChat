@@ -287,3 +287,4 @@ class User(Node):
 		key = str(random.randint(1, 1000))
 		bucket = config.get('amazon', 'random_avatar_bucket')
 		return base64.b64encode(S3Object(key, bucket).download())
+
