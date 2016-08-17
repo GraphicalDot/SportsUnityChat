@@ -17,6 +17,8 @@ import boto3
 config = ConfigParser.ConfigParser()
 config.read('config.py')
 import threading
+
+
 class QueryHandler(object):
 
     _instance = None
@@ -87,7 +89,6 @@ class S3(object):
 
     def delete_key(self):
         self.client.delete_object(Bucket = self.bucket_name, Key = self.name)
-        
 
     def get_file(self):
         if self.check_exists():

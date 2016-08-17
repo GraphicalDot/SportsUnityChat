@@ -15,13 +15,17 @@ sample_message=Lorem Ipsum is simply dummy text of the printing and typesetting 
 node=princely_musings
 
 [amazon]
-amazon_access_key=AKIAJQ4YKSYEDJGYH7ZA
-amazon_secret_key=qiAUd88huVDDouixsfu9iVgI2zYPI11hgQGbSyHQ
+amazon_access_key=AKIAIJVCZGHIZLQ7EAXQ
+amazon_secret_key=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
 dp_bucket_name=sports_unity_profile_pics
 dp_objects_acl=private
 user_media_bucket_name=sports.unity.user.upload
 user_media_acl=private
 random_avatar_bucket=random.avatars
+article_stats_bucket=article_stats
+article_images_bucket=article_images
+article_ice_breaker_images_bucket=article_ice_breaker_images
+article_memes_bucket=article_memes
 
 [xmpp]
 domain=@mm.io
