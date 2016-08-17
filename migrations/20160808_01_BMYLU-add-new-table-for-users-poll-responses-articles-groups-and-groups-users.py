@@ -4,7 +4,7 @@ Add new table for users_poll_responses, articles_discussions and discussions_use
 
 from yoyo import step
 
-__depends__ = {'20160802_01_d4s6I-add-articles-table', '20160802_02_OVZsZ-add-table-for-user-poll'}
+__depends__ = {'20160803_01_kErzw-add-curated-articles-tables', '20160802_02_OVZsZ-add-table-for-user-poll'}
 
 steps = [
     step("CREATE TABLE articles_discussions (discussion_id TEXT PRIMARY KEY, article_id INTEGER REFERENCES articles ON DELETE CASCADE, created_at TIMESTAMP DEFAULT now());"),

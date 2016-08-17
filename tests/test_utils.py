@@ -52,7 +52,7 @@ def delete_field_from_table(table, field, field_value):
 def create_articles(articles):
     article_ids = []
     for article in articles:
-        query = "INSERT INTO curated_articles (article_headline, article_content, article_image, article_poll_question, " \
+        query = "INSERT INTO articles (article_headline, article_content, article_image, article_poll_question, " \
                 "article_ice_breaker_image, article_sport_type, article_publish_date, article_state) " \
                 "VALUES (%s, %s, %s, %s, %s, %s, %s, %s) RETURNING article_id;"
         variables = (article['headline'], 'TEXT', 'TEXT', 'TEXT', 'TEXT', article['sport_type'], parser.parse(article['publish_date']), article['state'])
@@ -61,6 +61,6 @@ def create_articles(articles):
     return article_ids
 
 def delete_articles(article_ids):
-    query = "DELETE FROM curated_articles WHERE article_id IN %s;"
+    query = "DELETE FROM articles WHERE article_id IN %s;"
     variables = (tuple(article_ids),)
     QueryHandler.execute(query, variables)

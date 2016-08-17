@@ -40,3 +40,8 @@ class Discussion(object):
 	def unsubsribe_user_and_delete(self, username):
 		self.unsubscribe_user(username)
 		self.delete()
+
+	@classmethod
+	def get_all(cls):
+		query = " SELECT articles.headlines AS headline, articles_discussions.discussion_id AS discussion_id, COUNT(discussions_users.username) AS user_count FROM articles, articles_discussions, discussions_users WHERE articles.article_id = articles_discussions.article_id AND articles_discussions.discussion_id = discussions_users.discussion_id;"
+		return QueryHandler.get_results(query, ())

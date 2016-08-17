@@ -142,7 +142,7 @@ class NewsConsoleUploadS3ObjectTests(unittest.TestCase):
 
         # new object upload
         self.data['type'] = 'news_image'
-        self.bucket_name = settings.CURATED_ARTICLES_BUCKETS.get(self.data['type'])
+        self.bucket_name = settings.articles_BUCKETS.get(self.data['type'])
         response = requests.post(url=self.upload_object_url, data=self.data)
         res = json.loads(response.text)
         self.assertEqual(res['status'], settings.STATUS_200)
@@ -167,8 +167,8 @@ class NewsConsoleAddCuratedArticleTests(unittest.TestCase):
         self.data = dict()
         self.article_id = None
         self.add_curated_article_url = TORNADO_SERVER + '/add_article'
-        self.news_image_bucket = settings.CURATED_ARTICLES_BUCKETS.get('news_image')
-        self.ice_breaker_bucket = settings.CURATED_ARTICLES_BUCKETS.get('ice_breaker_image')
+        self.news_image_bucket = settings.articles_BUCKETS.get('news_image')
+        self.ice_breaker_bucket = settings.articles_BUCKETS.get('ice_breaker_image')
         self.news_image_content = base64.b64encode(wImage(width=640, height=640, background=Color('blue')).make_blob(format='png'))
         self.icebreaker_content = base64.b64encode(wImage(width=640, height=640, background=Color('red')).make_blob(format='png'))
         self.s3_client = boto3.client('s3', aws_access_key_id = amazon_access_key, aws_secret_access_key = amazon_secret_key)
@@ -192,7 +192,7 @@ class NewsConsoleAddCuratedArticleTests(unittest.TestCase):
         res = json.loads(response.text)
         self.assertEqual(res['status'], settings.STATUS_200)
         self.assertEqual(res['info'], settings.SUCCESS_RESPONSE)
-        query = "SELECT article_id FROM curated_articles WHERE article_headline = '%s';" % (self.data['headline'],)
+        query = "SELECT article_id FROM articles WHERE article_headline = '%s';" % (self.data['headline'],)
         result = QueryHandler.get_results(query)
         self.assertEqual(len(result), 1)
         self.article_id = str(result[0]['article_id'])
@@ -200,7 +200,7 @@ class NewsConsoleAddCuratedArticleTests(unittest.TestCase):
         self.s3_client.get_object(Bucket = self.ice_breaker_bucket, Key = str(self.article_id))
 
     def tearDown(self):
-        test_utils.delete_field_from_table('curated_articles', 'article_headline', 'TEST_HEADLINE')
+        test_utils.delete_field_from_table('articles', 'article_headline', 'TEST_HEADLINE')
         self.s3_client.delete_object(Bucket=self.news_image_bucket, Key=str(self.article_id))
         self.s3_client.delete_object(Bucket=self.ice_breaker_bucket, Key=str(self.article_id))
 
@@ -317,7 +317,7 @@ class NewsConsoleEditArticleTests(unittest.TestCase):
         res = json.loads(response.text)
         self.assertEqual(res['status'], settings.STATUS_200)
         self.assertEqual(res['info'], settings.SUCCESS_RESPONSE)
-        query = "SELECT article_content FROM curated_articles WHERE article_id = %s;"
+        query = "SELECT article_content FROM articles WHERE article_id = %s;"
         variables = (self.data['article_id'],)
         result = QueryHandler.get_results(query, variables)
         self.assertEqual(len(result), 1)
@@ -329,7 +329,7 @@ class NewsConsoleEditArticleTests(unittest.TestCase):
         res = json.loads(response.text)
         self.assertEqual(res['status'], settings.STATUS_200)
         self.assertEqual(res['info'], settings.SUCCESS_RESPONSE)
-        query = "SELECT to_char(article_publish_date, 'DD/MM/YYYY') as publish_date FROM curated_articles WHERE article_id = %s;"
+        query = "SELECT to_char(article_publish_date, 'DD/MM/YYYY') as publish_date FROM articles WHERE article_id = %s;"
         variables = (self.article_ids[1],)
         result = QueryHandler.get_results(query, variables)
         self.assertEqual(len(result), 1)
@@ -367,7 +367,7 @@ class NewsConsoleDeleteArticleTests(unittest.TestCase):
         res = json.loads(response.text)
         self.assertEqual(res['status'], settings.STATUS_200)
         self.assertEqual(res['info'], settings.SUCCESS_RESPONSE)
-        query = "SELECT * FROM curated_articles WHERE article_id = %s;"
+        query = "SELECT * FROM articles WHERE article_id = %s;"
         variables = (self.data['article_id'],)
         result = QueryHandler.get_results(query, variables)
         self.assertEqual(result, [])
@@ -423,11 +423,11 @@ class NewsConsolePostArticlesOnCarouselTests(unittest.TestCase):
 
         # valid article_ids provided
         response = requests.post(self.post_carousel_article_url,
-                                 {'articles': json.dumps({'1': self.article_ids[0], '3': self.article_ids[1]})})
+                                 {'articles': json.dumps({'100': self.article_ids[0], '101': self.article_ids[1]})})
         res = json.loads(response.text)
         self.assertEqual(res['status'], settings.STATUS_200)
         self.assertEqual(res['info'], settings.SUCCESS_RESPONSE)
-        query = "SELECT article_id FROM carousel_articles WHERE priority = 1;"
+        query = "SELECT article_id FROM carousel_articles WHERE priority = 100;"
         result = QueryHandler.get_results(query)
         self.assertEqual(result[0]['article_id'], self.article_ids[0])
 

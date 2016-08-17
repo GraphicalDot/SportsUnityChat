@@ -81,7 +81,7 @@ ARTICLE_POLL_ANSWER_TYPES = ['y', 'n']
 PUBSUB_COMMENTARY__NODE_NAME_SUFFIX = "match_"
 
 # curated articles' buckets' mapping
-CURATED_ARTICLES_BUCKETS = {
+articles_BUCKETS = {
     'stats': 'curated.article.stats',
     'news_image': 'curated.article.images',
     'ice_breaker_image': 'curated.article.icebreaker.images',
@@ -89,4 +89,4 @@ CURATED_ARTICLES_BUCKETS = {
 }
 
 NEWS_SERVER = 'http://NewsLB-388179569.ap-northeast-2.elb.amazonaws.com'
-CURATED_ARTICLES_POST_URL = NEWS_SERVER + '/curated_articles'
+articles_POST_URL = NEWS_SERVER + '/articles'

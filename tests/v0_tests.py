@@ -1847,7 +1847,7 @@ class ArticlePollAnswerSubmissionTest(unittest.TestCase):
 			test_utils.delete_user(username = username)
 			test_utils.create_user(username = username, password = password, phone_number = phone_number)
 
-		query = " INSERT INTO articles (article_headline, article_text, article_poll_question, article_ice_breaker_image) VALUES ('test', 'test', 'test', 'test') RETURNING article_id;"
+		query = " INSERT INTO articles (article_headline, article_content, article_poll_question, article_ice_breaker_image) VALUES ('test', 'test', 'test', 'test') RETURNING article_id;"
 		self._article_id = QueryHandler.get_results(query, ())[0]['article_id']
 
 	def test_group_allocation(self):
@@ -1857,15 +1857,9 @@ class ArticlePollAnswerSubmissionTest(unittest.TestCase):
 
 			response = json.loads(requests.post(self._poll_answer_submission_url,  data = json.dumps(payload)).content)
 			
-			try:
-				assert response['status'] == settings.STATUS_200		
-			except Exception, e:
-				from IPython import embed
-				embed()
+			assert response['status'] == settings.STATUS_200		
 
 			self.check_group_allocation(self._users[index])
-		from IPython import embed
-		embed()
 
 
 	def test_poll_response(self):
@@ -1893,27 +1887,27 @@ class ArticlePollAnswerSubmissionTest(unittest.TestCase):
 
 
 	def check_unalloted_people_count(self, user_info):
-		query = "WITH unalloted_users_count AS (SELECT COUNT(username) AS unalloted_user_count from users_poll_responses, min_group_users WHERE users_poll_responses.article_id = %s AND username NOT IN (SELECT DISTINCT username FROM groups_users, articles_groups WHERE articles_groups.article_id = %s AND groups_users.group_id = articles_groups.group_id)) SELECT min_group_users.count AS min_user_count, unalloted_user_count AS unalloted_user_count FROM min_group_users, unalloted_users_count  LIMIT 1 ;"
+		query = "WITH unalloted_users_count AS (SELECT COUNT(username) AS unalloted_user_count from users_poll_responses, min_discussion_users WHERE users_poll_responses.article_id = %s AND username NOT IN (SELECT DISTINCT username FROM discussions_users, articles_discussions WHERE articles_discussions.article_id = %s AND discussions_users.discussion_id = articles_discussions.discussion_id)) SELECT min_discussion_users.count AS min_user_count, unalloted_user_count AS unalloted_user_count FROM min_discussion_users, unalloted_users_count  LIMIT 1 ;"
 		variables = (self._article_id, self._article_id, )
 		result = QueryHandler.get_results(query, variables)[0]
 		assert result['min_user_count'] > result['unalloted_user_count']
 	
 	def check_maximum_people_in_a_group_count(self, user_info):
-		query = "SELECT groups_users.group_id FROM groups_users WHERE groups_users.group_id = (SELECT group_id FROM groups_users WHERE groups_users.username = %s ) GROUP BY groups_users.group_id HAVING COUNT(groups_users.username) > ( SELECT count from max_group_users) ;"
+		query = "SELECT discussions_users.discussion_id FROM discussions_users WHERE discussions_users.discussion_id = (SELECT discussion_id FROM discussions_users WHERE discussions_users.username = %s ) GROUP BY discussions_users.discussion_id HAVING COUNT(discussions_users.username) > ( SELECT count from max_discussion_users) ;"
 		variables = (user_info["username"], )
 		results = QueryHandler.get_results(query, variables)
 		assert not results
 
 	def check_group_allocated_with_minimum_ratio(self, user_info):
-		# query = " WITH users_group_ratio AS (SELECT  SUM(CASE IF users_poll_responses.poll_answer = %s AND users_poll_responses.username = %s THEN 0 ELSEIF users_poll_responses.poll_answer = %s THEN 1 ELSE 0) / CASE WHEN COUNT(users_poll_responses) = 0 THEN 1 ELSE COUNT(users_poll_responses) END  FROM users_poll_responses WHERE users_poll_responses.article_id = %s AND users_poll_responses.username = groups_users.username AND groups_users.group_id = articles_groups.group_id AND articles_groups.article_id = users_poll_responses.article_id) "\
-		# +	" SELECT CASE WHEN users_group_ratio > 0 THEN COUNT(articles_groups.group_id) ELSE 0 END AS group_count FROM articles_groups WHERE groups_users.group_id = articles_groups.group_id AND articles_groups.article_id = %s AND articles.article_id = users_poll_responses.article_id  AND SUM(CASE WHEN users_poll_responses.poll_answer::char = %s THEN 1 ELSE 0 END) / COUNT(users_poll_responses.poll_answer) < users_group_ratio ;"
+		# query = " WITH users_group_ratio AS (SELECT  SUM(CASE IF users_poll_responses.poll_answer = %s AND users_poll_responses.username = %s THEN 0 ELSEIF users_poll_responses.poll_answer = %s THEN 1 ELSE 0) / CASE WHEN COUNT(users_poll_responses) = 0 THEN 1 ELSE COUNT(users_poll_responses) END  FROM users_poll_responses WHERE users_poll_responses.article_id = %s AND users_poll_responses.username = discussions_users.username AND discussions_users.discussion_id = articles_discussions.discussion_id AND articles_discussions.article_id = users_poll_responses.article_id) "\
+		# +	" SELECT CASE WHEN users_group_ratio > 0 THEN COUNT(articles_discussions.discussion_id) ELSE 0 END AS group_count FROM articles_discussions WHERE discussions_users.discussion_id = articles_discussions.discussion_id AND articles_discussions.article_id = %s AND articles.article_id = users_poll_responses.article_id  AND SUM(CASE WHEN users_poll_responses.poll_answer::char = %s THEN 1 ELSE 0 END) / COUNT(users_poll_responses.poll_answer) < users_group_ratio ;"
 		# variables = (user_info["poll_answer"], user_info["username"], user_info["poll_answer"], self._article_id, user_info["username"], self._article_id, self._article_id, user_info["poll_answer"], )
 		# results = QueryHandler.get_results(query, variables)[0]
 		# assert results["group_count"] == 0
 		pass
 
 	def check_users_group_does_not_exceed_maximum_ratio(self):
-		# query = " WITH users_group_ratio AS (SELECT SUM(CASE IF users_poll_responses.poll_answer = %s THEN 1 ELSE 0 END) / SUM(CASE IF users_poll_responses.poll_answer != %s THEN 1 ELSE 0 END) FROM users_poll_responses WHERE users_poll_responses.article_id = %s AND users_poll_responses.username = groups_users.username AND groups_users.group_id = articles_groups.group_id AND articles_groups.article_id = users_poll_responses.article_id) "\
+		# query = " WITH users_group_ratio AS (SELECT SUM(CASE IF users_poll_responses.poll_answer = %s THEN 1 ELSE 0 END) / SUM(CASE IF users_poll_responses.poll_answer != %s THEN 1 ELSE 0 END) FROM users_poll_responses WHERE users_poll_responses.article_id = %s AND users_poll_responses.username = discussions_users.username AND discussions_users.discussion_id = articles_discussions.discussion_id AND articles_discussions.article_id = users_poll_responses.article_id) "\
 		# +	" SELECT CASE WHEN users_group_ratio > max_group_ratio.count THEN 1 ELSE 0 END AS exceeded_max_ratio_flag FROM users_group_ratio;"
 		# variables = (user_info["poll_answer"], user_info["username"], user_info["poll_answer"], self._article_id, user_info["username"], self._article_id, self._article_id, user_info["poll_answer"], )
 		# results = QueryHandler.get_results(query, variables)[0]

@@ -13,7 +13,7 @@ class ConsoleS3Object(S3):
         super(ConsoleS3Object, self).__init__(bucket_name = self.bucket_name, name = image_name, content = content, acl = acl)
 
     def get_bucket_name(self, object_type):
-        bucket_name = settings.CURATED_ARTICLES_BUCKETS.get(object_type, None)
+        bucket_name = settings.articles_BUCKETS.get(object_type, None)
         if bucket_name:
             return bucket_name
         else:

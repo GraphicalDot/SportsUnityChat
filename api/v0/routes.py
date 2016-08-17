@@ -44,6 +44,9 @@ urls = [
     (r"/delete_article", console_handlers.NewsConsoleDeleteArticle),
     (r"/publish_article", console_handlers.NewsConsolePublishArticle),
     (r"/post_carousel_articles", console_handlers.NewsConsolePostArticlesOnCarousel),
+    (r"/get_discussions", console_handlers.GetDiscussionsHandler),
+
+
 
     # (r"/admin", admin_api.AdminPage),
     # (r"/get_users", admin_api.AdminSelectUsers),

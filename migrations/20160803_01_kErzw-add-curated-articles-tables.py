@@ -11,10 +11,10 @@ steps = [
          "password TEXT NOT NULL, role TEXT CONSTRAINT check_writer_role CHECK (role IN ('admin', 'author')), "
          "created_at TIMESTAMP DEFAULT now());"),
 
-    step("CREATE TABLE curated_articles (article_id serial PRIMARY KEY, article_headline TEXT NOT NULL, "
+    step("CREATE TABLE articles (article_id serial PRIMARY KEY, article_headline TEXT NOT NULL, "
          "article_content TEXT NOT NULL, article_image TEXT, article_poll_question TEXT NOT NULL, "
          "article_ice_breaker_image TEXT, article_sport_type TEXT CONSTRAINT check_sport_type CHECK (article_sport_type IN ('c', 'f')), "
-         "article_publish_date TIMESTAMP NOT NULL, article_stats TEXT[], article_memes TEXT[], article_state TEXT NOT NULL, created_at TIMESTAMP DEFAULT now());"),
+         "article_publish_date TIMESTAMP NOT NULL DEFAULT now(), article_stats TEXT[], article_memes TEXT[], article_state TEXT NOT NULL, created_at TIMESTAMP DEFAULT now());"),
 
     step("CREATE TABLE memes (meme_id serial PRIMARY KEY, meme_image TEXT NOT NULL, created_at TIMESTAMP DEFAULT now());"),
 
@@ -25,7 +25,7 @@ steps = [
 
     step("CREATE UNIQUE INDEX i_memes_tags_id ON memes_tags USING btree (meme_id, tag_id);"),
 
-    step("CREATE TABLE carousel_articles (id serial PRIMARY KEY, article_id INTEGER REFERENCES curated_articles (article_id) ON DELETE CASCADE, "
+    step("CREATE TABLE carousel_articles (id serial PRIMARY KEY, article_id INTEGER REFERENCES articles (article_id) ON DELETE CASCADE, "
          "priority INTEGER UNIQUE);")
 
 ]
