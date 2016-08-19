@@ -27,7 +27,7 @@ BEGIN
 		_discussion_id := _article_id::text || ((EXTRACT(epoch from now())::float*1000)::int8)::text;
 		INSERT INTO articles_discussions (article_id, discussion_id) VALUES (_article_id, _discussion_id);
 
-		WITH discussion_users AS (SELECT DISTINCT users_poll_responses.username FROM users_poll_responses WHERE users_poll_responses.article_id = _article_id AND users_poll_responses.username NOT IN (SELECT DISTINCT discussions_users.username FROM discussions_users, articles_discussions WHERE articles_discussions.article_id = _article_id AND discussions_users.discussion_id = articles_discussions.discussion_id)) INSERT INTO discussions_users ( SELECT _discussion_id, discussion_users.username FROM discussion_users);
+		WITH queued_users AS (SELECT DISTINCT users_poll_responses.username FROM users_poll_responses WHERE users_poll_responses.article_id = _article_id AND users_poll_responses.username NOT IN (SELECT DISTINCT discussions_users.username FROM discussions_users, articles_discussions WHERE articles_discussions.article_id = _article_id AND discussions_users.discussion_id = articles_discussions.discussion_id)) INSERT INTO discussions_users ( SELECT _discussion_id, queued_users.username FROM queued_users);
 		
 		CREATE TEMPORARY TABLE tmp_container ON COMMIT DROP AS SELECT  'new_discussion'::TEXT AS action_taken, _discussion_id::TEXT AS discussion_id, discussions_users.username::TEXT AS username FROM discussions_users WHERE discussions_users.discussion_id = _discussion_id;
 		
@@ -67,24 +67,30 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
-CREATE FUNCTION exit_discussion(_discussion_id TEXT, _username TEXT) RETURNS   TABLE (
+CREATE FUNCTION exit_discussion(_discussion_id TEXT, _username TEXT, _article_id INT) RETURNS   TABLE (
  action_taken TEXT,
  username TEXT
 )  AS $$
 	DECLARE
-		_users_in_discussion INT;
+		_user_count_in_discussion INT;
 	BEGIN
 		LOCK discussions_users;
 		LOCK articles_discussions;
-		DELETE FROM discussions_users WHERE discussion_id = _discussion_id AND username = _username;
-		_users_in_discussion := (SELECT COUNT(*) FROM discussions_users WHERE discussion_id = _discussion_id);
+		DELETE FROM discussions_users WHERE discussions_users.discussion_id = _discussion_id AND discussions_users.username = _username;
+		DELETE FROM users_poll_responses WHERE users_poll_responses.article_id = _article_id::INT AND users_poll_responses.username = _username;
 
-		IF _users_in_discussion = 1 THEN
+
+		_user_count_in_discussion := (SELECT COUNT(*) FROM discussions_users WHERE discussion_id = _discussion_id);
+
+		IF _user_count_in_discussion = 1 THEN
 			
-			CREATE TEMPORARY TABLE tmp_container ON COMMIT DROP AS SELECT 'deleted_discussion'::TEXT AS action_taken, discussions_users.username AS username FROM discussions_users WHERE discussions_users.discussion_id = _discussion_id;
+			CREATE TEMPORARY TABLE tmp_container ON COMMIT DROP AS SELECT 'deleted_discussion'::TEXT AS action_taken, 'null'::TEXT AS username FROM discussions_users WHERE discussions_users.discussion_id = _discussion_id;
 			DELETE FROM articles_discussions WHERE discussion_id = _discussion_id;
 		ELSE
-			CREATE TEMPORARY TABLE tmp_container ON COMMIT DROP AS SELECT 'deleted_user_from_discussion'::TEXT AS action_taken, 'null' AS username;
+			CREATE TEMPORARY TABLE _new_users_in_discussion ON COMMIT DROP AS SELECT DISTINCT users_poll_responses.username AS username FROM users_poll_responses WHERE users_poll_responses.article_id = _article_id AND users_poll_responses.username NOT IN (SELECT DISTINCT discussions_users.username FROM discussions_users, articles_discussions WHERE articles_discussions.article_id = _article_id AND discussions_users.discussion_id = articles_discussions.discussion_id);
+	
+			INSERT INTO discussions_users ( SELECT _discussion_id, _new_users_in_discussion.username FROM _new_users_in_discussion);
+			CREATE TEMPORARY TABLE tmp_container ON COMMIT DROP AS SELECT 'deleted_user_added_queued_users_to_discussion'::TEXT AS action_taken, _new_users_in_discussion.username::TEXT AS username FROM _new_users_in_discussion;
 		END IF;
 		RETURN QUERY SELECT * FROM tmp_container ;
 END;

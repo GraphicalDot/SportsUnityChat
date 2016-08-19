@@ -2,6 +2,8 @@ import ConfigParser
 config = ConfigParser.ConfigParser()
 config.read('config.py')
 from server_component_factory import ServerComponentFactory
+from common.funcs import QueryHandler
+
 class Discussion(object):
 
 	discussion_admin_password = config.get('server_component', 'discussion_admin_password') 
@@ -43,5 +45,5 @@ class Discussion(object):
 
 	@classmethod
 	def get_all(cls):
-		query = " SELECT articles.headlines AS headline, articles_discussions.discussion_id AS discussion_id, COUNT(discussions_users.username) AS user_count FROM articles, articles_discussions, discussions_users WHERE articles.article_id = articles_discussions.article_id AND articles_discussions.discussion_id = discussions_users.discussion_id;"
+		query = "SELECT  articles.article_id AS article_id, articles.article_headline AS headline, articles_discussions.discussion_id AS discussion_id, COUNT(discussions_users.username) AS user_count FROM articles, articles_discussions, discussions_users WHERE articles.article_id = articles_discussions.article_id AND articles_discussions.discussion_id = discussions_users.discussion_id GROUP BY articles.article_id, headline, articles_discussions.discussion_id ;"
 		return QueryHandler.get_results(query, ())

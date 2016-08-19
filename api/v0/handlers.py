@@ -932,26 +932,29 @@ class PollAnswerHandler(UserApiRequestHandler):
         else:
             raise InternalServerError
 
-class DiscussionHandler(BaseRequestHandler):
+class ExitDiscussionHandler(UserApiRequestHandler):
     def post(self):
         response = {}
         self.username = self.get_argument("username")
         self.discussion_id = self.get_argument('discussion_id')
+        self.article_id = int(self.get_argument('article_id'))
         result = self.exit_discussion()
         response['status'] = 200
         response['info'] = 'Success'
         self.write(response)
 
     def exit_discussion(self): 
-        query = " SELECT * FROM exit_discussion(%s, %s);"
-        variables = (self.article_id, self.username)
-        result = QueryHandler.get_results(query, variables)
-        self.handle_result(result)                       
+        query = " SELECT * FROM exit_discussion(%s, %s, %s);"
+        variables = (self.discussion_id, self.username, self.article_id)
+        results = QueryHandler.get_results(query, variables)
+        self.handle_result(results)
 
-    def handle_result(self, result):
+    def handle_result(self, results):
         if results[0]['action_taken'] == 'deleted_discussion':
             Discussion(self.discussion_id).unsubsribe_user_and_delete(results[0]['username'])
-        elif results[0]['action_taken'] == "deleted_user_from_discussion":
-            pass
+        elif results[0]['action_taken'] == "deleted_user_added_queued_users_to_discussion":
+            discussion_info = {"name": self.discussion_id, "users": map(lambda info: info ["username"], results)}
+            Discussion(self.discussion_id).unsubsribe_user(self.username)
+            Discussion(self.discussion_id).add_users(discussion_info)
         else:
             raise InternalServerError        

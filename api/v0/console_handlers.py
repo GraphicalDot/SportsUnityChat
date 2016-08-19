@@ -15,7 +15,7 @@ import settings
 from utils import ConsoleS3Object
 from common.custom_error import BadAuthentication, BadInfoSuppliedError, DuplicateKeyError, InvalidBucketRequest, KeyAlreadyExists
 from common.funcs import QueryHandler
-
+from models.discussion import Discussion
 
 class BaseRequestHandler(tornado.web.RequestHandler):
 
@@ -270,9 +270,8 @@ class NewsConsolePostArticlesOnCarousel(BaseRequestHandler):
         self.write(response)
 
 class GetDiscussionsHandler(BaseRequestHandler):
-    
     def get(self):
         response = {}
         response['info'] = Discussion.get_all()
-        response.update({'status': settings.STATUS_200, 'info': settings.SUCCESS_RESPONSE})
+        response['status'] = settings.STATUS_200
         self.write(response)

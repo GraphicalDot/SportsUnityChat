@@ -12,6 +12,7 @@ import requests
 import settings
 import test_utils
 import unittest
+import random
 
 from ConfigParser import ConfigParser
 from wand.color import Color
@@ -409,6 +410,8 @@ class NewsConsolePostArticlesOnCarouselTests(unittest.TestCase):
         self.articles = [{'headline': 'article_1', 'publish_date': '01/03/2015', 'sport_type': 'c', 'state': 'Published'},
                          {'headline': 'article_2', 'publish_date': '04/01/2015', 'sport_type': 'f', 'state': 'Published'}]
         self.article_ids = test_utils.create_articles(self.articles)
+        self.s3_client = boto3.client('s3', aws_access_key_id = amazon_access_key, aws_secret_access_key = amazon_secret_key)
+        
 
     def test_get(self):
         response = requests.get(self.post_carousel_article_url)
@@ -424,8 +427,8 @@ class NewsConsolePostArticlesOnCarouselTests(unittest.TestCase):
         # valid article_ids provided
         response = requests.post(self.post_carousel_article_url,
                                  {'articles': json.dumps({'100': self.article_ids[0], '101': self.article_ids[1]})})
-        res = json.loads(response.text)
-        self.assertEqual(res['status'], settings.STATUS_200)
+        # res = json.loads(response.text)
+        # self.assertEqual(res['status'], settings.STATUS_200)
         self.assertEqual(res['info'], settings.SUCCESS_RESPONSE)
         query = "SELECT article_id FROM carousel_articles WHERE priority = 100;"
         result = QueryHandler.get_results(query)
@@ -434,6 +437,58 @@ class NewsConsolePostArticlesOnCarouselTests(unittest.TestCase):
     def tearDown(self):
         test_utils.delete_articles(self.article_ids)
 
+class GetDiscussionsHandlerTest(unittest.TestCase):
+    _get_all_discussions_url = TORNADO_SERVER + "/get_all_discussions"
+
+    _user_count = 10
+    _users = []
+
+    def allocate_groups(self, article_id, username, poll_answer):
+        query = " SELECT * FROM assign_discussion(%s, %s, %s);"
+        variables = (article_id, username, poll_answer)
+        result = QueryHandler.get_results(query, variables)
+
+    def get_discussion_id(self, user_info):
+        query = " SELECT discussion_id FROM discussions_users WHERE discussions_users.username = %s ;"
+        variables = (user_info["username"], )
+        return QueryHandler.get_results(query, variables)
+
+
+    def setUp(self):
+        query = " INSERT INTO articles (article_headline, article_content, article_poll_question, article_ice_breaker_image) VALUES ('test', 'test', 'test', 'test') RETURNING article_id;"
+        self._article_id = QueryHandler.get_results(query, ())[0]['article_id']
+
+        for index in range(0, self._user_count):
+            username = "test_user" + str(index)
+            password = "test_password" + str(index)
+            phone_number = "test_ph" + str(index)
+            poll_answer = 'y' if random.randint(0,1) == 1 else 'n'
+
+            test_utils.delete_user(username = username)
+            test_utils.create_user(username = username, password = password, phone_number = phone_number)
+            
+            self.allocate_groups(self._article_id, username, poll_answer)
+
+            user_info = {"username": username, "password": password , "phone_number": phone_number, "poll_answer": poll_answer}
+            self._users.append(user_info)
+
+    def test_get(self):
+        response = json.loads(requests.get(self._get_all_discussions_url).content)
+        assert response['status'] == settings.STATUS_200        
+
+        assert response['info'][0]['article_id'] == self._article_id
+        assert response['info'][0]['headline']
+        assert response['info'][0]['discussion_id']
+        assert response['info'][0]['user_count']
+
+
+    def tearDown(self):
+        for user in self._users:
+            test_utils.delete_user(username = user["username"])
+
+        query = "DELETE FROM articles WHERE article_id = %s;"
+        variables = (self._article_id,)
+        QueryHandler.execute(query, variables)    
 
 if __name__ == '__main__':
     unittest.main()

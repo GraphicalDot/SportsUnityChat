@@ -32,7 +32,7 @@ urls = [
     (r"/redeem_code", handlers.RedeemCodeHandler),
     (r"/friends_watching", handlers.FriendsWatchingHandler),
     (r"/submit_poll_answer", handlers.PollAnswerHandler),
-    (r"/exit_discussion", handlers.DiscussionHandler),
+    (r"/exit_discussion", handlers.ExitDiscussionHandler),
 
     ## console urls
     (r"/news_login", console_handlers.NewsConsoleLogin),
@@ -44,7 +44,7 @@ urls = [
     (r"/delete_article", console_handlers.NewsConsoleDeleteArticle),
     (r"/publish_article", console_handlers.NewsConsolePublishArticle),
     (r"/post_carousel_articles", console_handlers.NewsConsolePostArticlesOnCarousel),
-    (r"/get_discussions", console_handlers.GetDiscussionsHandler),
+    (r"/get_all_discussions", console_handlers.GetDiscussionsHandler)
 
 
 
