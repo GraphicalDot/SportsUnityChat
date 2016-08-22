@@ -1,4 +1,4 @@
-CREATE FUNCTION assign_discussion(_article_id INT, _username TEXT, _poll_answer CHAR) RETURNS   TABLE (
+CREATE OR REPLACE FUNCTION assign_discussion(_article_id INT, _username TEXT, _poll_answer CHAR) RETURNS   TABLE (
  action_taken TEXT,
  discussion_id TEXT,
  username TEXT
@@ -67,7 +67,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
-CREATE FUNCTION exit_discussion(_discussion_id TEXT, _username TEXT, _article_id INT) RETURNS   TABLE (
+CREATE OR REPLACE FUNCTION exit_discussion(_discussion_id TEXT, _username TEXT, _article_id INT) RETURNS   TABLE (
  action_taken TEXT,
  username TEXT
 )  AS $$

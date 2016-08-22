@@ -427,8 +427,8 @@ class NewsConsolePostArticlesOnCarouselTests(unittest.TestCase):
         # valid article_ids provided
         response = requests.post(self.post_carousel_article_url,
                                  {'articles': json.dumps({'100': self.article_ids[0], '101': self.article_ids[1]})})
-        # res = json.loads(response.text)
-        # self.assertEqual(res['status'], settings.STATUS_200)
+        res = json.loads(response.text)
+        self.assertEqual(res['status'], settings.STATUS_200)
         self.assertEqual(res['info'], settings.SUCCESS_RESPONSE)
         query = "SELECT article_id FROM carousel_articles WHERE priority = 100;"
         result = QueryHandler.get_results(query)

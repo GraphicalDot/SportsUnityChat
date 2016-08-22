@@ -314,8 +314,6 @@ class UsersWatchingMatchTest(unittest.TestCase):
 
 
     def test_retrieve_friends_watching_the_match(self):
-        # from IPython import embed
-        # embed()
         payload = {"username": self._username, "password": self._password, "matches": [self._match_id_1, self._match_id_2]}
         payload.update(extra_params_dict)
         response = json.loads(requests.post(self._test_retrieval_url, data=payload).content)
