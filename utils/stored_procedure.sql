@@ -82,15 +82,19 @@ CREATE OR REPLACE FUNCTION exit_discussion(_discussion_id TEXT, _username TEXT, 
 
 		_user_count_in_discussion := (SELECT COUNT(*) FROM discussions_users WHERE discussion_id = _discussion_id);
 
-		IF _user_count_in_discussion = 1 THEN
-			
-			CREATE TEMPORARY TABLE tmp_container ON COMMIT DROP AS SELECT 'deleted_discussion'::TEXT AS action_taken, 'null'::TEXT AS username FROM discussions_users WHERE discussions_users.discussion_id = _discussion_id;
-			DELETE FROM articles_discussions WHERE discussion_id = _discussion_id;
-		ELSE
+		IF _user_count_in_discussion > 1 THEN
 			CREATE TEMPORARY TABLE _new_users_in_discussion ON COMMIT DROP AS SELECT DISTINCT users_poll_responses.username AS username FROM users_poll_responses WHERE users_poll_responses.article_id = _article_id AND users_poll_responses.username NOT IN (SELECT DISTINCT discussions_users.username FROM discussions_users, articles_discussions WHERE articles_discussions.article_id = _article_id AND discussions_users.discussion_id = articles_discussions.discussion_id);
-	
-			INSERT INTO discussions_users ( SELECT _discussion_id, _new_users_in_discussion.username FROM _new_users_in_discussion);
-			CREATE TEMPORARY TABLE tmp_container ON COMMIT DROP AS SELECT 'deleted_user_added_queued_users_to_discussion'::TEXT AS action_taken, _new_users_in_discussion.username::TEXT AS username FROM _new_users_in_discussion;
+
+			IF EXISTS (SELECT * FROM _new_users_in_discussion) THEN
+				INSERT INTO discussions_users ( SELECT _discussion_id, _new_users_in_discussion.username FROM _new_users_in_discussion);
+				CREATE TEMPORARY TABLE tmp_container ON COMMIT DROP AS SELECT 'deleted_user_added_queued_users_to_discussion'::TEXT AS action_taken, _new_users_in_discussion.username::TEXT AS username FROM _new_users_in_discussion;
+			ELSE
+				CREATE TEMPORARY TABLE tmp_container ON COMMIT DROP AS SELECT 'deleted_user'::TEXT AS action_taken, 'null'::TEXT AS username;
+			END IF;
+			
+		ELSE
+			CREATE TEMPORARY TABLE tmp_container ON COMMIT DROP AS SELECT 'deleted_discussion'::TEXT AS action_taken, 'null'::TEXT AS username;
+			DELETE FROM articles_discussions WHERE discussion_id = _discussion_id;
 		END IF;
 		RETURN QUERY SELECT * FROM tmp_container ;
 END;
