@@ -954,7 +954,7 @@ class ExitDiscussionHandler(UserApiRequestHandler):
             Discussion(self.discussion_id).unsubsribe_user_and_delete(results[0]['username'])
         elif results[0]['action_taken'] == "deleted_user_added_queued_users_to_discussion":
             discussion_info = {"name": self.discussion_id, "users": map(lambda info: info ["username"], results)}
-            Discussion(self.discussion_id).unsubsribe_user(self.username)
+            Discussion(self.discussion_id).unsubscribe_user(self.username)
             Discussion(self.discussion_id).add_users(discussion_info)
         else:
             raise InternalServerError        
