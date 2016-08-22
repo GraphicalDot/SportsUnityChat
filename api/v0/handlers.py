@@ -36,12 +36,19 @@ def check_udid_and_apk_version(request_handler_object):
 
 
 class BaseRequestHandler(tornado.web.RequestHandler):
+    """
+    Base Class for all the future classes
+    Activities like logging should be done in this class
+    """
     def prepare(self):
         logging.debug("[info] Class {} via {} with body {}".format(self.__class__.__name__, self.request.uri, self.request.body))
 
 
 class UserApiRequestHandler(BaseRequestHandler):
-
+    """
+    Handles the authentication part for user api's, also takes care of writing handling
+    exceptions and sending appropriate error messages to the user 
+    """
     def prepare(self):
         super(UserApiRequestHandler, self).prepare()
         self.request.arguments = merge_body_arguments(self)
@@ -101,7 +108,8 @@ class SetLocationHandler(UserApiRequestHandler):
                 password password  
                 lng  longtitude
                 lat  latitude
-
+                apk_version
+                udid
             :response 
                 :success => {'status':settings.STATUS_200, 'info': 'Success'}
                 :failure => {'status': 500, 'info': 'Error [Error message]'}
@@ -200,7 +208,9 @@ class RegistrationHandler(BaseRequestHandler):
     """
     Handles the registration of the user.
     Parameters:- 
-        phone_number -- phone number of the user to be registered
+        phone_number
+        apk_version
+        udid
     Response:-
         {'info': 'Success', 'status':settings.STATUS_200} if successfully registered
         {'info': 'Error [Error]', 'status': 500} if not successfully registered 
@@ -228,6 +238,8 @@ class CreationHandler(BaseRequestHandler):
     Query Parameters:-
         phone_number -- phone number of the user to be registered
         auth_code -- auth code otp sent to the user
+        apk_version
+        udid
     Response:-
         {'info': 'Success', 'status': 200
         , 'username': [username], 'password': [password]} if successfully registered
@@ -262,6 +274,18 @@ class CreationHandler(BaseRequestHandler):
             self.write(response)
 
 class MediaPresentHandler(BaseRequestHandler):
+    """
+    Checks if media is present on our servers.
+    Parameters:- 
+        name - name of media
+        username
+        password
+        apk_version
+        udid
+    Response:-
+        {'info': 'Success', 'status':settings.STATUS_200} if successfully registered
+        {'info': 'Error [Error]', 'status': ErrorCode} if not successfully registered 
+    """
     def get(self):
         check_udid_and_apk_version(self)
         response = {}
@@ -285,6 +309,18 @@ class MediaPresentHandler(BaseRequestHandler):
 
 @tornado.web.stream_request_body
 class MediaHandler(BaseRequestHandler):
+    """
+    Uploads media to the servers.
+    Parameters:- 
+        name - name of media
+        username
+        password
+        apk_version
+        udid
+    Response:-
+        {'info': 'Success', 'status':settings.STATUS_200} if successfully registered
+        {'info': 'Error [Error]', 'status': ErrorCode} if not successfully registered 
+    """
     response = {}
 
     def prepare(self):
@@ -335,60 +371,60 @@ class MediaHandler(BaseRequestHandler):
         self.file_content += data
 
 
-class IOSMediaHandler(BaseRequestHandler):
+# class IOSMediaHandler(BaseRequestHandler):
 
-    def data_validation(self, headers, body):
-        response = {'info': '', 'status': 0}
+#     def data_validation(self, headers, body):
+#         response = {'info': '', 'status': 0}
 
-        # 'Content-Type' not present in the header
-        if not headers.get('Content-Type'):
-            response['info'] = " Bad Request: 'Content-Type' field not present in the Header!"
-            response['status'] = settings.STATUS_400
-            return response
+#         # 'Content-Type' not present in the header
+#         if not headers.get('Content-Type'):
+#             response['info'] = " Bad Request: 'Content-Type' field not present in the Header!"
+#             response['status'] = settings.STATUS_400
+#             return response
 
-        # 'Checksum' not present in the header
-        if response['status'] == 0 and not headers.get('Checksum'):
-            response['info'] = " Bad Request: 'Checksum' field not present in the Header!"
-            response['status'] = settings.STATUS_400
-            return response
+#         # 'Checksum' not present in the header
+#         if response['status'] == 0 and not headers.get('Checksum'):
+#             response['info'] = " Bad Request: 'Checksum' field not present in the Header!"
+#             response['status'] = settings.STATUS_400
+#             return response
 
-        # body not present
-        if response['status'] == 0 and not body:
-            response['info'] = " Bad request: Request body not present!"
-            response['status'] = settings.STATUS_400
-        return response
+#         # body not present
+#         if response['status'] == 0 and not body:
+#             response['info'] = " Bad request: Request body not present!"
+#             response['status'] = settings.STATUS_400
+#         return response
 
-    def post(self):
-        response = {}
-        try:
-            check_udid_and_apk_version(self)
-            headers = self.request.headers
-            body = self.request.body
+#     def post(self):
+#         response = {}
+#         try:
+#             check_udid_and_apk_version(self)
+#             headers = self.request.headers
+#             body = self.request.body
 
-            # data validation
-            response = self.data_validation(headers, body)
+#             # data validation
+#             response = self.data_validation(headers, body)
 
-            if response['status'] != settings.STATUS_400:
-                decoder = MultipartDecoder(body, content_type=headers.get('Content-Type'))
-                file_content = decoder.parts[0].content
-                file_name = "media/" + headers.get('Checksum')
-                if os.path.isfile(file_name):
-                    response['status'] = settings.STATUS_422
-                    response['info'] = "Error: File with same name already exists!"
-                else:
-                    media_file = open(file_name, 'w')
-                    media_file.write(file_content)
-                    media_file.flush()
-                    response['status'] = settings.STATUS_200
-                    response['info'] = settings.SUCCESS_RESPONSE
-        except MissingArgumentError, status:
-            response["info"] = status.log_message 
-            response["status"] =settings.STATUS_400
-        except Exception as e:
-            response['status'] = settings.STATUS_500
-            response['info'] = " Error is: %s" % e
-        finally:
-            self.write(response)
+#             if response['status'] != settings.STATUS_400:
+#                 decoder = MultipartDecoder(body, content_type=headers.get('Content-Type'))
+#                 file_content = decoder.parts[0].content
+#                 file_name = "media/" + headers.get('Checksum')
+#                 if os.path.isfile(file_name):
+#                     response['status'] = settings.STATUS_422
+#                     response['info'] = "Error: File with same name already exists!"
+#                 else:
+#                     media_file = open(file_name, 'w')
+#                     media_file.write(file_content)
+#                     media_file.flush()
+#                     response['status'] = settings.STATUS_200
+#                     response['info'] = settings.SUCCESS_RESPONSE
+#         except MissingArgumentError, status:
+#             response["info"] = status.log_message 
+#             response["status"] =settings.STATUS_400
+#         except Exception as e:
+#             response['status'] = settings.STATUS_500
+#             response['info'] = " Error is: %s" % e
+#         finally:
+#             self.write(response)
 
 
 class UserInterestHandler(UserApiRequestHandler):
@@ -457,34 +493,42 @@ class UserInterestHandler(UserApiRequestHandler):
         self.write(response)        
 
 
-class IOSSetUserDeviceTokenReturnsUsersMatches(UserApiRequestHandler):
+# class IOSSetUserDeviceTokenReturnsUsersMatches(UserApiRequestHandler):
 
-    def set_ios_token_and_return_user_matches(self): 
-        token_type = settings.TOKEN_IOS_TYPE
-        query = " WITH updated AS (UPDATE users SET device_token=%s, token_type = %s, device_id = %s WHERE username=%s) "\
-        +   "SELECT users_matches.match_id FROM users_matches WHERE users_matches.username = %s;"
-        variables = (self.token, token_type, self.udid, self.username, self.username)
-        return QueryHandler.get_results(query, variables)
+#     def set_ios_token_and_return_user_matches(self): 
+#         token_type = settings.TOKEN_IOS_TYPE
+#         query = " WITH updated AS (UPDATE users SET device_token=%s, token_type = %s, device_id = %s WHERE username=%s) "\
+#         +   "SELECT users_matches.match_id FROM users_matches WHERE users_matches.username = %s;"
+#         variables = (self.token, token_type, self.udid, self.username, self.username)
+#         return QueryHandler.get_results(query, variables)
 
-    def post(self):
-        response = {}
-        self.username = str(self.get_argument('username'))
-        self.token = str(self.get_argument('token'))
-        self.udid = str(self.get_argument('udid'))
-        user = User(password = self.password, username = self.username)
-        user.authenticate()
-        users_matches = self.set_ios_token_and_return_user_matches()
-        response['match_ids'] = map(lambda x: x['match_id'], users_matches)
-        response['info'] = settings.SUCCESS_RESPONSE
-        response['status'] =settings.STATUS_200
-        self.write(response)
+#     def post(self):
+#         response = {}
+#         self.username = str(self.get_argument('username'))
+#         self.token = str(self.get_argument('token'))
+#         self.udid = str(self.get_argument('udid'))
+#         user = User(password = self.password, username = self.username)
+#         user.authenticate()
+#         users_matches = self.set_ios_token_and_return_user_matches()
+#         response['match_ids'] = map(lambda x: x['match_id'], users_matches)
+#         response['info'] = settings.SUCCESS_RESPONSE
+#         response['status'] =settings.STATUS_200
+#         self.write(response)
 
 
 class SendAppInvitation(tornado.web.RequestHandler):
     """
-    Sends invitation invite from app user to any of its contacts.
+    Checks if media is present on our servers.
+    Parameters:- 
+        phone_number - phone_number of the user to which invitation has to be sent 
+        username
+        password
+        apk_version
+        udid
+    Response:-
+        {'info': 'Success', 'status':settings.STATUS_200} if successfully registered
+        {'info': 'Error [Error]', 'status': ErrorCode} if not successfully registered 
     """
-
     def post(self):
         response = {}
         self.phone_number = str(self.get_argument('phone_number')).strip()
@@ -536,7 +580,8 @@ class ContactJidsHandler(UserApiRequestHandler):
             :params
                 username => username
                 password => password
-                apk_version and udid
+                apk_version 
+                udid
                 contacts => a list of all the contacts in the users phone
             :response
                 :success => {'status':200, 'info': 'Success', 'jids': [List of jids]}
@@ -566,6 +611,20 @@ class ContactJidsHandler(UserApiRequestHandler):
 
 
 class GetNearbyUsers(UserApiRequestHandler):
+    """
+    Get people nearby to a particular user.
+    Parameters:- 
+        lat - latitude of the user
+        lng - longitude of the user 
+        radius - radius around which users should be searched
+        username
+        password
+        apk_version
+        udid
+    Response:-
+        {'info': 'Success', 'status':settings.STATUS_200} if successfully registered
+        {'info': 'Error [Error]', 'status': ErrorCode} if not successfully registered 
+    """
 
     def get_nearby_users(self):
         query = " WITH user_pref AS"\
@@ -652,7 +711,16 @@ class GetNearbyUsers(UserApiRequestHandler):
 
 class RegisterUserMatchHandler(UserApiRequestHandler):
     """
-    This class handles the registration of a match for a jid
+    Register a match for a user for notification.
+    Parameters:- 
+        match_id - match id 
+        username
+        password
+        apk_version
+        udid
+    Response:-
+        {'info': 'Success', 'status':settings.STATUS_200} if successfully registered
+        {'info': 'Error [Error]', 'status': ErrorCode} if not successfully registered 
     """
     def set_user_match(self):
         query = " INSERT INTO users_matches (username, match_id) VALUES (%s, %s);"
@@ -675,7 +743,16 @@ class RegisterUserMatchHandler(UserApiRequestHandler):
 
 class UnRegisterUserMatchHandler(UserApiRequestHandler):
     """
-    This class handles the registration of a match for a jid
+    This class handles the unregistration of a match for a jid
+    Parameters:- 
+        match_id - match id 
+        username
+        password
+        apk_version
+        udid
+    Response:-
+        {'info': 'Success', 'status':settings.STATUS_200} if successfully registered
+        {'info': 'Error [Error]', 'status': ErrorCode} if not successfully registered 
     """
     def remove_user_match(self):
         query = "  DELETE FROM users_matches WHERE users_matches.username = %s AND users_matches.match_id = %s;"
@@ -692,8 +769,19 @@ class UnRegisterUserMatchHandler(UserApiRequestHandler):
             
 class AndroidSetUserDeviceTokenReturnsUsersMatches(UserApiRequestHandler):
     """
-    This class handles the registration of a match for a jid
+    This class sets the user's android device token for use in gcm
+    and returns the matches that he is subscribe to 
+    Parameters:- 
+        token - android token of the user 
+        username
+        password
+        apk_version
+        udid
+    Response:-
+        {'info': 'Success', 'status':settings.STATUS_200} if successfully registered
+        {'info': 'Error [Error]', 'status': ErrorCode} if not successfully registered 
     """
+
     def set_android_device_token_returning_user_matches(self):
         token_type = settings.TOKEN_ANDROID_TYPE
         query = " WITH updated AS (UPDATE users SET device_token = %s, token_type = %s, device_id = %s WHERE username = %s) "\
@@ -713,7 +801,17 @@ class AndroidSetUserDeviceTokenReturnsUsersMatches(UserApiRequestHandler):
 
 class AndroidRemoveUserDeviceId(UserApiRequestHandler):
     """
-    This class handles the registration of a match for a jid
+    This class removes the user's android device token
+    and returns the matches that he is subscribe to 
+    Parameters:- 
+        token - android token of the user 
+        username
+        password
+        apk_version
+        udid
+    Response:-
+        {'info': 'Success', 'status':settings.STATUS_200} if successfully registered
+        {'info': 'Error [Error]', 'status': ErrorCode} if not successfully registered 
     """
     def remove_android_device_token(self):
         query = "  UPDATE users SET device_token = null WHERE username = %s;"
@@ -728,6 +826,22 @@ class AndroidRemoveUserDeviceId(UserApiRequestHandler):
         self.write(response)
 
 class LocationPrivacyHandler(UserApiRequestHandler):
+    """
+    This class handles the storage of location privacy of a user in the server
+    Methods : 
+        get :
+            :params 
+                username username
+                password password  
+                show_location_status  - can be either true or false 
+                lat  latitude
+                apk_version
+                udid
+            :response 
+                :success => {'status':settings.STATUS_200, 'info': 'Success'}
+                :failure => {'status': 500, 'info': 'Error [Error message]'}
+
+    """
     def set_location_privacy(self):
         query = " UPDATE users SET show_location = %s WHERE username = %s;"
         variables = (self.show_location_status, self.username,)
@@ -745,6 +859,22 @@ class LocationPrivacyHandler(UserApiRequestHandler):
         self.write(response)
 
 class PushNotificationHandler(BaseRequestHandler):
+    """
+    This class handles the push notification for a match to the subscribed users
+    Methods : 
+        post :
+            :params 
+                s: sport_code, 
+                e: event_code, 
+                m: match_id, 
+                tt: top text to be displayed in the notification , 
+                bt: bottom text to be displayed in the notification, 
+                l: league_id
+            :response 
+                :success => {'status':settings.STATUS_200, 'info': 'Success'}
+                :failure => {'status': 500, 'info': 'Error [Error message]'}
+
+    """
     def post(self):
         response = {}
         try:
@@ -764,6 +894,16 @@ class PushNotificationHandler(BaseRequestHandler):
             self.write(response)
 
 class RegisterMatchHandler(BaseRequestHandler):
+    """    
+    This class handles the registers a match in the server
+    Methods : 
+        get :
+            :params 
+                matches - list of matches
+            :response 
+                :success => {'status':settings.STATUS_200, 'info': 'Success'}
+                :failure => {'status': 500, 'info': 'Error [Error message]'}
+    """
     def insert_match(self, match):
         query = "INSERT INTO matches (id, name) VALUES (%s, %s);"
         variables = (match["id"], match["name"],)
@@ -789,7 +929,23 @@ class RegisterMatchHandler(BaseRequestHandler):
             self.write(response)
 
 class SetUserInfoHandler(UserApiRequestHandler):
+    """
+    This class handles the storage of user info in the server
+    Methods : 
+        get :
+            :params 
+                username username
+                password password  
+                status [optional]
+                photo [optional]
+                name [optional]
+                apk_version
+                udid
+            :response 
+                :success => {'status':settings.STATUS_200, 'info': 'Success'}
+                :failure => {'status': 500, 'info': 'Error [Error message]'}
 
+    """
     def post(self):
         response = {}
         user_info = {}
@@ -803,6 +959,26 @@ class SetUserInfoHandler(UserApiRequestHandler):
         self.write(response)
 
 class GetUserInfoHandler(UserApiRequestHandler):
+    """
+    This class sends the info of a user to a requesting user
+    Methods : 
+        get :
+            :params 
+                username username
+                password password  
+                r_jid - requested jid , the jid of user for which info is required
+                r_info - requested info, the info which is required can be
+                    interests - interests of the requested user
+                    name - name of the requested user
+                    status - status of the requested user
+                    l_photo - large photo of the requested user
+                    s_photo - small photo of the requested user     
+                apk_version
+                udid
+            :response 
+                :success => {'status':settings.STATUS_200, 'info': 'Success'}
+                :failure => {'status': 500, 'info': 'Error [Error message]'}
+    """
 
     def post(self):
         response = {}
@@ -816,6 +992,22 @@ class GetUserInfoHandler(UserApiRequestHandler):
 
 
 class SetDpHandler(UserApiRequestHandler):
+    """
+    This class handles the storage of location privacy of a user in the server
+    Methods : 
+        get :
+            :params 
+                username username
+                password password  
+                show_location_status  - can be either true or false 
+                lat  latitude
+                apk_version
+                udid
+            :response 
+                :success => {'status':settings.STATUS_200, 'info': 'Success'}
+                :failure => {'status': 500, 'info': 'Error [Error message]'}
+
+    """
     def post(self):
         response = {}
         jid = self.get_argument('jid')

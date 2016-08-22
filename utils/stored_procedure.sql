@@ -9,6 +9,7 @@ DECLARE
 	max_discussion_ratio REAL;
 	min_discussion_users_ratio REAL;
 	_discussion_id TEXT;
+	_article_name TEXT;
 BEGIN
 	IF EXISTS (SELECT users_poll_responses.poll_answer FROM users_poll_responses WHERE users_poll_responses.username = _username) THEN
 		UPDATE users_poll_responses SET poll_answer = _poll_answer;
@@ -23,8 +24,9 @@ BEGIN
 	LOCK articles_discussions;
 
 	IF  (SELECT COUNT(users_poll_responses.username) from users_poll_responses WHERE users_poll_responses.article_id = _article_id AND users_poll_responses.username NOT IN (SELECT DISTINCT discussions_users.username FROM discussions_users, articles_discussions WHERE articles_discussions.article_id = _article_id AND discussions_users.discussion_id = articles_discussions.discussion_id)) = min_discussion_users THEN  
+		_a
 
-		_discussion_id := _article_id::text || ((EXTRACT(epoch from now())::float*1000)::int8)::text;
+		_discussion_id := 'DIS_' || _article_id::text || '%' || ((EXTRACT(epoch from now())::float*1000)::int8)::text || '%%';
 		INSERT INTO articles_discussions (article_id, discussion_id) VALUES (_article_id, _discussion_id);
 
 		WITH queued_users AS (SELECT DISTINCT users_poll_responses.username FROM users_poll_responses WHERE users_poll_responses.article_id = _article_id AND users_poll_responses.username NOT IN (SELECT DISTINCT discussions_users.username FROM discussions_users, articles_discussions WHERE articles_discussions.article_id = _article_id AND discussions_users.discussion_id = articles_discussions.discussion_id)) INSERT INTO discussions_users ( SELECT _discussion_id, queued_users.username FROM queued_users);
@@ -82,7 +84,7 @@ CREATE OR REPLACE FUNCTION exit_discussion(_discussion_id TEXT, _username TEXT, 
 
 		_user_count_in_discussion := (SELECT COUNT(*) FROM discussions_users WHERE discussion_id = _discussion_id);
 
-		IF _user_count_in_discussion > 1 THEN
+		IF _user_count_in_discussion > 0 THEN
 			CREATE TEMPORARY TABLE _new_users_in_discussion ON COMMIT DROP AS SELECT DISTINCT users_poll_responses.username AS username FROM users_poll_responses WHERE users_poll_responses.article_id = _article_id AND users_poll_responses.username NOT IN (SELECT DISTINCT discussions_users.username FROM discussions_users, articles_discussions WHERE articles_discussions.article_id = _article_id AND discussions_users.discussion_id = articles_discussions.discussion_id);
 
 			IF EXISTS (SELECT * FROM _new_users_in_discussion) THEN
