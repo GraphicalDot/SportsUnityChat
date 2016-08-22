@@ -3,6 +3,7 @@ config = ConfigParser.ConfigParser()
 config.read('config.py')
 import sleekxmpp.componentxmpp
 import time
+import threading
 class ServerComponent(object):
 
 	def __init__(self, jid, password, server, port):
@@ -14,7 +15,7 @@ class ServerComponent(object):
 		self.xmpp.add_event_handler("session_start", self.handle_connected)
 		self.xmpp.add_event_handler("disconnected", self.handle_disconnected)
 
-		self.connect()
+		self.threaded_connect()
 
 	def handle_connected(self):
 		for message in self.message_queue:
@@ -23,12 +24,14 @@ class ServerComponent(object):
 
 	def handle_disconnected(self):
 		time.sleep(5)
-		self.connect()
+		self.threaded_connect()
 
 	def connect(self):
 		self.xmpp.connect()
 		self.xmpp.process(block = False)
 
+	def threaded_connect(self):
+		threading.Thread(group = None, target = self.connect, name = None, args = ()).start()
 
 	def send_raw(self, message):
 		if self.xmpp.state.current_state() == 'connected':
@@ -36,4 +39,3 @@ class ServerComponent(object):
 			self.xmpp.send_raw(message, now = True)
 		else:
 			self.message_queue.append(message)
-			self.connect()

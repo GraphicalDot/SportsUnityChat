@@ -53,7 +53,7 @@ api_key=AIzaSyAWO-284HUCY2NrGtf-P5r0o9p4RCe65F0
 url_shortner_key=AIzaSyA1IIZ0kuvDanJBDE6pvMr_X6JeCMs_yiU
 
 [server_component]
-server=localhost
+server=server_component
 port=8888
 discussion_admin_jid=admin@mm.io
 discussion_admin_password=awestrtyuioi
