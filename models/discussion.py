@@ -5,11 +5,22 @@ from server_component_factory import ServerComponentFactory
 from common.funcs import QueryHandler
 
 class Discussion(object):
+	"""
+		Handles all the processes relating to a discussion
+		A discussion is a group which is created on the curated news content
+		Methods are available for :
+			1. creating discussions
+			2. deleting discussions
+			3. Adding users to discussions
+			4. Deleting users from discussions
+			5. Return all the group discussions happening
+	"""
 
 	def __init__(self, name):
 		self.discussion_admin_password = config.get('server_component', 'discussion_admin_password') 
 		self.discussion_admin_jid = config.get('server_component', 'discussion_admin_jid') 
-		self.server_component = ServerComponentFactory().get_server_component(self.discussion_admin_jid, self.discussion_admin_password)
+		
+		self.server_component_factory = ServerComponentFactory(self.discussion_admin_jid, self.discussion_admin_password)
 
 		self.domain = config.get('xmpp', 'domain') 
 
@@ -20,23 +31,23 @@ class Discussion(object):
 		self.name = name
 
 	def create(self):
-		self.server_component.send_raw(self.discussion_creation_xml.format(self.name.strip()))
+		self.server_component_factory.send(self.discussion_creation_xml.format(self.name.strip()))
 
 
 	def add_users(self, info):
 		for user in info["users"]:
 			username = user + self.domain
-			self.server_component.send_raw(self.add_users_to_discussion_xml.format(self.name, username, self.name))
+			self.server_component_factory.send(self.add_users_to_discussion_xml.format(self.name, username, self.name))
 
 	def create_and_add_users(self, info):
 		self.create()
 		self.add_users(info)
 
 	def unsubscribe_user(self, username):
-		self.server_component.send_raw(self.unsubsribe_user_from_discussion_xml.format(self.name, username, self.name))
+		self.server_component_factory.send(self.unsubsribe_user_from_discussion_xml.format(self.name, username, self.name))
 
 	def delete(self):
-		self.server_component.send_raw(self.discussion_deletion_xml.format(self.name))
+		self.server_component_factory.send(self.discussion_deletion_xml.format(self.name))
 
 	def unsubsribe_user_and_delete(self, username):
 		self.unsubscribe_user(username)
