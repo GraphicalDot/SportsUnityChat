@@ -37,7 +37,7 @@ class Discussion(object):
 	def add_users(self, info):
 		for user in info["users"]:
 			username = user + self.domain
-			self.server_component_factory.send(self.add_users_to_discussion_xml.format(self.name, username, self.name))
+			self.server_component_factory.send(self.add_users_to_discussion_xml.format(self.name, username))
 
 	def create_and_add_users(self, info):
 		stanza = self.discussion_creation_xml.format(self.name.strip()) 			
