@@ -1275,10 +1275,10 @@ class SetAndroidDeviceTokenReturnUserMatchesTest(SetDeviceTokenReturnUserMatches
 	_token_type = settings.TOKEN_ANDROID_TYPE
 	
 
-class IOSSetUserDeviceIdReturnUserMatchesTests(SetDeviceTokenReturnUserMatchesTest, unittest.TestCase):
-	_set_url = tornado_local_address + "/set_ios_token_and_return_user_matches"
-	_unset_url = None
-	_token_type = settings.TOKEN_IOS_TYPE
+# class IOSSetUserDeviceIdReturnUserMatchesTests(SetDeviceTokenReturnUserMatchesTest, unittest.TestCase):
+# 	_set_url = tornado_local_address + "/set_ios_token_and_return_user_matches"
+# 	_unset_url = None
+# 	_token_type = settings.TOKEN_IOS_TYPE
 
 class SetLocationPrivacyTest(unittest.TestCase):
 	_set_location_privacy_url = tornado_local_address + "/set_location_privacy"

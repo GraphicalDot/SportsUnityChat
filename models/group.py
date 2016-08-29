@@ -6,6 +6,12 @@ from s3_object import S3Object
 from node import Node
 from server_component_factory import ServerComponentFactory
 class Group(Node):
+	"""
+	This class performs represents a user created group.
+	Includes methods for:
+	1. uploading group dp
+	2. downloading group dp
+	"""
 	def __init__(self, name):
 		self.name = name
 		self.dp_bucket = str.strip(config.get('amazon', 'dp_bucket_name'))

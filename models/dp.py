@@ -4,6 +4,13 @@ config.read('config.py')
 from s3_image import S3Image
 from s3_object import S3Object
 class Dp(object):
+	"""
+	Represents a display picture class
+	Methods include
+	1. Uploading dp
+	2. Get dp
+	3. checking for existence of dp
+	"""
 	def __init__(self, jid):
 		self.jid = jid
 		self.dp_bucket = str.strip(config.get('amazon', 'dp_bucket_name'))
