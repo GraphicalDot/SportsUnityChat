@@ -40,9 +40,11 @@ urls = [
     (r"/news_upload_s3_object", console_handlers.NewsConsoleUploadS3Object),
     (r"/add_article", console_handlers.NewsConsoleAddCuratedArticle),
     (r"/fetch_articles", console_handlers.NewsConsoleFetchArticles),
+    (r"/get_article", console_handlers.NewsConsoleGetArticle),
     (r"/edit_article", console_handlers.NewsConsoleEditArticle),
     (r"/delete_article", console_handlers.NewsConsoleDeleteArticle),
     (r"/publish_article", console_handlers.NewsConsolePublishArticle),
+    (r"/get_carousel_articles", console_handlers.NewsConsoleGetCarouselArticles),
     (r"/post_carousel_articles", console_handlers.NewsConsolePostArticlesOnCarousel),
     (r"/get_all_discussions", console_handlers.GetDiscussionsHandler)
 

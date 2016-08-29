@@ -53,9 +53,9 @@ def create_articles(articles):
     article_ids = []
     for article in articles:
         query = "INSERT INTO articles (article_headline, article_content, article_image, article_poll_question, " \
-                "article_ice_breaker_image, article_sport_type, article_publish_date, article_state) " \
+                "article_ice_breaker_image, article_sport_type, article_state, article_writer) " \
                 "VALUES (%s, %s, %s, %s, %s, %s, %s, %s) RETURNING article_id;"
-        variables = (article['headline'], 'TEXT', 'TEXT', 'TEXT', 'TEXT', article['sport_type'], parser.parse(article['publish_date']), article['state'])
+        variables = (article['headline'], 'TEXT', 'TEXT', 'TEXT', 'TEXT', article['sport_type'], article['state'], article['writer'])
         result = QueryHandler.get_results(query, variables)
         article_ids.append(result[0]['article_id'])
     return article_ids
