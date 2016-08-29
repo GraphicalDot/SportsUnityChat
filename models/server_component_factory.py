@@ -10,4 +10,4 @@ class ServerComponentFactory(object):
 		self.password = password
 	
 	def send(self, message):
-		 threading.Thread(group = None, target = ServerComponent, name = None, args = (self.jid, self.password, message)).start()
+		threading.Thread(group = None, target = ServerComponent, name = None, args = (self.jid, self.password, message)).start()
