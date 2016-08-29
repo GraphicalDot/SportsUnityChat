@@ -39,7 +39,7 @@ class Discussion(object):
 		for user in info["users"]:
 			username = user + self.domain
 			self.server_component_factory.send(self.add_users_to_discussion_xml.format(self.name, username))
-			self.server_component_factory.send(self.self.send_notification_xml.format(self.name, username, self.name))
+			self.server_component_factory.send(self.send_notification_xml.format(self.name, username, self.name))
 
 	def create_and_add_users(self, info):
 		self.create()
