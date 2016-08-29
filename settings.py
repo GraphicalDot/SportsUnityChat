@@ -17,6 +17,7 @@ MISSING_APK_AND_UDID_ERROR = "Bad Request: Please provide 'apk_version' and 'udi
 BAD_AUTHENTICATION_ERROR = "Bad Authentication Info"
 USER_FORBIDDEN_ERROR = "Forbidden: The user is BLOCKED!"
 BAD_INFO_ERROR = " Bad Info Supplied for {}"
+INVALID_KEY_ERROR = "Bad key(s) provided in request"
 DUPLICATE_KEY_ERROR = "Database Error: This {} already exists"
 INVALID_BUCKET_ERROR = "Bad Bucket Request"
 KEY_ALREADY_EXISTS = "Bad Request: This Key already exists in the bucket"
