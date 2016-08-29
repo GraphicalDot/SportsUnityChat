@@ -40,11 +40,8 @@ class Discussion(object):
 			self.server_component_factory.send(self.add_users_to_discussion_xml.format(self.name, username, self.name))
 
 	def create_and_add_users(self, info):
-		stanza = self.discussion_creation_xml.format(self.name.strip()) 			
-		for user in info["users"]:
-			username = user + self.domain
-			stanza += self.add_users_to_discussion_xml.format(self.name, username, self.name)
-		self.server_component_factory.send(stanza)
+		self.create()
+		self.add_users(info)
 
 	def unsubscribe_user(self, username):
 		self.server_component_factory.send(self.unsubsribe_user_from_discussion_xml.format(self.name, username, self.name))
@@ -53,8 +50,8 @@ class Discussion(object):
 		self.server_component_factory.send(self.discussion_deletion_xml.format(self.name))
 
 	def unsubsribe_user_and_delete(self, username):
-		stanza = self.unsubsribe_user_from_discussion_xml.format(self.name, username, self.name) + self.discussion_deletion_xml.format(self.name)
-		self.server_component_factory.send(stanza)
+		self.unsubscribe_user(username)
+		self.delete()
 
 	@classmethod
 	def get_all(cls):

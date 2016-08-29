@@ -38,8 +38,16 @@ def check_udid_and_apk_version(request_handler_object):
 class BaseRequestHandler(tornado.web.RequestHandler):
     """
     Base Class for all the future classes
-    Activities like logging should be done in this class
+    Activities like logging should be done in this class.
+    Allow cors request in this class
     """
+    def set_default_headers(self):
+        print "setting headers!!!"
+        self.set_header("Access-Control-Allow-Origin", "*")
+        self.set_header("Access-Control-Allow-Headers", "x-requested-with")
+        self.set_header('Access-Control-Allow-Methods', 'POST, GET, OPTIONS')
+
+
     def prepare(self):
         logging.debug("[info] Class {} via {} with body {}".format(self.__class__.__name__, self.request.uri, self.request.body))
 
@@ -111,8 +119,8 @@ class SetLocationHandler(UserApiRequestHandler):
                 apk_version
                 udid
             :response 
-                :success => {'status':settings.STATUS_200, 'info': 'Success'}
-                :failure => {'status': 500, 'info': 'Error [Error message]'}
+                :success => {'status':settings.STATUS_200, 'message': 'Success'}
+                :failure => {'status': [Error Code], 'message': 'Error [Error message]'}
 
     """
     def set_location(self):
@@ -207,13 +215,15 @@ class SetLocationHandler(UserApiRequestHandler):
 class RegistrationHandler(BaseRequestHandler):
     """
     Handles the registration of the user.
+    Method:
+        GET
     Parameters:- 
         phone_number
         apk_version
         udid
     Response:-
-        {'info': 'Success', 'status':settings.STATUS_200} if successfully registered
-        {'info': 'Error [Error]', 'status': 500} if not successfully registered 
+        {'info': 'Success', 'status':settings.STATUS_200} if successful
+        {'info': 'Error [Error]', 'status': [Error Code]} if not successful 
     """
     def get(self):
         response = {}
@@ -235,18 +245,16 @@ class RegistrationHandler(BaseRequestHandler):
 class CreationHandler(BaseRequestHandler):
     """
     Handles the creation of the user.
-    Query Parameters:-
+    Method:
+        GET
+    Parameters:-
         phone_number -- phone number of the user to be registered
         auth_code -- auth code otp sent to the user
         apk_version
         udid
     Response:-
-        {'info': 'Success', 'status': 200
-        , 'username': [username], 'password': [password]} if successfully registered
-        {'info': 'Wrong or Expired Token', 'status': 400
-        , 'username': null, 'password': null} if wrong auth code
-        {'info': 'Error [Error]', 'status': 500} if not successfully registered
-        {'info': 'Error [Error]', 'status': 500} if not successfully registered
+        {'info': 'Success', 'user_status': User's status, 'password': Password, 'username': User Jid, 'name': Name of the user, 'interests', [User's Interests], 'photo': User's Photo, 'friends': [User's friend List] 'status':settings.STATUS_200} if successful
+        {'info': 'Error [Error]', 'status': [Error Code]} if not successful
     """
     def get(self):
         response = {}
@@ -276,6 +284,8 @@ class CreationHandler(BaseRequestHandler):
 class MediaPresentHandler(BaseRequestHandler):
     """
     Checks if media is present on our servers.
+    Method:
+        GET
     Parameters:- 
         name - name of media
         username
@@ -283,8 +293,8 @@ class MediaPresentHandler(BaseRequestHandler):
         apk_version
         udid
     Response:-
-        {'info': 'Success', 'status':settings.STATUS_200} if successfully registered
-        {'info': 'Error [Error]', 'status': ErrorCode} if not successfully registered 
+        {'info': 'Success', 'status':settings.STATUS_200} if successful
+        {'info': 'Error [Error]', 'status': ErrorCode} if not successful 
     """
     def get(self):
         check_udid_and_apk_version(self)
@@ -310,16 +320,25 @@ class MediaPresentHandler(BaseRequestHandler):
 @tornado.web.stream_request_body
 class MediaHandler(BaseRequestHandler):
     """
-    Uploads media to the servers.
-    Parameters:- 
+    Uploads and downloads media from the servers.
+    Method:
+        POST
+        GET
+    Parameters for POST:- 
+        username
+        password
+        apk_version
+        udid
+        Checksum - name of file posted in HEADERS
+    Parameters for GET:- 
         name - name of media
         username
         password
         apk_version
         udid
     Response:-
-        {'info': 'Success', 'status':settings.STATUS_200} if successfully registered
-        {'info': 'Error [Error]', 'status': ErrorCode} if not successfully registered 
+        {'info': 'Success', 'status':settings.STATUS_200} if successful
+        {'info': 'Error [Error]', 'status': ErrorCode} if not successful 
     """
     response = {}
 
@@ -442,7 +461,7 @@ class UserInterestHandler(UserApiRequestHandler):
                 udid
             :response 
                 :success => {'status':settings.STATUS_200, 'info': 'Success'}
-                :failure => {'status': 500, 'info': 'Error [Error message]'}     
+                :failure => {'status': [Error Code], 'info': 'Error [Error message]'}     
     """
     def get_user_interests(self):
         query = " SELECT interest_id FROM users_interest WHERE username = %s;"
@@ -518,7 +537,9 @@ class UserInterestHandler(UserApiRequestHandler):
 
 class SendAppInvitation(tornado.web.RequestHandler):
     """
-    Checks if media is present on our servers.
+    Invites a user to our application.
+    Method:
+        POST    
     Parameters:- 
         phone_number - phone_number of the user to which invitation has to be sent 
         username
@@ -526,8 +547,8 @@ class SendAppInvitation(tornado.web.RequestHandler):
         apk_version
         udid
     Response:-
-        {'info': 'Success', 'status':settings.STATUS_200} if successfully registered
-        {'info': 'Error [Error]', 'status': ErrorCode} if not successfully registered 
+        {'info': 'Success', 'status':settings.STATUS_200} if successful
+        {'info': 'Error [Error]', 'status': ErrorCode} if not successful 
     """
     def post(self):
         response = {}
@@ -576,7 +597,7 @@ class ContactJidsHandler(UserApiRequestHandler):
     This class handles the retrival of jids in the contact list
     of the user
     Methods :
-        get :
+        post :
             :params
                 username => username
                 password => password
@@ -613,6 +634,8 @@ class ContactJidsHandler(UserApiRequestHandler):
 class GetNearbyUsers(UserApiRequestHandler):
     """
     Get people nearby to a particular user.
+    Method:
+        GET
     Parameters:- 
         lat - latitude of the user
         lng - longitude of the user 
@@ -622,8 +645,8 @@ class GetNearbyUsers(UserApiRequestHandler):
         apk_version
         udid
     Response:-
-        {'info': 'Success', 'status':settings.STATUS_200} if successfully registered
-        {'info': 'Error [Error]', 'status': ErrorCode} if not successfully registered 
+        {'info': 'Success', 'status':settings.STATUS_200, 'users': List of nearby users} if successful
+        {'info': 'Error [Error]', 'status': ErrorCode} if not successful 
     """
 
     def get_nearby_users(self):
@@ -712,6 +735,8 @@ class GetNearbyUsers(UserApiRequestHandler):
 class RegisterUserMatchHandler(UserApiRequestHandler):
     """
     Register a match for a user for notification.
+    Method:
+        POST
     Parameters:- 
         match_id - match id 
         username
@@ -719,8 +744,8 @@ class RegisterUserMatchHandler(UserApiRequestHandler):
         apk_version
         udid
     Response:-
-        {'info': 'Success', 'status':settings.STATUS_200} if successfully registered
-        {'info': 'Error [Error]', 'status': ErrorCode} if not successfully registered 
+        {'info': 'Success', 'status':settings.STATUS_200} if successful
+        {'info': 'Error [Error]', 'status': ErrorCode} if not successful 
     """
     def set_user_match(self):
         query = " INSERT INTO users_matches (username, match_id) VALUES (%s, %s);"
@@ -744,6 +769,8 @@ class RegisterUserMatchHandler(UserApiRequestHandler):
 class UnRegisterUserMatchHandler(UserApiRequestHandler):
     """
     This class handles the unregistration of a match for a jid
+    Method:
+        POST
     Parameters:- 
         match_id - match id 
         username
@@ -751,8 +778,8 @@ class UnRegisterUserMatchHandler(UserApiRequestHandler):
         apk_version
         udid
     Response:-
-        {'info': 'Success', 'status':settings.STATUS_200} if successfully registered
-        {'info': 'Error [Error]', 'status': ErrorCode} if not successfully registered 
+        {'info': 'Success', 'status':settings.STATUS_200} if successful
+        {'info': 'Error [Error]', 'status': ErrorCode} if not successful 
     """
     def remove_user_match(self):
         query = "  DELETE FROM users_matches WHERE users_matches.username = %s AND users_matches.match_id = %s;"
@@ -771,6 +798,8 @@ class AndroidSetUserDeviceTokenReturnsUsersMatches(UserApiRequestHandler):
     """
     This class sets the user's android device token for use in gcm
     and returns the matches that he is subscribe to 
+    Method:
+        POST
     Parameters:- 
         token - android token of the user 
         username
@@ -778,8 +807,8 @@ class AndroidSetUserDeviceTokenReturnsUsersMatches(UserApiRequestHandler):
         apk_version
         udid
     Response:-
-        {'info': 'Success', 'status':settings.STATUS_200} if successfully registered
-        {'info': 'Error [Error]', 'status': ErrorCode} if not successfully registered 
+        {'info': 'Success', 'status':settings.STATUS_200, 'match_ids': List of match ids subscribed to by the user} if successful
+        {'info': 'Error [Error]', 'status': ErrorCode} if not successful 
     """
 
     def set_android_device_token_returning_user_matches(self):
@@ -803,6 +832,8 @@ class AndroidRemoveUserDeviceId(UserApiRequestHandler):
     """
     This class removes the user's android device token
     and returns the matches that he is subscribe to 
+    Method:
+        POST
     Parameters:- 
         token - android token of the user 
         username
@@ -810,8 +841,8 @@ class AndroidRemoveUserDeviceId(UserApiRequestHandler):
         apk_version
         udid
     Response:-
-        {'info': 'Success', 'status':settings.STATUS_200} if successfully registered
-        {'info': 'Error [Error]', 'status': ErrorCode} if not successfully registered 
+        {'info': 'Success', 'status':settings.STATUS_200} if successful
+        {'info': 'Error [Error]', 'status': ErrorCode} if not successful 
     """
     def remove_android_device_token(self):
         query = "  UPDATE users SET device_token = null WHERE username = %s;"
@@ -828,18 +859,18 @@ class AndroidRemoveUserDeviceId(UserApiRequestHandler):
 class LocationPrivacyHandler(UserApiRequestHandler):
     """
     This class handles the storage of location privacy of a user in the server
-    Methods : 
-        get :
-            :params 
-                username username
-                password password  
-                show_location_status  - can be either true or false 
-                lat  latitude
-                apk_version
-                udid
-            :response 
-                :success => {'status':settings.STATUS_200, 'info': 'Success'}
-                :failure => {'status': 500, 'info': 'Error [Error message]'}
+    Methods 
+        GET 
+    Parameters 
+        username username
+        password password  
+        show_location_status  - can be either true or false 
+        lat  latitude
+        apk_version
+        udid
+    Response 
+        {'info': 'Success', 'status':settings.STATUS_200} if successfull
+        {'info': 'Error [Error Message]', 'status': ErrorCode} if not successful 
 
     """
     def set_location_privacy(self):
@@ -861,18 +892,18 @@ class LocationPrivacyHandler(UserApiRequestHandler):
 class PushNotificationHandler(BaseRequestHandler):
     """
     This class handles the push notification for a match to the subscribed users
-    Methods : 
-        post :
-            :params 
-                s: sport_code, 
-                e: event_code, 
-                m: match_id, 
-                tt: top text to be displayed in the notification , 
-                bt: bottom text to be displayed in the notification, 
-                l: league_id
-            :response 
-                :success => {'status':settings.STATUS_200, 'info': 'Success'}
-                :failure => {'status': 500, 'info': 'Error [Error message]'}
+    Method
+        POST
+    Parameters 
+            s: sport_code, 
+            e: event_code, 
+            m: match_id, 
+            tt: top text to be displayed in the notification , 
+            bt: bottom text to be displayed in the notification, 
+            l: league_id
+    Response 
+        {'info': 'Success', 'status':settings.STATUS_200} if successfull
+        {'info': 'Error [Error Message]', 'status': ErrorCode} if not successful 
 
     """
     def post(self):
@@ -895,14 +926,14 @@ class PushNotificationHandler(BaseRequestHandler):
 
 class RegisterMatchHandler(BaseRequestHandler):
     """    
-    This class handles the registers a match in the server
-    Methods : 
-        get :
-            :params 
-                matches - list of matches
-            :response 
-                :success => {'status':settings.STATUS_200, 'info': 'Success'}
-                :failure => {'status': 500, 'info': 'Error [Error message]'}
+    This class registers a user's match in the server
+        Methods  
+            POST 
+        Parameters 
+            matches - list of matches
+        Response 
+        {'info': 'Success', 'status':settings.STATUS_200} if successfull
+        {'info': 'Error [Error Message]', 'status': ErrorCode} if not successful 
     """
     def insert_match(self, match):
         query = "INSERT INTO matches (id, name) VALUES (%s, %s);"
@@ -931,20 +962,19 @@ class RegisterMatchHandler(BaseRequestHandler):
 class SetUserInfoHandler(UserApiRequestHandler):
     """
     This class handles the storage of user info in the server
-    Methods : 
-        get :
-            :params 
-                username username
-                password password  
-                status [optional]
-                photo [optional]
-                name [optional]
-                apk_version
-                udid
-            :response 
-                :success => {'status':settings.STATUS_200, 'info': 'Success'}
-                :failure => {'status': 500, 'info': 'Error [Error message]'}
-
+    Methods  
+        POST 
+    Parameters 
+        username username
+        password password  
+        status [optional]
+        photo [optional]
+        name [optional]
+        apk_version
+        udid
+    Response 
+        {'info': 'Success', 'status':settings.STATUS_200} if successfull
+        {'info': 'Error [Error Message]', 'status': ErrorCode} if not successful 
     """
     def post(self):
         response = {}
@@ -961,23 +991,23 @@ class SetUserInfoHandler(UserApiRequestHandler):
 class GetUserInfoHandler(UserApiRequestHandler):
     """
     This class sends the info of a user to a requesting user
-    Methods : 
-        get :
-            :params 
-                username username
-                password password  
-                r_jid - requested jid , the jid of user for which info is required
-                r_info - requested info, the info which is required can be
-                    interests - interests of the requested user
-                    name - name of the requested user
-                    status - status of the requested user
-                    l_photo - large photo of the requested user
-                    s_photo - small photo of the requested user     
-                apk_version
-                udid
-            :response 
-                :success => {'status':settings.STATUS_200, 'info': 'Success'}
-                :failure => {'status': 500, 'info': 'Error [Error message]'}
+    Method  
+        POST 
+    Parameters 
+        username username
+        password password  
+        r_jid - requested jid , the jid of user for which info is required
+        r_info - requested info, the info which is required can be
+            interests - interests of the requested user
+            name - name of the requested user
+            status - status of the requested user
+            l_photo - large photo of the requested user
+            s_photo - small photo of the requested user     
+        apk_version
+        udid
+    Response 
+        {'info': 'Success', 'status':settings.STATUS_200, 'user_info': A Json of requested info} if successfull
+        {'info': 'Error [Error Message]', 'status': ErrorCode} if not successful 
     """
 
     def post(self):
@@ -993,20 +1023,19 @@ class GetUserInfoHandler(UserApiRequestHandler):
 
 class SetDpHandler(UserApiRequestHandler):
     """
-    This class handles the storage of location privacy of a user in the server
-    Methods : 
-        get :
-            :params 
-                username username
-                password password  
-                show_location_status  - can be either true or false 
-                lat  latitude
-                apk_version
-                udid
-            :response 
-                :success => {'status':settings.STATUS_200, 'info': 'Success'}
-                :failure => {'status': 500, 'info': 'Error [Error message]'}
-
+    This class handles the storage of display picture of user/group in the server
+    Method 
+        POST 
+    Parameters 
+        username username
+        password password  
+        jid - jid of the node whose user/group is to be stored
+        content - content of the picture in bytestream
+        apk_version
+        udid
+    Response:-
+        {'info': 'Success', 'status':settings.STATUS_200} if successfull
+        {'info': 'Error [Error Message]', 'status': ErrorCode} if not successful 
     """
     def post(self):
         response = {}
@@ -1018,6 +1047,21 @@ class SetDpHandler(UserApiRequestHandler):
         self.write(response)
 
 class GetDpHandler(UserApiRequestHandler):
+    """
+    Get display picture of a particular user/group.
+    Method:
+        POST
+    Parameters:- 
+        jid - jid of the user/group
+        version - version of the image required
+        username
+        password
+        apk_version
+        udid 
+    Response:-
+        {'info': 'Success', 'status':settings.STATUS_200, 'content': Dp content} if successfull
+        {'info': 'Error [Error Message]', 'status': ErrorCode} if not successful 
+    """
     def post(self):
         response = {}
         jid = self.get_argument('jid')
@@ -1030,6 +1074,19 @@ class GetDpHandler(UserApiRequestHandler):
 
 
 class GetRefrralCodeHandler(UserApiRequestHandler):
+    """
+    Get referral code of a particular user.
+    Method:
+        POST
+    Parameters:- 
+        username
+        password
+        apk_version
+        udid 
+    Response:-
+        {'info': 'Success', 'status':settings.STATUS_200, 'referral_code': Referral Code, 'referral_url': Referral Url} if successfull
+        {'info': 'Error [Error Message]', 'status': ErrorCode} if not successful 
+    """
     def get_referral_code(self):
         query = " UPDATE users SET referral_code = COALESCE (referral_code, COALESCE(regexp_replace(LOWER(name::text), '[^[:alpha:]]','' ,'g'), '') || 'u' || substring( md5(random()::text) from 1 for 3) ) WHERE username = %s "\
         +   " RETURNING referral_code ; "
@@ -1051,6 +1108,21 @@ class GetRefrralCodeHandler(UserApiRequestHandler):
 
 
 class RedeemCodeHandler(UserApiRequestHandler):
+
+    """
+    Redeem referral code for a user.
+    Method:
+        POST
+    Parameters:- 
+        username
+        referral_code
+        password
+        apk_version
+        udid 
+    Response:-
+        {'info': 'Success', 'status':settings.STATUS_200} if successfull
+        {'info': 'Error [Error Message]', 'status': ErrorCode} if not successful 
+    """
     def apply_referral_code(self):
         query = " WITH coupon AS (UPDATE coupons SET used_count = used_count + 1 WHERE code = %s AND used_count < coupon_limit RETURNING code) "\
         +   " INSERT INTO referrals (username, referred_by) VALUES (%s, COALESCE((SELECT code FROM coupon), (SELECT username FROM users WHERE referral_code = %s AND username != %s)) ); "
@@ -1067,6 +1139,21 @@ class RedeemCodeHandler(UserApiRequestHandler):
         self.write(response)       
 
 class FriendsWatchingHandler(UserApiRequestHandler):
+    """
+    Get the list of friends subscibed to a particular match.
+    Method:
+        POST
+    Parameters:- 
+        username
+        matches - list of matches for which the list of friends is needed
+        password
+        apk_version
+        udid 
+    Response:-
+        {'info': 'Success', 'status':settings.STATUS_200, 'matches': A JSON of friends watching a match} if successfull
+        {'info': 'Error [Error Message]', 'status': ErrorCode} if not successful 
+    """
+
     def post(self):
         response = {}
         self.username = self.get_argument("username")
@@ -1092,6 +1179,21 @@ class FriendsWatchingHandler(UserApiRequestHandler):
 
 
 class PollAnswerHandler(UserApiRequestHandler):
+    """
+    Handles the submission of the poll answer for a given article. 
+    Manages the creation of groups and addition of people to those groups 
+    Method:
+        POST
+    Parameters:- 
+        username
+        article_id
+        poll_answer - poll answer can be either 'y' or 'n'
+        apk_version
+        udid 
+    Response:-
+        {'info': 'Success', 'status':settings.STATUS_200} if successfull
+        {'info': 'Error [Error Message]', 'status': ErrorCode} if not successful 
+    """
     def post(self):
         response = {}
         self.username = self.get_argument("username")
@@ -1125,6 +1227,21 @@ class PollAnswerHandler(UserApiRequestHandler):
             raise InternalServerError
 
 class ExitDiscussionHandler(UserApiRequestHandler):
+    """
+    Handles the exit of a user from a particular group. 
+    Manages the exit from and deletion of those groups
+    Method:
+        POST     
+    Parameters:- 
+        username
+        article_id
+        discussion_id
+        apk_version
+        udid 
+    Response:-
+        {'info': 'Success', 'status':settings.STATUS_200} if successfull
+        {'info': 'Error [Error Message]', 'status': ErrorCode} if not successful 
+    """
     def post(self):
         response = {}
         self.username = self.get_argument("username")

@@ -74,6 +74,20 @@ class UserApiRequestHandler(BaseRequestHandler):
 
 
 class LocationPrivacyHandler(UserApiRequestHandler):
+    """
+    Handles the privacy of the user in people around me can be either 'f' - friends, 'a' - all, 'n' - None. 
+    Method:
+        POST     
+    Parameters:- 
+        username
+        password
+        show_location_status
+        apk_version
+        udid 
+    Response:-
+        {'info': 'Success', 'status':settings.STATUS_200} if successfull
+        {'info': 'Error [Error Message]', 'status': ErrorCode} if not successful 
+    """
     def set_location_privacy(self):
         query = " UPDATE users SET show_location = %s WHERE username = %s;"
         variables = (self.show_location_status, self.username,)
@@ -94,17 +108,17 @@ class UserInterestHandler(UserApiRequestHandler):
     This class creates a link between users and interests. The interests have to
     stored beforehand.
 
-    Methods : 
-        post :
-            :params 
-                username => username 
-                interests => json array of interest  with properties {'id': 1, 'properties': 'test'} 
-                password => password
-                apk_version 
-                udid
-            :response 
-                :success => {'status':settings.STATUS_200, 'info': 'Success'}
-                :failure => {'status': 500, 'info': 'Error [Error message]'}     
+    Methods  
+        POST :
+    Parameters 
+        username => username 
+        interests => json array of interest  with properties {'id': 1, 'properties': 'test'} 
+        password => password
+        apk_version 
+        udid
+    Response 
+        {'status':settings.STATUS_200, 'info': 'Success'} if successful
+        {'status': 500, 'info': 'Error [Error message]'} if not successful    
     """
     def get_user_interests(self):
         query = " SELECT interest_id FROM users_interest WHERE username = %s;"
@@ -157,6 +171,20 @@ class UserInterestHandler(UserApiRequestHandler):
 
 
 class SetUserWatchingMatchHandler(UserApiRequestHandler):
+    """
+    Adds a match to user's watching table 
+    Method:
+        POST     
+    Parameters:- 
+        username
+        password
+        match_id
+        apk_version
+        udid 
+    Response:-
+        {'info': 'Success', 'status':settings.STATUS_200} if successful
+        {'info': 'Error [Error Message]', 'status': ErrorCode} if not successful 
+    """
     def set_user_watching_match(self):
         query = " WITH selected AS ( SELECT * FROM users_watching_matches WHERE username = %s AND match_id = %s ) "\
         +   " INSERT INTO users_watching_matches (username, match_id) SELECT %s, %s WHERE NOT EXISTS (SELECT * FROM selected); "
@@ -173,6 +201,20 @@ class SetUserWatchingMatchHandler(UserApiRequestHandler):
         self.write(response)
 
 class DeleteUserWatchingMatchHandler(UserApiRequestHandler):
+    """
+    Deletes a match from user's watching table 
+    Method:
+        POST     
+    Parameters:- 
+        username
+        password
+        match_id
+        apk_version
+        udid 
+    Response:-
+        {'info': 'Success', 'status':settings.STATUS_200} if successful
+        {'info': 'Error [Error Message]', 'status': ErrorCode} if not successful 
+    """
     def delete_user_watching_match(self):
         query = " DELETE FROM users_watching_matches WHERE username = %s AND match_id = %s;"
         variables = (self.username, self.match_id, )
@@ -188,6 +230,20 @@ class DeleteUserWatchingMatchHandler(UserApiRequestHandler):
         self.write(response)
 
 class GetUserWatchingMatchHandler(UserApiRequestHandler):
+    """
+    Returns all the matches a user if watching 
+    Method:
+        POST     
+    Parameters:- 
+        username
+        password
+        match_id
+        apk_version
+        udid 
+    Response:-
+        {'info': 'Success', 'status':settings.STATUS_200} if successful
+        {'info': 'Error [Error Message]', 'status': ErrorCode} if not successful 
+    """
     def post(self):
         response = {}
         self.username = self.get_argument("username")

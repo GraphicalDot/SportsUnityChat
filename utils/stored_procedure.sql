@@ -24,9 +24,8 @@ BEGIN
 	LOCK articles_discussions;
 
 	IF  (SELECT COUNT(users_poll_responses.username) from users_poll_responses WHERE users_poll_responses.article_id = _article_id AND users_poll_responses.username NOT IN (SELECT DISTINCT discussions_users.username FROM discussions_users, articles_discussions WHERE articles_discussions.article_id = _article_id AND discussions_users.discussion_id = articles_discussions.discussion_id)) = min_discussion_users THEN  
-		_a
 
-		_discussion_id := 'DIS_' || _article_id::text || '%' || ((EXTRACT(epoch from now())::float*1000)::int8)::text || '%%';
+		_discussion_id := 'DIS_' || _article_id::text || ((EXTRACT(epoch from now())*100)::int8)::text || '%' || (SELECT article_headline FROM articles WHERE article_id = _article_id)::TEXT || '%%';
 		INSERT INTO articles_discussions (article_id, discussion_id) VALUES (_article_id, _discussion_id);
 
 		WITH queued_users AS (SELECT DISTINCT users_poll_responses.username FROM users_poll_responses WHERE users_poll_responses.article_id = _article_id AND users_poll_responses.username NOT IN (SELECT DISTINCT discussions_users.username FROM discussions_users, articles_discussions WHERE articles_discussions.article_id = _article_id AND discussions_users.discussion_id = articles_discussions.discussion_id)) INSERT INTO discussions_users ( SELECT _discussion_id, queued_users.username FROM queued_users);
