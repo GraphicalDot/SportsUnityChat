@@ -1,3 +1,5 @@
+# -*- coding: UTF-8 -*-
+
 import base64
 import datetime
 import json
@@ -171,7 +173,7 @@ class NewsConsoleFetchArticles(BaseRequestHandler):
 
         if self.article_state:
             query += " AND article_state = '%s'" % self.article_state
-        query += ';'
+        query += 'ORDER BY created_at DESC;'
         return query
 
     def data_validation(self):

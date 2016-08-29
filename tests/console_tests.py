@@ -240,7 +240,7 @@ class NewsConsoleFetchArticlesTests(unittest.TestCase):
         self.assertEqual(res['status'], settings.STATUS_200)
         self.assertEqual(res['info'], settings.SUCCESS_RESPONSE)
         self.assertEqual(len(articles_result), 3)
-        self.assertEqual([article['article_headline'] for article in articles_result], ['article_1', 'article_2', 'article_5'])
+        self.assertEqual([article['article_headline'] for article in articles_result], ['article_5', 'article_2', 'article_1'])
 
         # user is not admin
         self.data = {'username': 'test_user_3'}
@@ -250,7 +250,7 @@ class NewsConsoleFetchArticlesTests(unittest.TestCase):
         self.assertEqual(res['status'], settings.STATUS_200)
         self.assertEqual(res['info'], settings.SUCCESS_RESPONSE)
         self.assertEqual(len(articles_result), 2)
-        self.assertEqual([article['article_headline'] for article in articles_result], ['article_4', 'article_5'])
+        self.assertEqual([article['article_headline'] for article in articles_result], ['article_5', 'article_4'])
 
         # user-admin, article_sport_type-cricket, article_state-Drafts
         self.data = {'username': 'test_user_1', 'article_sport_type': 'f', 'article_state': 'Draft'}
