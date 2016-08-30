@@ -172,8 +172,6 @@ class NewsConsoleAddCuratedArticleTests(unittest.TestCase):
         self.add_curated_article_url = TORNADO_SERVER + '/add_article'
         self.news_image_bucket = settings.articles_BUCKETS.get('news_image')
         self.ice_breaker_bucket = settings.articles_BUCKETS.get('ice_breaker_image')
-        self.news_image_content = base64.b64encode(wImage(width=640, height=640, background=Color('blue')).make_blob(format='png'))
-        self.icebreaker_content = base64.b64encode(wImage(width=640, height=640, background=Color('red')).make_blob(format='png'))
         self.s3_client = boto3.client('s3', aws_access_key_id = amazon_access_key, aws_secret_access_key = amazon_secret_key)
         test_utils.register_content_writer('test_user', 'test_user', 'author')
 
@@ -187,12 +185,13 @@ class NewsConsoleAddCuratedArticleTests(unittest.TestCase):
         self.assertEqual(res['info'], 'Missing argument article_content')
 
         # valid POST data
-        self.data.update({'article_image': self.news_image_content, 'article_content': 'TEST_CONTENT',
-                          'article_ice_breaker_image': self.icebreaker_content, 'article_poll_question': 'TEST_POLL_QUESTION',
+        self.data.update({'article_content': 'TEST_CONTENT', 'article_poll_question': 'TEST_POLL_QUESTION',
                           'article_notification_content': 'TEST_HEADLINE', 'article_sport_type': 'c', 'article_stats': ['link_1', 'link_2'],
                           'article_memes': ['meme_1'], 'article_state': 'UnPublished'})
 
-        response = requests.post(url=self.add_curated_article_url, data=self.data)
+        image_path = os.getcwd() + '/tests/test_image.jpeg'
+        self.files = {'article_image': open(image_path, 'r').read(), 'article_ice_breaker_image': open(image_path, 'r').read()}
+        response = requests.post(url=self.add_curated_article_url, data=self.data, files=self.files)
         res = json.loads(response.text)
         self.assertEqual(res['status'], settings.STATUS_200)
         self.assertEqual(res['info'], settings.SUCCESS_RESPONSE)
@@ -200,14 +199,14 @@ class NewsConsoleAddCuratedArticleTests(unittest.TestCase):
         result = QueryHandler.get_results(query)
         self.assertEqual(len(result), 1)
         self.article_id = str(result[0]['article_id'])
-        self.s3_client.get_object(Bucket = self.news_image_bucket, Key = str(self.article_id) + '.png')
-        self.s3_client.get_object(Bucket = self.ice_breaker_bucket, Key = str(self.article_id) + '.png')
+        self.s3_client.get_object(Bucket = self.news_image_bucket, Key = str(self.article_id) + '.jpeg')
+        self.s3_client.get_object(Bucket = self.ice_breaker_bucket, Key = str(self.article_id) + '.jpeg')
 
     def tearDown(self):
         test_utils.delete_field_from_table('articles', 'article_headline', 'TEST_HEADLINE')
         test_utils.delete_field_from_table('content_writers', 'username', 'test_user')
-        self.s3_client.delete_object(Bucket=self.news_image_bucket, Key=str(self.article_id) + '.png')
-        self.s3_client.delete_object(Bucket=self.ice_breaker_bucket, Key=str(self.article_id) + '.png')
+        self.s3_client.delete_object(Bucket=self.news_image_bucket, Key=str(self.article_id) + '.jpeg')
+        self.s3_client.delete_object(Bucket=self.ice_breaker_bucket, Key=str(self.article_id) + '.jpeg')
 
 
 class NewsConsoleFetchArticlesTests(unittest.TestCase):
@@ -240,7 +239,7 @@ class NewsConsoleFetchArticlesTests(unittest.TestCase):
         self.assertEqual(res['status'], settings.STATUS_200)
         self.assertEqual(res['info'], settings.SUCCESS_RESPONSE)
         self.assertEqual(len(articles_result), 3)
-        self.assertEqual([article['article_headline'] for article in articles_result], ['article_1', 'article_2', 'article_5'])
+        self.assertEqual([article['article_headline'] for article in articles_result], ['article_5', 'article_2', 'article_1'])
 
         # user is not admin
         self.data = {'username': 'test_user_3'}
@@ -250,7 +249,7 @@ class NewsConsoleFetchArticlesTests(unittest.TestCase):
         self.assertEqual(res['status'], settings.STATUS_200)
         self.assertEqual(res['info'], settings.SUCCESS_RESPONSE)
         self.assertEqual(len(articles_result), 2)
-        self.assertEqual([article['article_headline'] for article in articles_result], ['article_4', 'article_5'])
+        self.assertEqual([article['article_headline'] for article in articles_result], ['article_5', 'article_4'])
 
         # user-admin, article_sport_type-cricket, article_state-Drafts
         self.data = {'username': 'test_user_1', 'article_sport_type': 'f', 'article_state': 'Draft'}
@@ -460,10 +459,7 @@ class NewsConsolePublishArticleTests(unittest.TestCase):
         res = json.loads(response.text)
         self.assertEqual(res['status'], settings.STATUS_200)
         self.assertEqual(res['info'], settings.SUCCESS_RESPONSE)
-        query = "SELECT article_state, article_publish_date FROM articles WHERE article_id = %s;" % self.article_ids[0]
-        result = QueryHandler.get_results(query)
-        self.assertEqual(len(result), 1)
-        self.assertEqual(result[0]['article_state'], 'Published')
+        self.assertEqual(res['article']['article_state'], 'Published')
 
     def tearDown(self):
         test_utils.delete_field_from_table('content_writers', 'username', 'test_user')
