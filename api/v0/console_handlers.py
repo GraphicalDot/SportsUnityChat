@@ -117,12 +117,12 @@ class NewsConsoleAddCuratedArticle(BaseRequestHandler):
         return result[0]['article_id']
 
     def upload_images(self):
-        s3_object = ConsoleS3Object(object_type='news_image', image_name=str(self.article_id) + '.png',
+        s3_object = ConsoleS3Object(object_type='news_image', image_name=str(self.article_id) + '.' + self.article_image_type,
                         content=self.article_image, acl='public-read')
         s3_object.handle_upload()
         self.article_image_link = "{}/{}/{}".format(s3_object.client.meta.endpoint_url, s3_object.bucket_name, s3_object.name)
 
-        s3_object = ConsoleS3Object(object_type='ice_breaker_image', image_name=str(self.article_id) + '.png',
+        s3_object = ConsoleS3Object(object_type='ice_breaker_image', image_name=str(self.article_id) + '.' + self.article_ice_breaker_image_type,
                         content=self.article_ice_breaker_image, acl='public-read')
         s3_object.handle_upload()
         self.ice_breaker_link = "{}/{}/{}".format(s3_object.client.meta.endpoint_url, s3_object.bucket_name, s3_object.name)
@@ -136,8 +136,19 @@ class NewsConsoleAddCuratedArticle(BaseRequestHandler):
         self.article_writer = str(self.get_argument('username'))
         self.article_headline = str(self.get_argument('article_headline'))
         self.article_content = str(self.get_argument('article_content'))
-        self.article_image = self.get_argument('article_image')
-        self.article_ice_breaker_image = self.get_argument('article_ice_breaker_image')
+
+        article_image_file = self.request.files['article_image'][0]
+        self.article_image = article_image_file['body']
+        self.article_image_type = str(article_image_file['content_type']).split('/')[1]
+        if self.article_image_type == 'unknown':
+            self.article_image_type = 'jpeg'
+
+        ice_breaker_file = self.request.files['article_ice_breaker_image'][0]
+        self.article_ice_breaker_image = ice_breaker_file['body']
+        self.article_ice_breaker_image_type = str(ice_breaker_file['content_type']).split('/')[1]
+        if self.article_ice_breaker_image_type == 'unknown':
+            self.article_ice_breaker_image_type = 'jpeg'
+
         self.article_poll_question = str(self.get_argument('article_poll_question'))
         self.article_notification_content = str(self.get_argument('article_notification_content', self.article_headline))
         self.article_sport_type = str(self.get_argument('article_sport_type'))
@@ -278,13 +289,13 @@ class NewsConsolePublishArticle(BaseRequestHandler):
         article_id = self.get_argument('article_id')
         query = "UPDATE articles SET article_state='Published', article_publish_date=%s WHERE article_id = %s RETURNING article_id, " \
                 "article_headline, article_content, article_image, article_poll_question, article_sport_type, " \
-                "to_char(article_publish_date, 'DD/MM/YYYY') as article_publish_date;"
+                "to_char(article_publish_date, 'DD/MM/YYYY') as article_publish_date, article_state, article_writer, article_notification_content;"
         variables = (datetime.datetime.now(), article_id,)
         self.articles = QueryHandler.get_results(query, variables)
         if not self.articles:
             raise BadInfoSuppliedError('article_id')
         threading.Thread(group = None, target = self.publish_article, name = None, args = ()).start()
-        response.update({'status': settings.STATUS_200, 'info': settings.SUCCESS_RESPONSE})
+        response.update({'status': settings.STATUS_200, 'info': settings.SUCCESS_RESPONSE, 'article': self.articles[0]})
         self.write(response)
 
 

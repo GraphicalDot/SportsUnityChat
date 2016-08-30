@@ -19,7 +19,7 @@ VIRTUAL_ENVIRONMENT = "/home/{0}/VirtualEnvironment"
 REPO_NAME = "SportsUnityChat"
 BRANCH = "master"
 # env.key_filename = "/home/kaali/Downloads/NginxLoadBalancer.pem"
-env.key_filename = "/home/madmachines/Downloads/staging_server.pem"
+env.key_filename = "/home/mama20/Desktop/pem_files/staging_server.pem"
 
 
 @task
@@ -137,3 +137,4 @@ def run_tests():
         with cd(repo_dir):
             run(" python -m tests.v0_tests ")
             run(" python -m tests.v1_tests ")
+            run(" python -m tests.console_tests ")
