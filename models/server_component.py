@@ -4,6 +4,7 @@ config.read('config.py')
 import sleekxmpp.componentxmpp
 import time
 import threading
+
 class ServerComponent(object):
 
 	def __init__(self, jid, password, message):
@@ -19,8 +20,8 @@ class ServerComponent(object):
 
 	def handle_connected(self, event = None):
 		self.xmpp.send_raw(self.message, now = True)
-		self.xmpp.disconnect()
+		self.xmpp.disconnect(wait = True)
 
 	def connect(self):
-		self.xmpp.connect()
-		self.xmpp.process(block = False)
+		self.xmpp.connect(reattempt = True)
+		self.xmpp.process(block = True)
