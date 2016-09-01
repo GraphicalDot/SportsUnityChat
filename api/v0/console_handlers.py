@@ -325,8 +325,9 @@ class NewsConsolePostArticlesOnCarousel(BaseRequestHandler):
         self.articles = json.loads(self.get_argument('articles'))
 
         for key, value in self.articles.items():
-            query = "INSERT INTO carousel_articles (article_id, priority) VALUES (%s, %s);"
-            variables = (value, int(key))
+            query = "WITH upsert AS (UPDATE carousel_articles SET article_id = %s WHERE priority = %s RETURNING id) " \
+                    "INSERT INTO carousel_articles (article_id, priority) SELECT %s, %s WHERE NOT EXISTS (SELECT * FROM upsert);"
+            variables = (int(value), int(key), int(value), int(key))
             QueryHandler.execute(query, variables)
 
         threading.Thread(group=None, target=self.post_carousel_articles, name=None, args=()).start()

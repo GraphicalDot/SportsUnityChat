@@ -458,7 +458,7 @@ class NewsConsolePublishArticleTests(unittest.TestCase):
     def tearDown(self):
         test_utils.delete_field_from_table('content_writers', 'username', 'test_user')
         test_utils.delete_articles(self.article_ids)
-
+#
 
 class NewsConsolePostArticlesOnCarouselTests(unittest.TestCase):
 
@@ -466,7 +466,8 @@ class NewsConsolePostArticlesOnCarouselTests(unittest.TestCase):
         self.post_carousel_article_url = TORNADO_SERVER + '/post_carousel_articles'
         test_utils.register_content_writer('test_user', 'test_user', 'author')
         self.articles = [{'headline': 'article_1', 'sport_type': 'c', 'state': 'Published', 'writer': 'test_user'},
-                         {'headline': 'article_2', 'sport_type': 'f', 'state': 'Published', 'writer': 'test_user'}]
+                         {'headline': 'article_2', 'sport_type': 'f', 'state': 'Published', 'writer': 'test_user'},
+                         {'headline': 'article_3', 'sport_type': 'c', 'state': 'Published', 'writer': 'test_user'}]
         self.article_ids = test_utils.create_articles(self.articles)
         self.s3_client = boto3.client('s3', aws_access_key_id = amazon_access_key, aws_secret_access_key = amazon_secret_key)
 
@@ -490,6 +491,16 @@ class NewsConsolePostArticlesOnCarouselTests(unittest.TestCase):
         query = "SELECT article_id FROM carousel_articles WHERE priority = 100;"
         result = QueryHandler.get_results(query)
         self.assertEqual(result[0]['article_id'], self.article_ids[0])
+
+        # put another article in carousel n priority '100'
+        response = requests.post(self.post_carousel_article_url,
+                                 {'articles': json.dumps({'100': self.article_ids[2]})})
+        res = json.loads(response.text)
+        self.assertEqual(res['status'], settings.STATUS_200)
+        self.assertEqual(res['info'], settings.SUCCESS_RESPONSE)
+        query = "SELECT article_id FROM carousel_articles WHERE priority = 100;"
+        result = QueryHandler.get_results(query)
+        self.assertEqual(result[0]['article_id'], self.article_ids[2])
 
     def tearDown(self):
         test_utils.delete_field_from_table('content_writers', 'username', 'test_user')
