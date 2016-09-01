@@ -67,3 +67,4 @@ Wand==0.4.2
 wheel==0.24.0
 wsgiref==0.1.2
 yoyo-migrations==5.0.1
+rq==0.6.0
