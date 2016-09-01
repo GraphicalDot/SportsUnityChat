@@ -55,5 +55,5 @@ url_shortner_key=AIzaSyA1IIZ0kuvDanJBDE6pvMr_X6JeCMs_yiU
 [server_component]
 server=server_component
 port=8888
-discussion_admin_jid=pubsub.mm.io
+discussion_admin_jid=admin@admin.mm.io
 discussion_admin_password=awestrtyuioi

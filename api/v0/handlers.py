@@ -1219,7 +1219,7 @@ class PollAnswerHandler(UserApiRequestHandler):
             Discussion(discussion_id).create_and_add_users(discussion_info)
         elif results[0]['action_taken'] == "existing_discussion":
             discussion_id = results[0]["discussion_id"]
-            discussion_info = {"name": results[0]['discussion_id'], "users": map(lambda info: info ["username"], results)}
+            discussion_info = {"name": results[0]['discussion_id'], "users": [self.username]}
             Discussion(discussion_id).add_users(discussion_info)
         elif results[0]['action_taken'] == "stored_preference":
             pass

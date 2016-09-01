@@ -91,3 +91,6 @@ articles_BUCKETS = {
 
 NEWS_SERVER = 'http://NewsLB-388179569.ap-northeast-2.elb.amazonaws.com'
 articles_POST_URL = NEWS_SERVER + '/articles'
+
+
+USER_ADDITION_GROUP_MESSAGE_TYPE = u'a'

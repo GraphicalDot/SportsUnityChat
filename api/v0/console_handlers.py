@@ -340,3 +340,12 @@ class GetDiscussionsHandler(BaseRequestHandler):
         response['info'] = Discussion.get_all()
         response['status'] = settings.STATUS_200
         self.write(response)
+
+
+class JoinDiscussionsHandler(BaseRequestHandler):
+    def post(self):
+        discussion_id = self.get_argument("discussion_id")
+        username = self.get_argument("username")
+        Discussion(discussion_id).add_users([username])
+        response['info'] = settings.SUCCESS_RESPONSE
+        response['status'] = settings.STATUS_200

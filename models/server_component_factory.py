@@ -26,5 +26,4 @@ def start_asynchronous_group_creation_sending(jid, password, message):
 	ServerComponent(jid, password, message)
 
 def start_asynchronous_user_addition_sending(jid, password, message):
-	time.sleep(10)
 	ServerComponent(jid, password, message)
