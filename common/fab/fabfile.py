@@ -40,6 +40,7 @@ def basic_setup():
     run("sudo apt-get install -y python-lxml")
     run("sudo apt-get install -y python-virtualenv")
     run("sudo apt-get install -y tor")
+    run("sudo apt-get install -y redis-server")
     run("sudo apt-get install -y git")
     run("sudo apt-get install -y libffi-dev libssl-dev")
     run("sudo apt-get install -y libpng12-dev libtiff4-dev libwebp-dev python-pip python-dev g++")

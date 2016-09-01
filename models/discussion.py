@@ -39,7 +39,7 @@ class Discussion(object):
 		self.unsubsribe_user_from_discussion_xml = "<iq to='pubsub.mm.io' id='HQAH3-42' type='set' from='" + self.discussion_admin_jid + "'><pubsub xmlns='http://jabber.org/protocol/pubsub#owner'><subscriptions node='{}'><subscription jid='{}' node='{}' subscription='none'/></subscriptions></pubsub></iq>"
 		self.discussion_deletion_xml = "<iq type='set' from='" + self.discussion_admin_jid + "' to='pubsub.mm.io' id='delete1'><pubsub xmlns='http://jabber.org/protocol/pubsub#owner'><delete node='{}'/> </pubsub></iq>"
 		self.name = name
-		# self.notify_user_of_user_addition = "<iq to='pubsub.mm.io' from='" + self.discussion_admin_jid + "' type='set'><pubsub xmlns='http://jabber.org/protocol/pubsub'><publish node='{}'><item><message xmlns='pubsub:text:message'>{}</message></item></publish></pubsub></iq>"
+		self.notify_user_of_user_addition = "<iq to='pubsub.mm.io' from='" + self.discussion_admin_jid + "' type='set'><pubsub xmlns='http://jabber.org/protocol/pubsub'><publish node='{}'><item><message xmlns='pubsub:text:message'>{}</message></item></publish></pubsub></iq>"
 
 	def create(self):
 		self.server_component_factory.send_group_creation(self.discussion_creation_xml.format(self.name.strip()))
@@ -59,17 +59,17 @@ class Discussion(object):
 			
 			# group_created_notification_messages.append(self.notification_message.format(username, self.name))
 			
-			# user_added_notification_payload = urllib.quote(json.dumps({u'group_server_id': unicode(self.name), 
-			# 	u'message_from': unicode(self.discussion_admin_jid),
- 		# 		u'message_type': unicode(settings.USER_ADDITION_GROUP_MESSAGE_TYPE)
- 		# 	}).encode('utf-8'))
-			# user_added_notification_message += self.notify_user_of_user_addition.format(self.name, user_added_notification_payload)
+			user_added_notification_payload = urllib.quote(json.dumps({u'group_server_id': unicode(self.name), 
+				u'message_from': unicode(self.discussion_admin_jid),
+ 				u'message_type': unicode(settings.USER_ADDITION_GROUP_MESSAGE_TYPE)
+ 			}).encode('utf-8'))
+			user_added_notification_message += self.notify_user_of_user_addition.format(self.name, user_added_notification_payload)
 
 		self.server_component_factory.send_user_addition(self.affiliate_users_skeleton.format(self.name, affiliate_user_iterable))
 		self.server_component_factory.send_user_addition(self.subscribe_user_skeleton.format(self.name, subscribe_users_iterable))
 		# for message in group_created_notification_messages:
 		# 	self.server_component_factory.send_user_addition(message)
-		# self.server_component_factory.send_user_addition(user_added_notification_message)
+		self.server_component_factory.send_user_addition(user_added_notification_message)
 
 	def create_and_add_users(self, info):
 		self.create()
