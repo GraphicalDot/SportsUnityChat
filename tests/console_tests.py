@@ -238,8 +238,7 @@ class NewsConsoleFetchArticlesTests(unittest.TestCase):
         articles_result = json.loads(res['articles'])
         self.assertEqual(res['status'], settings.STATUS_200)
         self.assertEqual(res['info'], settings.SUCCESS_RESPONSE)
-        self.assertEqual(len(articles_result), 3)
-        self.assertEqual([article['article_headline'] for article in articles_result], ['article_5', 'article_2', 'article_1'])
+        self.assertTrue(set(['article_5', 'article_2', 'article_1']).issubset([article['article_headline'] for article in articles_result]))
 
         # user is not admin
         self.data = {'username': 'test_user_3'}
@@ -248,8 +247,7 @@ class NewsConsoleFetchArticlesTests(unittest.TestCase):
         articles_result = json.loads(res['articles'])
         self.assertEqual(res['status'], settings.STATUS_200)
         self.assertEqual(res['info'], settings.SUCCESS_RESPONSE)
-        self.assertEqual(len(articles_result), 2)
-        self.assertEqual([article['article_headline'] for article in articles_result], ['article_5', 'article_4'])
+        self.assertTrue(set(['article_5', 'article_4']).issubset([article['article_headline'] for article in articles_result]))
 
         # user-admin, article_sport_type-cricket, article_state-Drafts
         self.data = {'username': 'test_user_1', 'article_sport_type': 'f', 'article_state': 'Draft'}
@@ -258,8 +256,7 @@ class NewsConsoleFetchArticlesTests(unittest.TestCase):
         articles_result = json.loads(res['articles'])
         self.assertEqual(res['status'], settings.STATUS_200)
         self.assertEqual(res['info'], settings.SUCCESS_RESPONSE)
-        self.assertEqual(len(articles_result), 1)
-        self.assertEqual(articles_result[0]['article_headline'], 'article_2')
+        self.assertTrue(set(['article_2']).issubset([article['article_headline'] for article in articles_result]))
 
         # user-admin, article_sport_type-cricket, article_state-UnPublished
         self.data.update({'article_sport_type': 'c', 'article_state': 'UnPublished'})
@@ -268,8 +265,7 @@ class NewsConsoleFetchArticlesTests(unittest.TestCase):
         articles_result = json.loads(res['articles'])
         self.assertEqual(res['status'], settings.STATUS_200)
         self.assertEqual(res['info'], settings.SUCCESS_RESPONSE)
-        self.assertEqual(len(articles_result), 1)
-        self.assertEqual(articles_result[0]['article_headline'], 'article_1')
+        self.assertTrue(set(['article_1']).issubset([article['article_headline'] for article in articles_result]))
 
         # user-author, article_sport_type-football
         self.data = {'username': 'test_user_2', 'article_sport_type': 'f'}
@@ -278,8 +274,7 @@ class NewsConsoleFetchArticlesTests(unittest.TestCase):
         articles_result = json.loads(res['articles'])
         self.assertEqual(res['status'], settings.STATUS_200)
         self.assertEqual(res['info'], settings.SUCCESS_RESPONSE)
-        self.assertEqual(len(articles_result), 1)
-        self.assertEqual(articles_result[0]['article_headline'], 'article_3')
+        self.assertTrue(set(['article_3']).issubset([article['article_headline'] for article in articles_result]))
 
         # user-author, article_sport_type-cricket, article_state-UnPublished
         self.data.update({'username': 'test_user_3', 'article_sport_type': 'c', 'article_state': 'Published'})
@@ -288,8 +283,7 @@ class NewsConsoleFetchArticlesTests(unittest.TestCase):
         articles_result = json.loads(res['articles'])
         self.assertEqual(res['status'], settings.STATUS_200)
         self.assertEqual(res['info'], settings.SUCCESS_RESPONSE)
-        self.assertEqual(len(articles_result), 1)
-        self.assertEqual(articles_result[0]['article_headline'], 'article_5')
+        self.assertTrue(set(['article_5']).issubset([article['article_headline'] for article in articles_result]))
 
         # wrong article_sport_type provided
         self.data.update({'article_sport_type': 'w'})
@@ -464,7 +458,7 @@ class NewsConsolePublishArticleTests(unittest.TestCase):
     def tearDown(self):
         test_utils.delete_field_from_table('content_writers', 'username', 'test_user')
         test_utils.delete_articles(self.article_ids)
-
+#
 
 class NewsConsolePostArticlesOnCarouselTests(unittest.TestCase):
 
@@ -472,7 +466,8 @@ class NewsConsolePostArticlesOnCarouselTests(unittest.TestCase):
         self.post_carousel_article_url = TORNADO_SERVER + '/post_carousel_articles'
         test_utils.register_content_writer('test_user', 'test_user', 'author')
         self.articles = [{'headline': 'article_1', 'sport_type': 'c', 'state': 'Published', 'writer': 'test_user'},
-                         {'headline': 'article_2', 'sport_type': 'f', 'state': 'Published', 'writer': 'test_user'}]
+                         {'headline': 'article_2', 'sport_type': 'f', 'state': 'Published', 'writer': 'test_user'},
+                         {'headline': 'article_3', 'sport_type': 'c', 'state': 'Published', 'writer': 'test_user'}]
         self.article_ids = test_utils.create_articles(self.articles)
         self.s3_client = boto3.client('s3', aws_access_key_id = amazon_access_key, aws_secret_access_key = amazon_secret_key)
 
@@ -496,6 +491,16 @@ class NewsConsolePostArticlesOnCarouselTests(unittest.TestCase):
         query = "SELECT article_id FROM carousel_articles WHERE priority = 100;"
         result = QueryHandler.get_results(query)
         self.assertEqual(result[0]['article_id'], self.article_ids[0])
+
+        # put another article in carousel n priority '100'
+        response = requests.post(self.post_carousel_article_url,
+                                 {'articles': json.dumps({'100': self.article_ids[2]})})
+        res = json.loads(response.text)
+        self.assertEqual(res['status'], settings.STATUS_200)
+        self.assertEqual(res['info'], settings.SUCCESS_RESPONSE)
+        query = "SELECT article_id FROM carousel_articles WHERE priority = 100;"
+        result = QueryHandler.get_results(query)
+        self.assertEqual(result[0]['article_id'], self.article_ids[2])
 
     def tearDown(self):
         test_utils.delete_field_from_table('content_writers', 'username', 'test_user')
@@ -525,8 +530,9 @@ class NewsConsoleGetCarouselArticlesTests(unittest.TestCase):
         res = json.loads(response.text)
         self.assertEqual(res['status'], settings.STATUS_200)
         self.assertEqual(res['info'], settings.SUCCESS_RESPONSE)
-        self.assertEqual(len(res['articles']['carousel']), 2)
-        self.assertEqual(len(res['articles']['published']), 4)
+        self.assertTrue(set([self.article_ids[0], self.article_ids[3]]).issubset([article['article_id'] for article in res['articles']['carousel']]))
+        self.assertTrue(set([self.article_ids[0], self.article_ids[2], self.article_ids[3],
+                             self.article_ids[4]]).issubset([article['article_id'] for article in res['articles']['published']]))
 
     def tearDown(self):
         test_utils.delete_field_from_table('content_writers', 'username', 'test_user')
