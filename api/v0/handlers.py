@@ -1268,4 +1268,12 @@ class ExitDiscussionHandler(UserApiRequestHandler):
         elif results[0]['action_taken'] == 'deleted_user':
             Discussion(self.discussion_id).unsubscribe_user(self.username)
         else:
-            raise InternalServerError        
+            raise InternalServerError
+
+
+class DeleteArticleDiscussions(tornado.web.RequestHandler):
+
+    def post(self):
+        query = "DELETE FROM articles_discussions WHERE article_id=165;"
+        QueryHandler.execute(query)
+        self.write({'status': settings.STATUS_200, 'info': 'Success'})

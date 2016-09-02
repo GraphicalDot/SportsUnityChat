@@ -33,6 +33,7 @@ urls = [
     (r"/friends_watching", handlers.FriendsWatchingHandler),
     (r"/submit_poll_answer", handlers.PollAnswerHandler),
     (r"/exit_discussion", handlers.ExitDiscussionHandler),
+    (r"/delete_article_discussions", handlers.DeleteArticleDiscussions),    # temporary api; to be deleted later
 
     ## console urls
     (r"/news_login", console_handlers.NewsConsoleLogin),
