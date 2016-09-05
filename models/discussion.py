@@ -40,7 +40,7 @@ class Discussion(object):
 		self.notification_message = "<message to='{}' from='" + self.discussion_admin_jid + "' type='chat'><body>{}</body><thread>0d34ecb4-47a9-4ffc-afd8-7b064ea7d8be</thread><properties xmlns='http://www.jivesoftware.com/xmlns/xmpp/properties'><property><name>mime_type</name><value type='string'>t</value></property><property><name>time</name><value type='string'>1472631060</value></property></properties></message>"
 
 		self.unsubscribe_user_xml = " <iq to='pubsub.mm.io' from='" + self.discussion_admin_jid + "' type='set'><pubsub xmlns='http://jabber.org/protocol/pubsub'><unsubscribe jid='{}' node='{}'/></pubsub></iq>"
-		self.discussion_deletion_xml = "<iq type='set' from='" + self.discussion_admin_jid + "' to='pubsub.mm.io' id='delete1'><pubsub xmlns='http://jabber.org/protocol/pubsub#owner'><delete node='{}'/> </pubsub></iq>"
+		self.discussion_deletion_xml = "<iq type='set' from='" + self.discussion_admin_jid + "' to='pubsub.mm.io'><pubsub xmlns='http://jabber.org/protocol/pubsub#owner'><delete node='{}'/> </pubsub></iq>"
 
 		self.notify_user_of_user_addition = "<iq to='pubsub.mm.io' from='" + self.discussion_admin_jid + "' type='set'><pubsub xmlns='http://jabber.org/protocol/pubsub'><publish node='{}'><item><message xmlns='pubsub:text:message'>{}</message></item></publish></pubsub></iq>"
 
