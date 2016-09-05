@@ -47,7 +47,8 @@ urls = [
     (r"/get_carousel_articles", console_handlers.NewsConsoleGetCarouselArticles),
     (r"/post_carousel_articles", console_handlers.NewsConsolePostArticlesOnCarousel),
     (r"/get_all_discussions", console_handlers.GetDiscussionsHandler),
-    (r"/join_discussion", console_handlers.JoinDiscussionsHandler)
+    (r"/join_discussion", console_handlers.JoinDiscussionsHandler),
+    (r"/peek_discussion", console_handlers.PeekDiscussionsHandler)
 
 
 
