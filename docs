@@ -1,0 +1,564 @@
+Docs:
+/api/v0/handlers
+	class BaseRequestHandler
+		"""
+		Base Class for all the future classes
+		Activities like logging should be done in this class.
+		Allow cors request in this class
+		"""
+
+	class UserApiRequestHandler
+		"""
+		Handles the authentication part for user api's, also takes care of writing handling
+		exceptions and sending appropriate error messages to the user 
+		"""
+
+	class SetLocationHandler
+		"""
+		This class handles the storage of locations of a user in the server
+		For web interfacing it implements two methods i.e get and post, which 
+		corresponds to the tornado framework requirements. 
+		Methods : 
+			get :
+				:params 
+					username username
+					password password  
+					lng  longtitude
+					lat  latitude
+					apk_version
+					udid
+				:response 
+					:success => {'status':settings.STATUS_200, 'message': 'Success'}
+					:failure => {'status': [Error Code], 'message': 'Error [Error message]'}
+
+		"""
+
+
+	class RegistrationHandler
+	    """
+	    Handles the registration of the user.
+	    Method:
+	        GET
+	    Parameters:- 
+	        phone_number
+	        apk_version
+	        udid
+	    Response:-
+	        {'info': 'Success', 'status':settings.STATUS_200} if successful
+	        {'info': 'Error [Error]', 'status': [Error Code]} if not successful 
+	    """
+
+
+	class CreationHandler
+	    """
+	    Handles the creation of the user.
+	    Method:
+	        GET
+	    Parameters:-
+	        phone_number -- phone number of the user to be registered
+	        auth_code -- auth code otp sent to the user
+	        apk_version
+	        udid
+	    Response:-
+	        {'info': 'Success', 'user_status': User's status, 'password': Password, 'username': User Jid, 'name': Name of the user, 'interests', [User's Interests], 'photo': User's Photo, 'friends': [User's friend List] 'status':settings.STATUS_200} if successful
+	        {'info': 'Error [Error]', 'status': [Error Code]} if not successful
+	    """
+
+
+	class MediaPresentHandler
+	    """
+	    Checks if media is present on our servers.
+	    Method:
+	        GET
+	    Parameters:- 
+	        name - name of media
+	        username
+	        password
+	        apk_version
+	        udid
+	    Response:-
+	        {'info': 'Success', 'status':settings.STATUS_200} if successful
+	        {'info': 'Error [Error]', 'status': ErrorCode} if not successful 
+	    """
+
+	class MediaHandler
+	    """
+	    Uploads and downloads media from the servers.
+	    Method:
+	        POST
+	        GET
+	    Parameters for POST:- 
+	        username
+	        password
+	        apk_version
+	        udid
+	        Checksum - name of file posted in HEADERS
+	    Parameters for GET:- 
+	        name - name of media
+	        username
+	        password
+	        apk_version
+	        udid
+	    Response:-
+	        {'info': 'Success', 'status':settings.STATUS_200} if successful
+	        {'info': 'Error [Error]', 'status': ErrorCode} if not successful 
+	    """
+
+	class UserInterestHandler
+	    """
+	    This class creates a link between users and interests. The interests have to
+	    stored beforehand.
+
+	    Methods : 
+	        post :
+	            :params 
+	                username => username 
+	                interests => list of interests like interests=football&interests=cricket 
+	                password => password
+	                apk_version 
+	                udid
+	            :response 
+	                :success => {'status':settings.STATUS_200, 'info': 'Success'}
+	                :failure => {'status': [Error Code], 'info': 'Error [Error message]'}     
+	    """
+
+	class SendAppInvitation(tornado.web.RequestHandler):
+	    """
+	    Invites a user to our application.
+	    Method:
+	        POST    
+	    Parameters:- 
+	        phone_number - phone_number of the user to which invitation has to be sent 
+	        username
+	        password
+	        apk_version
+	        udid
+	    Response:-
+	        {'info': 'Success', 'status':settings.STATUS_200} if successful
+	        {'info': 'Error [Error]', 'status': ErrorCode} if not successful 
+	    """
+
+	class ContactJidsHandler
+	    """
+	    This class handles the retrival of jids in the contact list
+	    of the user
+	    Methods :
+	        post :
+	            :params
+	                username => username
+	                password => password
+	                apk_version 
+	                udid
+	                contacts => a list of all the contacts in the users phone
+	            :response
+	                :success => {'status':200, 'info': 'Success', 'jids': [List of jids]}
+	                :failure => {'status': 404, 'info': ' Bad Authentication Info'} in case of bad authentication
+	                :failure => {'status': 400, 'info': ' MissingArgumentError'} in case of missing arguments
+	                :failure => {'status': 500, 'info': 'Error [Error message]'} in case of internal server error
+	    """
+
+
+	class GetNearbyUsers
+	    """
+	    Get people nearby to a particular user.
+	    Method:
+	        GET
+	    Parameters:- 
+	        lat - latitude of the user
+	        lng - longitude of the user 
+	        radius - radius around which users should be searched
+	        username
+	        password
+	        apk_version
+	        udid
+	    Response:-
+	        {'info': 'Success', 'status':settings.STATUS_200, 'users': List of nearby users} if successful
+	        {'info': 'Error [Error]', 'status': ErrorCode} if not successful 
+	    """
+
+
+	class RegisterUserMatchHandler
+	    """
+	    Register a match for a user for notification.
+	    Method:
+	        POST
+	    Parameters:- 
+	        match_id - match id 
+	        username
+	        password
+	        apk_version
+	        udid
+	    Response:-
+	        {'info': 'Success', 'status':settings.STATUS_200} if successful
+	        {'info': 'Error [Error]', 'status': ErrorCode} if not successful 
+	    """
+
+	class UnRegisterUserMatchHandler
+	    """
+	    This class handles the unregistration of a match for a jid
+	    Method:
+	        POST
+	    Parameters:- 
+	        match_id - match id 
+	        username
+	        password
+	        apk_version
+	        udid
+	    Response:-
+	        {'info': 'Success', 'status':settings.STATUS_200} if successful
+	        {'info': 'Error [Error]', 'status': ErrorCode} if not successful 
+	    """
+            
+	class AndroidSetUserDeviceTokenReturnsUsersMatches
+	    """
+	    This class sets the user's android device token for use in gcm
+	    and returns the matches that he is subscribe to 
+	    Method:
+	        POST
+	    Parameters:- 
+	        token - android token of the user 
+	        username
+	        password
+	        apk_version
+	        udid
+	    Response:-
+	        {'info': 'Success', 'status':settings.STATUS_200, 'match_ids': List of match ids subscribed to by the user} if successful
+	        {'info': 'Error [Error]', 'status': ErrorCode} if not successful 
+	    """
+
+	class AndroidRemoveUserDeviceId
+	    """
+	    This class removes the user's android device token
+	    and returns the matches that he is subscribe to 
+	    Method:
+	        POST
+	    Parameters:- 
+	        token - android token of the user 
+	        username
+	        password
+	        apk_version
+	        udid
+	    Response:-
+	        {'info': 'Success', 'status':settings.STATUS_200} if successful
+	        {'info': 'Error [Error]', 'status': ErrorCode} if not successful 
+	    """
+
+	class LocationPrivacyHandler
+	    """
+	    This class handles the storage of location privacy of a user in the server
+	    Methods 
+	        GET 
+	    Parameters 
+	        username username
+	        password password  
+	        show_location_status  - can be either true or false 
+	        lat  latitude
+	        apk_version
+	        udid
+	    Response 
+	        {'info': 'Success', 'status':settings.STATUS_200} if successfull
+	        {'info': 'Error [Error Message]', 'status': ErrorCode} if not successful 
+
+	    """
+  
+	class PushNotificationHandler
+	    """
+	    This class handles the push notification for a match to the subscribed users
+	    Method
+	        POST
+	    Parameters 
+	            s: sport_code, 
+	            e: event_code, 
+	            m: match_id, 
+	            tt: top text to be displayed in the notification , 
+	            bt: bottom text to be displayed in the notification, 
+	            l: league_id
+	    Response 
+	        {'info': 'Success', 'status':settings.STATUS_200} if successfull
+	        {'info': 'Error [Error Message]', 'status': ErrorCode} if not successful 
+
+	    """
+
+	class RegisterMatchHandler
+	    """    
+	    This class registers a user's match
+	    Methods  
+	        POST 
+	    Parameters 
+	        matches - list of matches
+	    Response 
+	        {'info': 'Success', 'status':settings.STATUS_200} if successfull
+	        {'info': 'Error [Error Message]', 'status': ErrorCode} if not successful 
+	    """
+	  
+
+	class SetUserInfoHandler
+	    """
+	    This class handles the storage of user info in the server
+	    Methods  
+	        POST 
+	    Parameters 
+	        username username
+	        password password  
+	        status [optional]
+	        photo [optional]
+	        name [optional]
+	        apk_version
+	        udid
+	    Response 
+	        {'info': 'Success', 'status':settings.STATUS_200} if successfull
+	        {'info': 'Error [Error Message]', 'status': ErrorCode} if not successful 
+	    """
+
+	class GetUserInfoHandler
+	    """
+	    This class sends the info of a user to a requesting user
+	    Method  
+	        POST 
+	    Parameters 
+	        username username
+	        password password  
+	        r_jid - requested jid , the jid of user for which info is required
+	        r_info - requested info, the info which is required can be
+	            interests - interests of the requested user
+	            name - name of the requested user
+	            status - status of the requested user
+	            l_photo - large photo of the requested user
+	            s_photo - small photo of the requested user     
+	        apk_version
+	        udid
+	    Response 
+	        {'info': 'Success', 'status':settings.STATUS_200, 'user_info': A Json of requested info} if successfull
+	        {'info': 'Error [Error Message]', 'status': ErrorCode} if not successful 
+	    """
+
+
+	class SetDpHandler
+	    """
+	    This class handles the storage of display picture of user/group in the server
+	    Method 
+	        POST 
+	    Parameters 
+	        username username
+	        password password  
+	        jid - jid of the node whose user/group is to be stored
+	        content - content of the picture in bytestream
+	        apk_version
+	        udid
+	    Response:-
+	        {'info': 'Success', 'status':settings.STATUS_200} if successfull
+	        {'info': 'Error [Error Message]', 'status': ErrorCode} if not successful 
+	    """
+
+	class GetDpHandler
+	    """
+	    Get display picture of a particular user/group.
+	    Method:
+	        POST
+	    Parameters:- 
+	        jid - jid of the user/group
+	        version - version of the image required
+	        username
+	        password
+	        apk_version
+	        udid 
+	    Response:-
+	        {'info': 'Success', 'status':settings.STATUS_200, 'content': Dp content} if successfull
+	        {'info': 'Error [Error Message]', 'status': ErrorCode} if not successful 
+	    """
+
+	class GetRefrralCodeHandler
+	    """
+	    Get referral code of a particular user.
+	    Method:
+	        POST
+	    Parameters:- 
+	        username
+	        password
+	        apk_version
+	        udid 
+	    Response:-
+	        {'info': 'Success', 'status':settings.STATUS_200, 'referral_code': Referral Code, 'referral_url': Referral Url} if successfull
+	        {'info': 'Error [Error Message]', 'status': ErrorCode} if not successful 
+	    """
+
+	class RedeemCodeHandler
+
+	    """
+	    Redeem referral code for a user.
+	    Method:
+	        POST
+	    Parameters:- 
+	        username
+	        referral_code
+	        password
+	        apk_version
+	        udid 
+	    Response:-
+	        {'info': 'Success', 'status':settings.STATUS_200} if successfull
+	        {'info': 'Error [Error Message]', 'status': ErrorCode} if not successful 
+	    """
+
+	class FriendsWatchingHandler
+	    """
+	    Get the list of friends subscibed to a particular match.
+	    Method:
+	        POST
+	    Parameters:- 
+	        username
+	        matches - list of matches for which the list of friends is needed
+	        password
+	        apk_version
+	        udid 
+	    Response:-
+	        {'info': 'Success', 'status':settings.STATUS_200, 'matches': A JSON of friends watching a match} if successfull
+	        {'info': 'Error [Error Message]', 'status': ErrorCode} if not successful 
+	    """
+
+	class PollAnswerHandler
+	    """
+	    Handles the submission of the poll answer for a given article. 
+	    Manages the creation of groups and addition of people to those groups 
+	    Method:
+	        POST
+	    Parameters:- 
+	        username
+	        article_id
+	        poll_answer - poll answer can be either 'y' or 'n'
+	        apk_version
+	        udid 
+	    Response:-
+	        {'info': 'Success', 'status':settings.STATUS_200} if successfull
+	        {'info': 'Error [Error Message]', 'status': ErrorCode} if not successful 
+	    """
+
+	class ExitDiscussionHandler
+	    """
+	    Handles the exit of a user from a particular group. 
+	    Manages the exit from and deletion of those groups
+	    Method:
+	        POST     
+	    Parameters:- 
+	        username
+	        article_id
+	        discussion_id
+	        apk_version
+	        udid 
+	    Response:-
+	        {'info': 'Success', 'status':settings.STATUS_200} if successfull
+	        {'info': 'Error [Error Message]', 'status': ErrorCode} if not successful 
+	    """
+
+api/v1/handlers
+
+	class LocationPrivacyHandler
+	    """
+	    Handles the privacy of the user in people around me can be either 'f' - friends, 'a' - all, 'n' - None. 
+	    Method:
+	        POST     
+	    Parameters:- 
+	        username
+	        password
+	        show_location_status
+	        apk_version
+	        udid 
+	    Response:-
+	        {'info': 'Success', 'status':settings.STATUS_200} if successfull
+	        {'info': 'Error [Error Message]', 'status': ErrorCode} if not successful 
+	    """
+
+	class UserInterestHandler
+	    """
+	    This class creates a link between users and interests. The interests have to
+	    stored beforehand.
+
+	    Methods  
+	        POST :
+	    Parameters 
+	        username => username 
+	        interests => json array of interest  with properties {'id': 1, 'properties': 'test'} 
+	        password => password
+	        apk_version 
+	        udid
+	    Response 
+	        {'status':settings.STATUS_200, 'info': 'Success'} if successful
+	        {'status': 500, 'info': 'Error [Error message]'} if not successful    
+	    """
+
+	class SetUserWatchingMatchHandler
+	    """
+	    Adds a match to user's watching table 
+	    Method:
+	        POST     
+	    Parameters:- 
+	        username
+	        password
+	        match_id
+	        apk_version
+	        udid 
+	    Response:-
+	        {'info': 'Success', 'status':settings.STATUS_200} if successful
+	        {'info': 'Error [Error Message]', 'status': ErrorCode} if not successful 
+	    """
+
+	class DeleteUserWatchingMatchHandler
+	    """
+	    Deletes a match from user's watching table 
+	    Method:
+	        POST     
+	    Parameters:- 
+	        username
+	        password
+	        match_id
+	        apk_version
+	        udid 
+	    Response:-
+	        {'info': 'Success', 'status':settings.STATUS_200} if successful
+	        {'info': 'Error [Error Message]', 'status': ErrorCode} if not successful 
+	    """
+
+	class GetUserWatchingMatchHandler
+	    """
+	    Returns all the matches a user if watching 
+	    Method:
+	        POST     
+	    Parameters:- 
+	        username
+	        password
+	        match_id
+	        apk_version
+	        udid 
+	    Response:-
+	        {'info': 'Success', 'status':settings.STATUS_200} if successful
+	        {'info': 'Error [Error Message]', 'status': ErrorCode} if not successful 
+	    """
+
+/models/disucssion
+	class Discussion
+		"""
+		Handles all the processes relating to a discussion
+		A discussion is a group which is created on the curated news content
+		Methods are available for :
+			1. creating discussions
+			2. deleting discussions
+			3. Adding users to discussions
+			4. Deleting users from discussions
+			5. Return all the group discussions happening
+		"""
+/models/dp
+	class Dp
+		"""
+		Represents a display picture class
+		Methods include
+		1. Uploading dp
+		2. Get dp
+		3. checking for existence of dp
+		"""
+	
+	class Group
+		"""
+		This class performs represents a user created group.
+		Includes methods for:
+		1. uploading group dp
+		2. downloading group dp
+		"""
