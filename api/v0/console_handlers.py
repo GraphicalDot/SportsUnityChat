@@ -352,6 +352,7 @@ class JoinDiscussionsHandler(BaseRequestHandler):
         Discussion(discussion_id).add_users([username])
         response['info'] = settings.SUCCESS_RESPONSE
         response['status'] = settings.STATUS_200
+        self.write(response)
 
 class PeekDiscussionsHandler(BaseRequestHandler):
     def post(self):
@@ -361,3 +362,4 @@ class PeekDiscussionsHandler(BaseRequestHandler):
         Discussion(discussion_id).subscribe_user(username)
         response['info'] = settings.SUCCESS_RESPONSE
         response['status'] = settings.STATUS_200        
+        self.write(response)
