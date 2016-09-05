@@ -91,6 +91,9 @@ b. Install local packages:
 >> pip install requests-toolbelt
 >> pip install python-magic 
 
+>>Install redis-server and start it 
+>>For queuing RQ library is being used, use 'rq worker' to start a worker and start executing queued tasks.
+
 Install 'ejabberd' (version: 15.06) in following steps:
 i) git clone https://github.com/processone/ejabberd.git
 ii) cd ejabberd
