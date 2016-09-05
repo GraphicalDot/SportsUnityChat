@@ -14,16 +14,8 @@ class ServerComponentFactory(object):
 		self.queue = Queue(connection=redis_conn)
 
 	
-	def send_group_creation(self, message):
-		self.queue.enqueue(start_asynchronous_group_creation_sending, self.jid, self.password, message)
+	def send(self, message):
+		self.queue.enqueue(start_asynchronous_sending, self.jid, self.password, message)
 
-
-	def send_user_addition(self, message):
-		self.queue.enqueue(start_asynchronous_user_addition_sending, self.jid, self.password, message)
-
-
-def start_asynchronous_group_creation_sending(jid, password, message):
-	ServerComponent(jid, password, message)
-
-def start_asynchronous_user_addition_sending(jid, password, message):
+def start_asynchronous_sending(jid, password, message):
 	ServerComponent(jid, password, message)

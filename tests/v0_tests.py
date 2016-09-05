@@ -1866,7 +1866,6 @@ class ArticlePollAnswerSubmissionTest(unittest.TestCase):
 		for index in (0, 1):
 			payload = {"username": self._users[index]["username"], "password": self._users[index]["password"], "poll_answer": self._users[index]["poll_answer"], "article_id": self._article_id}
 			payload.update(extra_params_dict)
-
 			response = json.loads(requests.post(self._poll_answer_submission_url,  data = json.dumps(payload)).content)
 			assert response['status'] == settings.STATUS_200		
 
@@ -1922,73 +1921,73 @@ class ArticlePollAnswerSubmissionTest(unittest.TestCase):
 		variables = (self._article_id,)
 		QueryHandler.execute(query, variables)
 
-# class ExitDiscussionTest(unittest.TestCase):
-# 	_exit_discussion_url = tornado_local_address + "/exit_discussion"
-# 	_user_count = 10
-# 	_users = []
+class ExitDiscussionTest(unittest.TestCase):
+	_exit_discussion_url = tornado_local_address + "/exit_discussion"
+	_user_count = 10
+	_users = []
 
-# 	def allocate_groups(self, article_id, username, poll_answer):
-# 		query = " SELECT * FROM assign_discussion(%s, %s, %s);"
-# 		variables = (article_id, username, poll_answer)
-# 		result = QueryHandler.get_results(query, variables)
+	def allocate_groups(self, article_id, username, poll_answer):
+		query = " SELECT * FROM assign_discussion(%s, %s, %s);"
+		variables = (article_id, username, poll_answer)
+		result = QueryHandler.get_results(query, variables)
 
-# 	def get_discussion_id(self, user_info):
-# 		query = " SELECT discussion_id FROM discussions_users WHERE discussions_users.username = %s ;"
-# 		variables = (user_info["username"], )
-# 		return QueryHandler.get_results(query, variables)
-
-
+	def get_discussion_id(self, user_info):
+		query = " SELECT discussion_id FROM discussions_users WHERE discussions_users.username = %s ;"
+		variables = (user_info["username"], )
+		return QueryHandler.get_results(query, variables)
 
 
-# 	def setUp(self):
-# 		query = " INSERT INTO articles (article_headline, article_content, article_poll_question, article_ice_breaker_image) VALUES ('test', 'test', 'test', 'test') RETURNING article_id;"
-# 		self._article_id = QueryHandler.get_results(query, ())[0]['article_id']
 
-# 		for index in range(0, self._user_count):
-# 			username = "test_user" + str(index)
-# 			password = "test_password" + str(index)
-# 			phone_number = "test_ph" + str(index)
-# 			poll_answer = 'y' if random.randint(0,1) == 1 else 'n'
 
-# 			test_utils.delete_user(username = username)
-# 			test_utils.create_user(username = username, password = password, phone_number = phone_number)
+	def setUp(self):
+		query = " INSERT INTO articles (article_headline, article_content, article_poll_question, article_ice_breaker_image) VALUES ('test', 'test', 'test', 'test') RETURNING article_id;"
+		self._article_id = QueryHandler.get_results(query, ())[0]['article_id']
+
+		for index in range(0, self._user_count):
+			username = "test_user" + str(index)
+			password = "test_password" + str(index)
+			phone_number = "test_ph" + str(index)
+			poll_answer = 'y' if random.randint(0,1) == 1 else 'n'
+
+			test_utils.delete_user(username = username)
+			test_utils.create_user(username = username, password = password, phone_number = phone_number)
 			
-# 			self.allocate_groups(self._article_id, username, poll_answer)
+			self.allocate_groups(self._article_id, username, poll_answer)
 
-# 			user_info = {"username": username, "password": password , "phone_number": phone_number, "poll_answer": poll_answer}
-# 			self._users.append(user_info)
+			user_info = {"username": username, "password": password , "phone_number": phone_number, "poll_answer": poll_answer}
+			self._users.append(user_info)
 
 
-# 	def test_group_exit(self):
-# 		for index in range(0, self._user_count):
-# 			try:
-# 				discussion_id = self.get_discussion_id(self._users[index])[0].get('discussion_id', None)
-# 			except :
-# 				discussion_id = None
+	def test_group_exit(self):
+		for index in range(0, self._user_count):
+			try:
+				discussion_id = self.get_discussion_id(self._users[index])[0].get('discussion_id', None)
+			except :
+				discussion_id = None
 
-# 			if discussion_id:
-# 				payload = {"username": self._users[index]["username"], "password": self._users[index]["password"], "discussion_id": discussion_id, "article_id": self._article_id}
-# 				payload.update(extra_params_dict)
+			if discussion_id:
+				payload = {"username": self._users[index]["username"], "password": self._users[index]["password"], "discussion_id": discussion_id, "article_id": self._article_id}
+				payload.update(extra_params_dict)
 
-# 				response = json.loads(requests.post(self._exit_discussion_url,  data = json.dumps(payload)).content)
+				response = json.loads(requests.post(self._exit_discussion_url,  data = json.dumps(payload)).content)
 				
-# 				assert response['status'] == settings.STATUS_200		
+				assert response['status'] == settings.STATUS_200		
 
-# 				self.check_group_exit(self._users[index])
-
-
-# 	def check_group_exit(self, user_info):
-# 		assert not self.get_discussion_id(user_info)			
-# 		# self.check_no_group_exceeded_maximum_ratio(user_info)
+				self.check_group_exit(self._users[index])
 
 
-# 	def tearDown(self):
-# 		for user in self._users:
-# 			test_utils.delete_user(username = user["username"])
+	def check_group_exit(self, user_info):
+		assert not self.get_discussion_id(user_info)			
+		# self.check_no_group_exceeded_maximum_ratio(user_info)
 
-# 		query = "DELETE FROM articles WHERE article_id = %s;"
-# 		variables = (self._article_id,)
-# 		QueryHandler.execute(query, variables)
+
+	def tearDown(self):
+		for user in self._users:
+			test_utils.delete_user(username = user["username"])
+
+		query = "DELETE FROM articles WHERE article_id = %s;"
+		variables = (self._article_id,)
+		QueryHandler.execute(query, variables)
 
 
 	

@@ -23,9 +23,9 @@ BEGIN
 	LOCK discussions_users;
 	LOCK articles_discussions;
 
-	IF EXISTS (SELECT * FROM discussions_users WHERE discussions_users.username = _username AND discussions_users.discussion_id = articles_discussions.discussion_id AND articles_discussions.article_id = _article_id) THEN
+	IF EXISTS (SELECT * FROM discussions_users, articles_discussions WHERE discussions_users.username = _username AND discussions_users.discussion_id = articles_discussions.discussion_id AND articles_discussions.article_id = _article_id) THEN
 
-		CREATE TEMPORARY TABLE tmp_container ON COMMIT DROP AS SELECT  'user_already_in_group'::TEXT AS action_taken, 'null'::TEXT AS discussion_id, 'null' AS username;
+		CREATE TEMPORARY TABLE tmp_container ON COMMIT DROP AS SELECT  'user_already_in_group'::TEXT AS action_taken, 'null'::TEXT AS discussion_id, 'null'::TEXT AS username FROM articles_discussions LIMIT 1;
 	
 	ELSIF  (SELECT COUNT(users_poll_responses.username) from users_poll_responses WHERE users_poll_responses.article_id = _article_id AND users_poll_responses.username NOT IN (SELECT DISTINCT discussions_users.username FROM discussions_users, articles_discussions WHERE articles_discussions.article_id = _article_id AND discussions_users.discussion_id = articles_discussions.discussion_id)) = min_discussion_users THEN  
 

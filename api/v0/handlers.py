@@ -1216,7 +1216,7 @@ class PollAnswerHandler(UserApiRequestHandler):
         if results[0]['action_taken'] == "new_discussion":
             discussion_id = results[0]["discussion_id"]
             discussion_info = {"name": results[0]['discussion_id'], "users": map(lambda info: info ["username"], results)}
-            Discussion(discussion_id).create_and_add_users(discussion_info)
+            Discussion(discussion_id, self.article_id).create_and_add_users(discussion_info)
         elif results[0]['action_taken'] == "existing_discussion":
             discussion_id = results[0]["discussion_id"]
             discussion_info = {"name": results[0]['discussion_id'], "users": [self.username]}
@@ -1250,7 +1250,6 @@ class ExitDiscussionHandler(UserApiRequestHandler):
         self.discussion_id = self.get_argument('discussion_id')
         self.article_id = int(self.get_argument('article_id'))
         result = self.exit_discussion()
-
         response['status'] = settings.STATUS_200
         response['info'] = settings.SUCCESS_RESPONSE
         self.write(response)
@@ -1274,7 +1273,6 @@ class ExitDiscussionHandler(UserApiRequestHandler):
 
 
 class DeleteArticleDiscussions(tornado.web.RequestHandler):
-
     def post(self):
         query = "DELETE FROM articles_discussions WHERE article_id=165;"
         QueryHandler.execute(query)

@@ -6,8 +6,11 @@ from common.funcs import QueryHandler
 import settings
 import urllib
 import json
+from node import Node
+from s3_object import S3Object
+from dp import Dp
 
-class Discussion(object):
+class Discussion(Node):
 	"""
 		Handles all the processes relating to a discussion
 		A discussion is a group which is created on the curated news content
@@ -19,8 +22,11 @@ class Discussion(object):
 			5. Return all the group discussions happening
 	"""
 
-	def __init__(self, name):
+	def __init__(self, name, article_id  = None):
 		self.name = name
+
+		self.article_id = article_id
+		self.article_images_bucket = config.get('amazon', 'article_images_bucket') 
 
 		self.discussion_admin_password = config.get('server_component', 'discussion_admin_password') 
 		self.discussion_admin_jid = config.get('server_component', 'discussion_admin_jid') 
@@ -44,14 +50,24 @@ class Discussion(object):
 
 		self.notify_user_of_user_addition = "<iq to='pubsub.mm.io' from='" + self.discussion_admin_jid + "' type='set'><pubsub xmlns='http://jabber.org/protocol/pubsub'><publish node='{}'><item><message xmlns='pubsub:text:message'>{}</message></item></publish></pubsub></iq>"
 
+		self.article_image_bucket = ""
+
 	def create(self):
-		self.server_component_factory.send_group_creation(self.discussion_creation_xml.format(self.name.strip()))
+		self.server_component_factory.send(self.discussion_creation_xml.format(self.name.strip()))
+
+	def set_dp(self):
+		article_image_link = self.article_id + "_xhdpi.png"
+		if S3Object(name = article_image_link, bucket_name = self.article_images_bucket).exists():
+			content = S3Object(name = article_image_link , bucket_name = self.article_images_bucket).download()
+		else:
+			content = self.get_random_avatar()
+		Dp(self.name).upload_dp(content)
 
 
 	def add_users(self, info):
-		self.server_component_factory.send_user_addition(self.get_affiliate_users_xml(info["users"]))
-		self.server_component_factory.send_user_addition(self.get_subscribe_users_xml(info["users"]))
-		self.server_component_factory.send_user_addition(self.get_notify_users_xml(info["users"]))
+		self.server_component_factory.send(self.get_affiliate_users_xml(info["users"]))
+		self.server_component_factory.send(self.get_subscribe_users_xml(info["users"]))
+		self.server_component_factory.send(self.get_notify_users_xml(info["users"]))
 
 	def get_affiliate_users_xml(self, users):
 		affiliate_user_iterable = ""
@@ -89,6 +105,7 @@ class Discussion(object):
 
 	def create_and_add_users(self, info):
 		self.create()
+		self.set_dp()
 		self.add_users(info)
 
 	def unsubscribe_user(self, user):
@@ -102,7 +119,7 @@ class Discussion(object):
 		self.delete()
 
 	def subscribe_user(self, username):
-		self.server_component_factory.send_user_addition(self.get_subscribe_users_xml([username]))
+		self.server_component_factory.send(self.get_subscribe_users_xml([username]))
 
 
 	@classmethod
