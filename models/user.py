@@ -280,11 +280,3 @@ class User(Node):
 			response['s_photo'] = base64.b64encode(Dp(self.username).get_dp_version('S'))
 
 		return response
-
-
-
-	def get_random_avatar(self):
-		key = str(random.randint(1, 1000))
-		bucket = config.get('amazon', 'random_avatar_bucket')
-		return base64.b64encode(S3Object(key, bucket).download())
-

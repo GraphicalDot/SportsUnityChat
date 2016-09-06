@@ -365,8 +365,21 @@ class GetDiscussionsHandler(BaseRequestHandler):
 
 class JoinDiscussionsHandler(BaseRequestHandler):
     def post(self):
+        response = {}
         discussion_id = self.get_argument("discussion_id")
         username = self.get_argument("username")
+        info = {"users": [username]}
         Discussion(discussion_id).add_users([username])
         response['info'] = settings.SUCCESS_RESPONSE
         response['status'] = settings.STATUS_200
+        self.write(response)
+
+class PeekDiscussionsHandler(BaseRequestHandler):
+    def post(self):
+        response = {}
+        discussion_id = self.get_argument("discussion_id")
+        username = self.get_argument("username")
+        Discussion(discussion_id).subscribe_user(username)
+        response['info'] = settings.SUCCESS_RESPONSE
+        response['status'] = settings.STATUS_200        
+        self.write(response)

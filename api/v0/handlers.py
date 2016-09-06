@@ -1202,8 +1202,8 @@ class PollAnswerHandler(UserApiRequestHandler):
         if not self.poll_answer in settings.ARTICLE_POLL_ANSWER_TYPES:
             raise BadInfoSuppliedError("poll_answer")
         result = self.allocate_group()
-        response['status'] = 200
-        response['info'] = 'Success'
+        response['status'] = settings.STATUS_200
+        response['info'] = settings.SUCCESS_RESPONSE
         self.write(response)
 
     def allocate_group(self):
@@ -1216,12 +1216,14 @@ class PollAnswerHandler(UserApiRequestHandler):
         if results[0]['action_taken'] == "new_discussion":
             discussion_id = results[0]["discussion_id"]
             discussion_info = {"name": results[0]['discussion_id'], "users": map(lambda info: info ["username"], results)}
-            Discussion(discussion_id).create_and_add_users(discussion_info)
+            Discussion(discussion_id, self.article_id).create_and_add_users(discussion_info)
         elif results[0]['action_taken'] == "existing_discussion":
             discussion_id = results[0]["discussion_id"]
             discussion_info = {"name": results[0]['discussion_id'], "users": [self.username]}
             Discussion(discussion_id).add_users(discussion_info)
         elif results[0]['action_taken'] == "stored_preference":
+            pass
+        elif results[0]['action_taken'] == "user_already_in_group":
             pass
         else:
             raise InternalServerError
@@ -1248,8 +1250,8 @@ class ExitDiscussionHandler(UserApiRequestHandler):
         self.discussion_id = self.get_argument('discussion_id')
         self.article_id = int(self.get_argument('article_id'))
         result = self.exit_discussion()
-        response['status'] = 200
-        response['info'] = 'Success'
+        response['status'] = settings.STATUS_200
+        response['info'] = settings.SUCCESS_RESPONSE
         self.write(response)
 
     def exit_discussion(self): 
@@ -1260,19 +1262,17 @@ class ExitDiscussionHandler(UserApiRequestHandler):
 
     def handle_result(self, results):
         if results[0]['action_taken'] == 'deleted_discussion':
-            Discussion(self.discussion_id).unsubsribe_user_and_delete(results[0]['username'])
+            Discussion(self.discussion_id).delete()
         elif results[0]['action_taken'] == "deleted_user_added_queued_users_to_discussion":
             discussion_info = {"name": self.discussion_id, "users": map(lambda info: info ["username"], results)}
-            Discussion(self.discussion_id).unsubscribe_user(self.username)
             Discussion(self.discussion_id).add_users(discussion_info)
         elif results[0]['action_taken'] == 'deleted_user':
-            Discussion(self.discussion_id).unsubscribe_user(self.username)
+            pass
         else:
             raise InternalServerError
 
 
 class DeleteArticleDiscussions(tornado.web.RequestHandler):
-
     def post(self):
         query = "DELETE FROM articles_discussions WHERE article_id=165;"
         QueryHandler.execute(query)
