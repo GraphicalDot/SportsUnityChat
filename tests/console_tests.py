@@ -368,8 +368,9 @@ class NewsConsoleEditArticleTests(unittest.TestCase):
 class NewsConsoleDeleteArticleTests(unittest.TestCase):
 
     def create_carousel_article(self):
+        test_utils.delete_field_from_table('carousel_articles', 'priority', 101)
         query = "INSERT INTO carousel_articles (article_id, priority) VALUES (%s, %s);"
-        variables = (self.article_ids[0], 1)
+        variables = (self.article_ids[0], 101)
         QueryHandler.execute(query, variables)
 
     def setUp(self):
@@ -455,7 +456,7 @@ class NewsConsolePublishArticleTests(unittest.TestCase):
         # valid 'article_id' provided
         response = requests.post(self.publish_article_url, {'article_id': self.article_ids[0]})
         res = json.loads(response.text)
-        # self.assertEqual(res['status'], settings.STATUS_200)
+        self.assertEqual(res['status'], settings.STATUS_200)
         self.assertEqual(res['info'], settings.SUCCESS_RESPONSE)
         self.assertEqual(res['article']['article_state'], 'Published')
 
@@ -515,8 +516,10 @@ class NewsConsolePublishArticleTests(unittest.TestCase):
 class NewsConsoleGetCarouselArticlesTests(unittest.TestCase):
 
     def create_carousel_articles(self):
+        test_utils.delete_field_from_table('carousel_articles', 'priority', 101)
+        test_utils.delete_field_from_table('carousel_articles', 'priority', 102)
         query = "INSERT INTO carousel_articles (article_id, priority) VALUES (%s, %s), (%s, %s);"
-        variables = (self.article_ids[0], 1, self.article_ids[3], 2)
+        variables = (self.article_ids[0], 101, self.article_ids[3], 102)
         QueryHandler.execute(query, variables)
 
     def setUp(self):

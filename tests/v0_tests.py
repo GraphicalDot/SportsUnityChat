@@ -9,6 +9,7 @@ import requests
 import sys
 import time
 import unittest
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from ConfigParser import ConfigParser
 from ConfigParser import ConfigParser
 from common.funcs import QueryHandler, S3, merge_dicts
