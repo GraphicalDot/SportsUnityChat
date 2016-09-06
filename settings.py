@@ -22,6 +22,7 @@ DUPLICATE_KEY_ERROR = "Database Error: This {} already exists"
 INVALID_BUCKET_ERROR = "Bad Bucket Request"
 KEY_ALREADY_EXISTS = "Bad Request: This Key already exists in the bucket"
 INTERNAL_SERVER_ERROR = "Internal server error"
+PUSH_NOTIFICATION_ERROR = "Some error occured in Push Notification!"
 
 # admin templates path
 ADMIN_TEMPLATES_PATH = 'admin_templates/'
@@ -89,8 +90,10 @@ articles_BUCKETS = {
     'memes': 'curated.article.memes'
 }
 
-NEWS_SERVER = 'http://NewsLB-388179569.ap-northeast-2.elb.amazonaws.com'
-articles_POST_URL = NEWS_SERVER + '/articles'
-
+# NEWS_SERVER = 'http://NewsLB-388179569.ap-northeast-2.elb.amazonaws.com'
+NEWS_SERVER = 'http://52.78.123.19:8000'
+PUBLISH_ARTICLE_POST_URL = NEWS_SERVER + '/publish_article'
+CAROUSEL_ARTICLES_POST_URL = NEWS_SERVER + '/post_carousel_article'
 
 USER_ADDITION_GROUP_MESSAGE_TYPE = u'a'
+CURATED_NEWS_EVENT_CODE = '14'
