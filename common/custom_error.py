@@ -1,6 +1,10 @@
 import settings
 
 
+class PushNotificationError(Exception):
+    log_message = settings.PUSH_NOTIFICATION_ERROR
+
+
 class BadAuthentication(Exception):
     log_message = settings.BAD_AUTHENTICATION_ERROR
 

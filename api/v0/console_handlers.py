@@ -16,8 +16,9 @@ from tornado.web import MissingArgumentError
 
 import settings
 from utils import ConsoleS3Object
+from common.notification_handler import GCMHandler
 from common.custom_error import BadAuthentication, BadInfoSuppliedError, DuplicateKeyError, InvalidBucketRequest, \
-    KeyAlreadyExists, InvalidKeyError
+    KeyAlreadyExists, InvalidKeyError, PushNotificationError
 from common.funcs import QueryHandler
 from models.discussion import Discussion
 
@@ -51,6 +52,8 @@ class BaseRequestHandler(tornado.web.RequestHandler):
             response['status'] = settings.STATUS_409
         elif error_type == BadAuthentication:
             response['status'] = settings.STATUS_404
+        elif error_type == PushNotificationError:
+            response['status'] = settings.STATUS_500
         else:
             response['status'] = settings.STATUS_500
         self.write(response)
@@ -133,6 +136,7 @@ class NewsConsoleAddCuratedArticle(BaseRequestHandler):
 
     def post(self):
         response = {}
+
         self.article_writer = str(self.get_argument('username'))
         self.article_headline = str(self.get_argument('article_headline'))
         self.article_content = str(self.get_argument('article_content'))
@@ -280,21 +284,35 @@ class NewsConsoleDeleteArticle(BaseRequestHandler):
 class NewsConsolePublishArticle(BaseRequestHandler):
 
     def publish_article(self):
-        article = self.articles[0]
-        article.update({'type': 'published'})
-        requests.post(url=settings.articles_POST_URL, data=article)
+        self.article = self.articles[0]
+        self.article.update({'type': 'published'})
+        requests.post(url=settings.PUBLISH_ARTICLE_POST_URL, data=self.article)
+
+    def notify_user(self):
+        below_text = self.article['article_content']
+        top_text = self.article['article_headline']
+        sport_type = '1' if self.article['article_sport_type'] == 'c' else '2'
+        event_code = settings.CURATED_NEWS_EVENT_CODE
+        payload = {'cn': str(self.article_id), 'tt': top_text, 'bt': below_text, 'e': event_code, 's': sport_type}
+
+        query = "SELECT device_token, token_type FROM users;"
+        users = QueryHandler.get_results(query)
+        gcm_response = GCMHandler().send_notifications(users, payload)
+        if gcm_response.get('errors'):
+            raise PushNotificationError
 
     def post(self):
         response = {}
-        article_id = self.get_argument('article_id')
+        self.article_id = self.get_argument('article_id')
         query = "UPDATE articles SET article_state='Published', article_publish_date=%s WHERE article_id = %s RETURNING article_id, " \
                 "article_headline, article_content, article_image, article_poll_question, article_sport_type, " \
                 "to_char(article_publish_date, 'DD/MM/YYYY') as article_publish_date, article_state, article_writer, article_notification_content;"
-        variables = (datetime.datetime.now(), article_id,)
+        variables = (datetime.datetime.now(), self.article_id,)
         self.articles = QueryHandler.get_results(query, variables)
         if not self.articles:
             raise BadInfoSuppliedError('article_id')
         threading.Thread(group = None, target = self.publish_article, name = None, args = ()).start()
+        self.notify_user()
         response.update({'status': settings.STATUS_200, 'info': settings.SUCCESS_RESPONSE, 'article': self.articles[0]})
         self.write(response)
 
@@ -318,18 +336,20 @@ class NewsConsolePostArticlesOnCarousel(BaseRequestHandler):
 
     def post_carousel_articles(self):
         data = {'articles': self.articles, 'type': 'carousel'}
-        requests.post(url=settings.articles_POST_URL, data=json.dumps(data))
+        requests.post(url=settings.CAROUSEL_ARTICLES_POST_URL, data=json.dumps(data))
 
     def post(self):
         response = {}
         self.articles = json.loads(self.get_argument('articles'))
 
-        for key, value in self.articles.items():
-            query = "WITH upsert AS (UPDATE carousel_articles SET article_id = %s WHERE priority = %s RETURNING id) " \
-                    "INSERT INTO carousel_articles (article_id, priority) SELECT %s, %s WHERE NOT EXISTS (SELECT * FROM upsert);"
-            variables = (int(value), int(key), int(value), int(key))
-            QueryHandler.execute(query, variables)
+        query = "DELETE FROM carousel_articles;"
+        QueryHandler.execute(query)
 
+        query = "INSERT INTO carousel_articles (article_id, priority) VALUES "
+        for key, value in self.articles.items():
+              query += "(%s, %s), " % (int(value), int(key))
+        query = query[:-2] + ";"
+        QueryHandler.execute(query)
         threading.Thread(group=None, target=self.post_carousel_articles, name=None, args=()).start()
         response.update({'status': settings.STATUS_200, 'info': settings.SUCCESS_RESPONSE})
         self.write(response)
