@@ -289,6 +289,7 @@ class NewsConsolePublishArticle(BaseRequestHandler):
         requests.post(url=settings.PUBLISH_ARTICLE_POST_URL, data=self.article)
 
     def notify_user(self):
+        self.article = self.articles[0]
         below_text = self.article['article_content']
         top_text = self.article['article_headline']
         sport_type = '1' if self.article['article_sport_type'] == 'c' else '2'
