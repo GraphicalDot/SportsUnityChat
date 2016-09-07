@@ -11,8 +11,8 @@ DECLARE
 	_discussion_id TEXT;
 	_article_name TEXT;
 BEGIN
-	IF EXISTS (SELECT users_poll_responses.poll_answer FROM users_poll_responses WHERE users_poll_responses.username = _username) THEN
-		UPDATE users_poll_responses SET poll_answer = _poll_answer WHERE users_poll_responses.username = _username ;
+	IF EXISTS (SELECT users_poll_responses.poll_answer FROM users_poll_responses WHERE users_poll_responses.username = _username  AND users_poll_responses.article_id = _article_id) THEN
+		UPDATE users_poll_responses SET poll_answer = _poll_answer WHERE users_poll_responses.username = _username  AND users_poll_responses.article_id = _article_id ;
 	ELSE
 		INSERT INTO users_poll_responses (username, poll_answer, article_id) VALUES (_username, _poll_answer, _article_id);
 	END IF;
