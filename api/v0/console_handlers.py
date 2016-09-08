@@ -1,6 +1,8 @@
 # -*- coding: UTF-8 -*-
 
 import base64
+import boto3
+import ConfigParser
 import datetime
 import json
 import psycopg2.extras
@@ -21,6 +23,10 @@ from common.custom_error import BadAuthentication, BadInfoSuppliedError, Duplica
     KeyAlreadyExists, InvalidKeyError, PushNotificationError
 from common.funcs import QueryHandler
 from models.discussion import Discussion
+
+config = ConfigParser.ConfigParser()
+config.read('config.py')
+
 
 class BaseRequestHandler(tornado.web.RequestHandler):
     def set_default_headers(self):
@@ -229,31 +235,67 @@ class NewsConsoleGetArticle(BaseRequestHandler):
 
 class NewsConsoleEditArticle(BaseRequestHandler):
 
+    def get_previous_image_links(self):
+        query = "SELECT article_image, article_ice_breaker_image FROM articles WHERE article_id=%s;" % self.article_id
+        article = QueryHandler.get_results(query)
+        if not article:
+            raise BadInfoSuppliedError('article_id')
+        return (article[0]['article_image'], article[0]['article_ice_breaker_image'])
+
+    def delete_old_image_upload_new(self, object_type, bucket, old_link, new_image_body, new_image_type):
+        old_image_link = old_link.split(bucket + '/')
+        s3_client = boto3.client('s3', aws_access_key_id=config.get('amazon', 'amazon_access_key'),
+                     aws_secret_access_key=config.get('amazon', 'amazon_secret_key'))
+        s3_client.delete_object(Bucket=bucket, Key=old_image_link[1])
+        image_new_link = old_image_link[0] + '/' + bucket + '/' + str(self.article_id) + '.' + new_image_type
+        ConsoleS3Object(object_type=object_type, image_name=str(self.article_id) + '.' + new_image_type,
+                        content=new_image_body, acl='public-read').handle_upload()
+        return image_new_link
+
+    def handle_new_image(self, file_type, object_type, bucket, old_link):
+        file = self.request.files.get(file_type, [])
+        if file:
+            file = file[0]
+            (image_body, new_image_type) = (file['body'], str(file['content_type']).split('/')[1])
+            if new_image_type == 'unknown':
+                new_image_type = 'jpeg'
+            image_link = self.delete_old_image_upload_new(object_type, bucket, old_link, image_body, new_image_type)
+            if object_type == 'news_image':
+                self.article_image_new_link = image_link
+            elif object_type == 'ice_breaker_image':
+                self.ice_breaker_image_new_link = image_link
+
+    def update_database(self):
+        query = "UPDATE articles SET article_headline=%s, article_content=%s, article_image=%s, article_poll_question=%s, " \
+                "article_ice_breaker_image=%s, article_sport_type=%s, article_stats=%s, article_memes=%s, article_state=%s, " \
+                "article_notification_content=%s WHERE article_id=%s;"
+        variables = (self.article_headline, self.article_content, self.article_image_new_link, self.article_poll_question,
+                     self.ice_breaker_image_new_link, self.article_sport_type, self.article_stats, self.article_memes,
+                     self.article_state, self.article_notification_content, self.article_id)
+        QueryHandler.execute(query, variables)
+
     def post(self):
         response = {}
+        self.article_image_new_link = ''
+        self.ice_breaker_image_new_link = ''
+
         self.article_id = int(self.get_argument('article_id'))
-        arguments = urlparse.parse_qs(self.request.body)
-        arguments.pop('article_id')
-        self.stats = self.get_arguments('article_stats')
-        self.memes = self.get_arguments('article_memes')
-        self.publish_date = self.get_argument('article_publish_date', None)
+        self.article_headline = str(self.get_argument('article_headline'))
+        self.article_content = str(self.get_argument('article_content'))
+        self.article_poll_question = str(self.get_argument('article_poll_question'))
+        self.article_notification_content = str(self.get_argument('article_notification_content'))
+        self.article_sport_type = str(self.get_argument('article_sport_type'))
+        self.article_stats = self.get_arguments('article_stats')
+        self.article_memes = self.get_arguments('article_memes')
+        self.article_state = str(self.get_argument('article_state'))
+        self.news_bucket = settings.articles_BUCKETS.get('news_image')
+        self.ice_breaker_bucket = settings.articles_BUCKETS.get('ice_breaker_image')
 
-        if not set(arguments.keys()).issubset(['article_headline', 'article_content', 'article_image', 'article_poll_question',
-                                           'article_ice_breaker_image', 'article_sport_type', 'article_stats', 'article_memes',
-                                           'article_state', 'article_notification_content']):
-            raise InvalidKeyError
-
-        query = "UPDATE articles SET {} WHERE article_id = {};"
-        stmt = ''
-        for key, value in arguments.items():
-            if key in ['article_stats', 'article_memes']:
-                stmt += "%s = ARRAY%s, " % (key, value)
-            elif key == 'article_publish_date':
-                stmt += "%s = to_date('%s', 'DD/MM/YYYY'), " % (key, value[0])
-            else:
-                stmt += "%s = '%s', " % (key, value[0])
-
-        QueryHandler.execute(query.format(stmt[:-2], self.article_id))
+        (self.article_image_old_link, self.article_ice_breaker_image_old_link) = self.get_previous_image_links()
+        self.handle_new_image(file_type='article_image', object_type='news_image', bucket=self.news_bucket, old_link=self.article_image_old_link)
+        self.handle_new_image(file_type='article_ice_breaker_image', object_type='ice_breaker_image',
+                              bucket=self.ice_breaker_bucket, old_link=self.article_ice_breaker_image_old_link)
+        self.update_database()
         response.update({'status': settings.STATUS_200, 'info': settings.SUCCESS_RESPONSE})
         self.write(response)
 

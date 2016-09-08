@@ -1270,10 +1270,3 @@ class ExitDiscussionHandler(UserApiRequestHandler):
             pass
         else:
             raise InternalServerError
-
-
-class DeleteArticleDiscussions(tornado.web.RequestHandler):
-    def post(self):
-        query = "DELETE FROM articles_discussions WHERE article_id=165;"
-        QueryHandler.execute(query)
-        self.write({'status': settings.STATUS_200, 'info': 'Success'})
