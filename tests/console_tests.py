@@ -18,6 +18,7 @@ from ConfigParser import ConfigParser
 from wand.color import Color
 from wand.image import Image as wImage
 
+from api.v0.utils import ConsoleS3Object
 from common.funcs import QueryHandler
 
 config = ConfigParser()
@@ -331,6 +332,14 @@ class NewsConsoleGetArticleTests(unittest.TestCase):
 
 class NewsConsoleEditArticleTests(unittest.TestCase):
 
+    def upload_image(self, object_type, image_name, content):
+        s3_object = ConsoleS3Object(object_type, image_name, content, acl='public-read').handle_upload()
+
+    def update_database(self, article_image_link, article_ice_breaker_image_link, article_id):
+        query = "UPDATE articles SET article_image=%s, article_ice_breaker_image=%s WHERE article_id=%s;"
+        variables = (article_image_link, article_ice_breaker_image_link, article_id)
+        QueryHandler.execute(query, variables)
+
     def setUp(self):
         self.edit_article_url = TORNADO_SERVER + '/edit_article'
         test_utils.delete_field_from_table('content_writers', 'username', 'test_user')
@@ -338,31 +347,47 @@ class NewsConsoleEditArticleTests(unittest.TestCase):
         self.articles = [{'headline': 'article_1', 'sport_type': 'c', 'state': 'UnPublished', 'writer': 'test_user'},
                          {'headline': 'article_2', 'sport_type': 'f', 'state': 'Published', 'writer': 'test_user'}]
         self.article_ids = test_utils.create_articles(self.articles)
+        self.s3_client = boto3.client('s3', aws_access_key_id = amazon_access_key, aws_secret_access_key = amazon_secret_key)
+        self.png_content = base64.b64encode(wImage(width=640, height=640, background=Color('blue')).make_blob(format='png'))
+        self.jpeg_content = base64.b64encode(wImage(width=640, height=640, background=Color('blue')).make_blob(format='jpeg'))
+        self.image_name = str(self.article_ids[0]) + '.png'
+        self.upload_image(object_type='news_image', image_name=self.image_name, content=self.png_content)
+        self.upload_image(object_type='ice_breaker_image', image_name=self.image_name, content=self.png_content)
+        self.link = "https://s3.amazonaws.com/{}/{}"
+        self.article_image_link = self.link.format(settings.articles_BUCKETS.get('news_image'), self.image_name)
+        self.ice_breaker_image_link = self.link.format(settings.articles_BUCKETS.get('ice_breaker_image'), self.image_name)
+        self.update_database(self.article_image_link, self.ice_breaker_image_link, self.article_ids[0])
 
     def test_post(self):
 
-        # invalid argument key provided
-        self.data = {'article_id': self.article_ids[0], 'invalid_key': 'text'}
+        # invalid article_id provided key provided
+        self.data = {'article_id': self.article_ids[0] + 1000, 'article_headline': 'text', 'article_content': 'chnaged_text',
+                     'article_poll_question': 'text', 'article_notification_content': 'text', 'article_sport_type': 'c',
+                     'article_state': 'UnPublished', 'article_image': self.jpeg_content,
+                     'article_ice_breaker_image': self.jpeg_content, 'article_stats': ['STAT_LINK_1', 'STAT_LINK_2']}
         response = requests.post(self.edit_article_url, self.data)
         res = json.loads(response.text)
         self.assertEqual(res['status'], settings.STATUS_400)
-        self.assertEqual(res['info'], settings.INVALID_KEY_ERROR)
+        self.assertEqual(res['info'], settings.BAD_INFO_ERROR.format('article_id'))
 
         # valid 'article_id'
-        self.data = {'article_id': self.article_ids[1], 'article_content': 'CHANGED_TEXT', 'article_stats': ['STAT_LINK_1', 'STAT_LINK_2']}
-        response = requests.post(self.edit_article_url, self.data)
+        self.data.update({'article_id': self.article_ids[0]})
+        image_path = os.getcwd() + '/tests/test_image.jpeg'
+        self.files = {'article_image': open(image_path, 'r').read(), 'article_ice_breaker_image': open(image_path, 'r').read()}
+        response = requests.post(self.edit_article_url, data=self.data, files=self.files)
         res = json.loads(response.text)
         self.assertEqual(res['status'], settings.STATUS_200)
         self.assertEqual(res['info'], settings.SUCCESS_RESPONSE)
-        query = "SELECT article_content FROM articles WHERE article_id = %s;"
-        variables = (self.data['article_id'],)
-        result = QueryHandler.get_results(query, variables)
+        query = "SELECT article_content FROM articles WHERE article_id = %s;" % self.data['article_id']
+        result = QueryHandler.get_results(query)
         self.assertEqual(len(result), 1)
         self.assertEqual(result[0]['article_content'], self.data['article_content'])
 
     def tearDown(self):
         test_utils.delete_field_from_table('content_writers', 'username', 'test_user')
         test_utils.delete_articles(self.article_ids)
+        self.s3_client.delete_object(Bucket=settings.articles_BUCKETS.get('news_image'), Key=str(self.article_ids[0]) + '.' + 'jpeg')
+        self.s3_client.delete_object(Bucket=settings.articles_BUCKETS.get('ice_breaker_image'), Key=str(self.article_ids[0]) + '.' + 'jpeg')
 
 
 class NewsConsoleDeleteArticleTests(unittest.TestCase):
