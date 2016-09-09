@@ -118,10 +118,10 @@ class NewsConsoleAddCuratedArticle(BaseRequestHandler):
 
     def update_database(self):
         query = "INSERT INTO articles (article_headline, article_content, article_poll_question, article_notification_content," \
-                "article_sport_type, article_stats, article_memes, article_state, article_writer) " \
-                "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING article_id;"
+                "article_sport_type, article_stats, article_memes, article_state, article_writer, article_group_name) " \
+                "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING article_id;"
         variables = (self.article_headline, self.article_content, self.article_poll_question, self.article_notification_content,
-                     self.article_sport_type, self.article_stats, self.article_memes, self.article_state, self.article_writer)
+                     self.article_sport_type, self.article_stats, self.article_memes, self.article_state, self.article_writer, self.article_group_name)
         result = QueryHandler.get_results(query, variables)
         return result[0]['article_id']
 
@@ -146,7 +146,7 @@ class NewsConsoleAddCuratedArticle(BaseRequestHandler):
         self.article_writer = str(self.get_argument('username'))
         self.article_headline = str(self.get_argument('article_headline'))
         self.article_content = str(self.get_argument('article_content'))
-
+        self.article_group_name = str(self.get_argument('article_group_name'))
         article_image_file = self.request.files['article_image'][0]
         self.article_image = article_image_file['body']
         self.article_image_type = str(article_image_file['content_type']).split('/')[1]
@@ -247,7 +247,7 @@ class NewsConsoleEditArticle(BaseRequestHandler):
         s3_client = boto3.client('s3', aws_access_key_id=config.get('amazon', 'amazon_access_key'),
                      aws_secret_access_key=config.get('amazon', 'amazon_secret_key'))
         s3_client.delete_object(Bucket=bucket, Key=old_image_link[1])
-        image_new_link = old_image_link[0] + '/' + bucket + '/' + str(self.article_id) + '.' + new_image_type
+        image_new_link = old_image_link[0] + bucket + '/' + str(self.article_id) + '.' + new_image_type
         ConsoleS3Object(object_type=object_type, image_name=str(self.article_id) + '.' + new_image_type,
                         content=new_image_body, acl='public-read').handle_upload()
         return image_new_link
@@ -265,13 +265,14 @@ class NewsConsoleEditArticle(BaseRequestHandler):
             elif object_type == 'ice_breaker_image':
                 self.ice_breaker_image_new_link = image_link
 
+
     def update_database(self):
         query = "UPDATE articles SET article_headline=%s, article_content=%s, article_image=%s, article_poll_question=%s, " \
                 "article_ice_breaker_image=%s, article_sport_type=%s, article_stats=%s, article_memes=%s, article_state=%s, " \
-                "article_notification_content=%s WHERE article_id=%s;"
+                "article_notification_content=%s, article_group_name=%s WHERE article_id=%s;"
         variables = (self.article_headline, self.article_content, self.article_image_new_link, self.article_poll_question,
                      self.ice_breaker_image_new_link, self.article_sport_type, self.article_stats, self.article_memes,
-                     self.article_state, self.article_notification_content, self.article_id)
+                     self.article_state, self.article_notification_content, self.article_group_name, self.article_id)
         QueryHandler.execute(query, variables)
 
     def post(self):
@@ -280,6 +281,7 @@ class NewsConsoleEditArticle(BaseRequestHandler):
         self.ice_breaker_image_new_link = ''
 
         self.article_id = int(self.get_argument('article_id'))
+        self.article_group_name = str(self.get_argument('article_group_name'))
         self.article_headline = str(self.get_argument('article_headline'))
         self.article_content = str(self.get_argument('article_content'))
         self.article_poll_question = str(self.get_argument('article_poll_question'))
@@ -292,6 +294,8 @@ class NewsConsoleEditArticle(BaseRequestHandler):
         self.ice_breaker_bucket = settings.articles_BUCKETS.get('ice_breaker_image')
 
         (self.article_image_old_link, self.article_ice_breaker_image_old_link) = self.get_previous_image_links()
+        self.article_image_new_link = self.article_image_old_link
+        self.ice_breaker_image_new_link = self.article_ice_breaker_image_old_link
         self.handle_new_image(file_type='article_image', object_type='news_image', bucket=self.news_bucket, old_link=self.article_image_old_link)
         self.handle_new_image(file_type='article_ice_breaker_image', object_type='ice_breaker_image',
                               bucket=self.ice_breaker_bucket, old_link=self.article_ice_breaker_image_old_link)
@@ -332,8 +336,8 @@ class NewsConsolePublishArticle(BaseRequestHandler):
 
     def notify_user(self):
         self.article = self.articles[0]
-        below_text = self.article['article_content']
-        top_text = self.article['article_headline']
+        below_text = self.article['article_notification_content']
+        top_text = "Breaking News"
         sport_type = '1' if self.article['article_sport_type'] == 'c' else '2'
         event_code = settings.CURATED_NEWS_EVENT_CODE
         payload = {'cn': str(self.article_id), 'tt': top_text, 'bt': below_text, 'e': event_code, 's': sport_type}
@@ -349,7 +353,8 @@ class NewsConsolePublishArticle(BaseRequestHandler):
         self.article_id = self.get_argument('article_id')
         query = "UPDATE articles SET article_state='Published', article_publish_date=%s WHERE article_id = %s RETURNING article_id, " \
                 "article_headline, article_content, article_image, article_poll_question, article_sport_type, " \
-                "to_char(article_publish_date, 'DD/MM/YYYY') as article_publish_date, article_state, article_writer, article_notification_content;"
+                "to_char(article_publish_date, 'DD/MM/YYYY') as article_publish_date, article_state, article_writer, " \
+                "article_notification_content, article_group_name;"
         variables = (datetime.datetime.now(), self.article_id,)
         self.articles = QueryHandler.get_results(query, variables)
         if not self.articles:
@@ -388,11 +393,12 @@ class NewsConsolePostArticlesOnCarousel(BaseRequestHandler):
         query = "DELETE FROM carousel_articles;"
         QueryHandler.execute(query)
 
-        query = "INSERT INTO carousel_articles (article_id, priority) VALUES "
-        for key, value in self.articles.items():
-              query += "(%s, %s), " % (int(value), int(key))
-        query = query[:-2] + ";"
-        QueryHandler.execute(query)
+        if self.articles:
+            query = "INSERT INTO carousel_articles (article_id, priority) VALUES "
+            for key, value in self.articles.items():
+                  query += "(%s, %s), " % (int(value), int(key))
+            query = query[:-2] + ";"
+            QueryHandler.execute(query)
         threading.Thread(group=None, target=self.post_carousel_articles, name=None, args=()).start()
         response.update({'status': settings.STATUS_200, 'info': settings.SUCCESS_RESPONSE})
         self.write(response)
