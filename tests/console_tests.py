@@ -187,7 +187,7 @@ class NewsConsoleAddCuratedArticleTests(unittest.TestCase):
         self.assertEqual(res['info'], 'Missing argument article_content')
 
         # valid POST data
-        self.data.update({'article_content': 'TEST_CONTENT', 'article_poll_question': 'TEST_POLL_QUESTION',
+        self.data.update({'article_content': 'TEST_CONTENT', 'article_group_name': 'test_group', 'article_poll_question': 'TEST_POLL_QUESTION',
                           'article_notification_content': 'TEST_HEADLINE', 'article_sport_type': 'c', 'article_stats': ['link_1', 'link_2'],
                           'article_memes': ['meme_1'], 'article_state': 'UnPublished'})
 
@@ -361,7 +361,7 @@ class NewsConsoleEditArticleTests(unittest.TestCase):
     def test_post(self):
 
         # invalid article_id provided key provided
-        self.data = {'article_id': self.article_ids[0] + 1000, 'article_headline': 'text', 'article_content': 'chnaged_text',
+        self.data = {'article_id': self.article_ids[0] + 1000, 'article_group_name': 'test_group', 'article_headline': 'text', 'article_content': 'chnaged_text',
                      'article_poll_question': 'text', 'article_notification_content': 'text', 'article_sport_type': 'c',
                      'article_state': 'UnPublished', 'article_image': self.jpeg_content,
                      'article_ice_breaker_image': self.jpeg_content, 'article_stats': ['STAT_LINK_1', 'STAT_LINK_2']}
