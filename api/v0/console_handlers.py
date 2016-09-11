@@ -184,7 +184,7 @@ class NewsConsoleFetchArticles(BaseRequestHandler):
 
     def get_query(self):
         query = "SELECT article_id, article_headline, article_sport_type, article_image, to_char(article_publish_date, 'DD MM YYYY') " \
-                "as article_publish_date, article_state, article_writer FROM articles "
+                "as article_publish_date, article_state, article_writer, article_group_name FROM articles "
 
         query += "WHERE article_id NOT IN (SELECT article_id FROM articles WHERE article_state='Draft' AND article_writer!='%s') " \
                  % self.username if self.is_admin else "WHERE article_writer='%s' " % self.username
@@ -306,6 +306,9 @@ class NewsConsoleEditArticle(BaseRequestHandler):
 
 class NewsConsoleDeleteArticle(BaseRequestHandler):
 
+    def delete_from_mongo_db(self):
+        requests.post(url=settings.DELETE_ARTICLE_FROM_MONGO_URL, data={'article_id': str(self.article_id)})
+
     def post(self):
         response = {}
         self.article_id = int(self.get_argument('article_id'))
@@ -313,6 +316,7 @@ class NewsConsoleDeleteArticle(BaseRequestHandler):
         if self.force_deletion:
             query = "DELETE FROM articles WHERE article_id = %s;" % self.article_id
             QueryHandler.execute(query)
+            threading.Thread(group = None, target = self.delete_from_mongo_db, name = None, args = ()).start()
         else:
             query = "SELECT article_id FROM carousel_articles WHERE article_id=%s;"
             variables = (self.article_id,)
@@ -323,6 +327,7 @@ class NewsConsoleDeleteArticle(BaseRequestHandler):
                 query = "DELETE FROM articles WHERE article_id = %s;" % self.article_id
                 QueryHandler.execute(query)
                 response.update({'in_carousel': False})
+                threading.Thread(group = None, target = self.delete_from_mongo_db, name = None, args = ()).start()
         response.update({'status': settings.STATUS_200, 'info': settings.SUCCESS_RESPONSE})
         self.write(response)
 
@@ -353,7 +358,7 @@ class NewsConsolePublishArticle(BaseRequestHandler):
         self.article_id = self.get_argument('article_id')
         query = "UPDATE articles SET article_state='Published', article_publish_date=%s WHERE article_id = %s RETURNING article_id, " \
                 "article_headline, article_content, article_image, article_poll_question, article_sport_type, " \
-                "to_char(article_publish_date, 'DD/MM/YYYY') as article_publish_date, article_state, article_writer, " \
+                "to_char(article_publish_date, 'Dy, DD Mon YYYY HH:MI:SS') as article_publish_date, article_state, article_writer, " \
                 "article_notification_content, article_group_name;"
         variables = (datetime.datetime.now(), self.article_id,)
         self.articles = QueryHandler.get_results(query, variables)
