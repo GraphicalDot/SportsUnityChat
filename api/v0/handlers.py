@@ -1198,6 +1198,7 @@ class PollAnswerHandler(UserApiRequestHandler):
         response = {}
         self.username = self.get_argument("username")
         self.article_id = self.get_argument('article_id')
+        self.article_group_name = self.get_argument('group_name')
         self.poll_answer = self.get_argument('poll_answer')
         if not self.poll_answer in settings.ARTICLE_POLL_ANSWER_TYPES:
             raise BadInfoSuppliedError("poll_answer")
@@ -1216,7 +1217,7 @@ class PollAnswerHandler(UserApiRequestHandler):
         if results[0]['action_taken'] == "new_discussion":
             discussion_id = results[0]["discussion_id"]
             discussion_info = {"name": results[0]['discussion_id'], "users": map(lambda info: info ["username"], results)}
-            Discussion(discussion_id, self.article_id).create_and_add_users(discussion_info)
+            Discussion(discussion_id, self.article_id, self.article_group_name).create_and_add_users(discussion_info)
         elif results[0]['action_taken'] == "existing_discussion":
             discussion_id = results[0]["discussion_id"]
             discussion_info = {"name": results[0]['discussion_id'], "users": [self.username]}

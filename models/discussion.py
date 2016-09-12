@@ -22,12 +22,13 @@ class Discussion(Node):
 			5. Return all the group discussions happening
 	"""
 
-	def __init__(self, name, article_id  = None):
+	def __init__(self, name, article_id  = None, article_group_name=None):
 		self.name = name
 
 		self.article_id = article_id
-		self.article_images_bucket = config.get('amazon', 'article_images_bucket') 
-
+		self.group_name = article_group_name
+		self.article_images_bucket = config.get('amazon', 'article_images_bucket')
+		# self.article_images_bucket = "feeds.images"
 		self.discussion_admin_password = config.get('server_component', 'discussion_admin_password') 
 		self.discussion_admin_jid = config.get('server_component', 'discussion_admin_jid') 
 		
@@ -35,7 +36,7 @@ class Discussion(Node):
 
 		self.domain = config.get('xmpp', 'domain') 
 
-		self.discussion_creation_xml = "<iq to='pubsub.mm.io' type='set' from='" + self.discussion_admin_jid + "'><pubsub xmlns='http://jabber.org/protocol/pubsub'><create node='{}'/><configure><x xmlns='jabber:x:data' type='submit'><field var='pubsub#access_model' type='list-single'><value>open</value></field><field var='pubsub#deliver_payloads' type='boolean'><value>1</value></field><field var='pubsub#notify_retract' type='boolean'><value>1</value></field><field var='pubsub#persist_items' type='boolean'><value>0</value></field><field var='pubsub#presence_based_delivery' type='boolean'><value>0</value></field><field var='pubsub#subscribe' type='boolean'><value>1</value></field><field var='pubsub#publish_model' type='list-single'><value>publishers</value></field><field var='pubsub#title' type='text-single'><value>testgroup</value></field><field var='pubsub#notification_type' type='text-single'><value>normal</value></field><field var='pubsub#send_last_published_item' type='text-single'><value>never</value></field></x></configure></pubsub></iq> "
+		self.discussion_creation_xml = "<iq to='pubsub.mm.io' type='set' from='" + self.discussion_admin_jid + "'><pubsub xmlns='http://jabber.org/protocol/pubsub'><create node='{}'/><configure><x xmlns='jabber:x:data' type='submit'><field var='pubsub#access_model' type='list-single'><value>open</value></field><field var='pubsub#deliver_payloads' type='boolean'><value>1</value></field><field var='pubsub#notify_retract' type='boolean'><value>1</value></field><field var='pubsub#persist_items' type='boolean'><value>0</value></field><field var='pubsub#presence_based_delivery' type='boolean'><value>0</value></field><field var='pubsub#subscribe' type='boolean'><value>1</value></field><field var='pubsub#publish_model' type='list-single'><value>publishers</value></field><field var='pubsub#title' type='text-single'><value>{}</value></field><field var='pubsub#notification_type' type='text-single'><value>normal</value></field><field var='pubsub#send_last_published_item' type='text-single'><value>never</value></field></x></configure></pubsub></iq> "
 
 		self.affiliate_users_skeleton = "<iq to='pubsub.mm.io' type='set' from='" + self.discussion_admin_jid + "'><pubsub xmlns='http://jabber.org/protocol/pubsub#owner'><affiliations node='{}'>{}</affiliations></pubsub></iq>"
 		self.affiliate_user_iterable = "<affiliation jid='{}' affiliation='publisher'/>"
@@ -53,7 +54,7 @@ class Discussion(Node):
 		self.article_image_bucket = ""
 
 	def create(self):
-		self.server_component_factory.send(self.discussion_creation_xml.format(self.name.strip()))
+		self.server_component_factory.send(self.discussion_creation_xml.format(self.name.strip(), self.group_name))
 
 	def set_dp(self):
 		article_image_link = self.article_id + "_xhdpi.png"
@@ -61,6 +62,7 @@ class Discussion(Node):
 			content = S3Object(name = article_image_link , bucket_name = self.article_images_bucket).download()
 		else:
 			content = self.get_random_avatar()
+
 		Dp(self.name).upload_dp(content)
 
 
