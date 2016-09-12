@@ -184,7 +184,7 @@ class NewsConsoleFetchArticles(BaseRequestHandler):
 
     def get_query(self):
         query = "SELECT article_id, article_headline, article_sport_type, article_image, to_char(article_publish_date, 'DD MM YYYY') " \
-                "as article_publish_date, article_state, article_writer, article_group_name FROM articles "
+                "as article_publish_date, article_state, article_writer FROM articles "
 
         query += "WHERE article_id NOT IN (SELECT article_id FROM articles WHERE article_state='Draft' AND article_writer!='%s') " \
                  % self.username if self.is_admin else "WHERE article_writer='%s' " % self.username
@@ -224,7 +224,7 @@ class NewsConsoleGetArticle(BaseRequestHandler):
         self.article_id = int(self.get_argument('article_id'))
         query = "SELECT article_id, article_headline, article_content, article_image, article_poll_question, " \
                 "article_ice_breaker_image, article_sport_type, to_char(article_publish_date, 'DD MM YYYY') as article_publish_date, article_stats, article_memes, " \
-                "article_state, article_notification_content, article_writer FROM articles WHERE article_id = %s;"
+                "article_state, article_notification_content, article_writer, article_group_name FROM articles WHERE article_id = %s;"
         variables = (self.article_id,)
         article = QueryHandler.get_results(query, variables)
         if not article:
