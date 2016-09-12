@@ -423,7 +423,7 @@ class JoinDiscussionsHandler(BaseRequestHandler):
         discussion_id = self.get_argument("discussion_id")
         username = self.get_argument("username")
         info = {"users": [username]}
-        Discussion(discussion_id).add_users([username])
+        Discussion(discussion_id).add_users(info)
         response['info'] = settings.SUCCESS_RESPONSE
         response['status'] = settings.STATUS_200
         self.write(response)
@@ -433,7 +433,7 @@ class PeekDiscussionsHandler(BaseRequestHandler):
         response = {}
         discussion_id = self.get_argument("discussion_id")
         username = self.get_argument("username")
-        Discussion(discussion_id).subscribe_user(info)
+        Discussion(discussion_id).subscribe_user(username)
         response['info'] = settings.SUCCESS_RESPONSE
         response['status'] = settings.STATUS_200        
         self.write(response)
