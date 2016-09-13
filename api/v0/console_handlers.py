@@ -384,8 +384,8 @@ class NewsConsoleGetCarouselArticles(BaseRequestHandler):
         query = "SELECT article_id, priority FROM carousel_articles;"
         carousel_articles = QueryHandler.get_results(query)
 
-        query = "SELECT article_id, article_headline, article_image, article_sport_type, to_char(article_publish_date, 'DD MM YYYY')"\
-                " as article_publish_date, article_writer FROM articles WHERE article_state='Published';"
+        query = "SELECT article_id, article_headline, article_image, article_sport_type, to_char(article_publish_date, 'Dy, DD Mon YYYY HH:MI:SS')"\
+                " as article_publish_date, article_writer FROM articles WHERE article_state='Published' ORDER BY article_publish_date DESC;"
         published_articles = QueryHandler.get_results(query)
         all_articles = {'carousel': carousel_articles, 'published': published_articles}
         response.update({'status': settings.STATUS_200, 'info': settings.SUCCESS_RESPONSE, 'articles': all_articles})
