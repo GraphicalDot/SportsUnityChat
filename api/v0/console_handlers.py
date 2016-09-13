@@ -12,12 +12,13 @@ import tornado.escape
 import tornado.web
 import threading
 import urlparse
+import uuid
 from dateutil import parser
 from psycopg2 import IntegrityError
 from tornado.web import MissingArgumentError
 
 import settings
-from utils import ConsoleS3Object
+from utils import ConsoleS3Object, get_group_users
 from common.notification_handler import GCMHandler
 from common.custom_error import BadAuthentication, BadInfoSuppliedError, DuplicateKeyError, InvalidBucketRequest, \
     KeyAlreadyExists, InvalidKeyError, PushNotificationError
@@ -94,6 +95,12 @@ class NewsConsoleAddUser(BaseRequestHandler):
         user = QueryHandler.get_results(query, variables)
         if not user:
             raise DuplicateKeyError('username')
+
+        query = "INSERT INTO users(username, password, phone_number, name) VALUES (%s, %s, %s, %s);"
+        phone_number = '00' + (uuid.uuid4().hex)[:8]
+        variables = (username, password, phone_number, username)
+        QueryHandler.execute(query, variables)
+
         response.update({'status': settings.STATUS_200, 'info': settings.SUCCESS_RESPONSE})
         self.write(response)
 
@@ -424,9 +431,12 @@ class JoinDiscussionsHandler(BaseRequestHandler):
         username = self.get_argument("username")
         info = {"users": [username]}
         Discussion(discussion_id).add_users(info)
+
+        response['group_users'] = get_group_users(discussion_id)
         response['info'] = settings.SUCCESS_RESPONSE
         response['status'] = settings.STATUS_200
         self.write(response)
+
 
 class PeekDiscussionsHandler(BaseRequestHandler):
     def post(self):
@@ -434,6 +444,8 @@ class PeekDiscussionsHandler(BaseRequestHandler):
         discussion_id = self.get_argument("discussion_id")
         username = self.get_argument("username")
         Discussion(discussion_id).subscribe_user(username)
+
+        response['group_users'] = get_group_users(discussion_id)
         response['info'] = settings.SUCCESS_RESPONSE
         response['status'] = settings.STATUS_200        
         self.write(response)

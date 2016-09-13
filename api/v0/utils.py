@@ -1,7 +1,7 @@
 import settings
 import threading
 
-from common.funcs import S3
+from common.funcs import S3, QueryHandler
 from common.custom_error import InvalidBucketRequest, KeyAlreadyExists
 from models.s3_object import S3Object
 
@@ -27,3 +27,10 @@ class ConsoleS3Object(S3):
 
     def upload(self):
         self.client.put_object(Bucket = self.bucket_name, Key = self.name, Body=self.content, ACL = self.acl)
+
+
+def get_group_users(discussion_id):
+    query = "SELECT users.name, users.username FROM users, discussions_users WHERE (users.username=discussions_users.username AND discussion_id=%s)";
+    variables = (discussion_id, )
+    group_users = QueryHandler.get_results(query, variables)
+    return group_users
