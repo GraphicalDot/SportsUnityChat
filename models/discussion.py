@@ -125,5 +125,5 @@ class Discussion(Node):
 
     @classmethod
     def get_all(cls):
-        query = "SELECT articles.article_id AS article_id, articles.article_headline AS headline, articles_discussions.discussion_id AS discussion_id, COUNT(discussions_users.username) AS user_count, to_char(created_at, 'Dy, DD Mon YYYY HH:MI:SS') AS group_creation_date FROM articles, articles_discussions, discussions_users WHERE articles.article_id = articles_discussions.article_id AND articles_discussions.discussion_id = discussions_users.discussion_id GROUP BY articles.article_id, headline, articles_discussions.discussion_id ;"
+        query = "SELECT articles.article_id AS article_id, articles.article_headline AS headline, articles.article_group_name AS group_name, articles_discussions.discussion_id AS discussion_id, COUNT(discussions_users.username) AS user_count, to_char(articles_discussions.created_at, 'Dy, DD Mon YYYY HH:MI:SS') AS group_creation_date FROM articles, articles_discussions, discussions_users WHERE articles.article_id = articles_discussions.article_id AND articles_discussions.discussion_id = discussions_users.discussion_id GROUP BY articles.article_id, headline, articles_discussions.discussion_id ;"
         return QueryHandler.get_results(query, ())

@@ -30,6 +30,7 @@ config.read('config.py')
 
 
 class BaseRequestHandler(tornado.web.RequestHandler):
+
     def set_default_headers(self):
         self.set_header("Access-Control-Allow-Origin", "*")
         self.set_header("Access-Control-Allow-Headers", "x-requested-with")
@@ -69,6 +70,13 @@ class BaseRequestHandler(tornado.web.RequestHandler):
 class NewsConsoleLogin(BaseRequestHandler):
 
     def post(self):
+        """
+        It enables content writers to login to Console.
+        Input: {'username': text, 'password': text}
+        Output: {'status': 200, 'info': 'Success', 'user_role': 'author/admin'} if success
+                {'status': 404, 'info': 'Bad Authentication Info'} if user not authenticated
+                {'status': 500, 'info': Exception message} if any other error/exception
+        """
         response = {}
         username = str(self.get_argument('username'))
         password = str(self.get_argument('password'))
@@ -84,6 +92,12 @@ class NewsConsoleLogin(BaseRequestHandler):
 class NewsConsoleAddUser(BaseRequestHandler):
 
     def post(self):
+        """
+        It enables console admin to add new user/content writer to the console.
+        Input: {'username': text, 'password': text, 'user_role': text}
+        Output: {'status': 200, 'info': 'Success'}   If new user is successfully added
+                {'status': 409, 'info': 'Error: User already exists with this username'}  if any user with this username already exists
+        """
         response = {}
         username = str(self.get_argument('username'))
         password = str(self.get_argument('password'))
@@ -108,7 +122,7 @@ class NewsConsoleAddUser(BaseRequestHandler):
 class NewsConsoleUploadS3Object(BaseRequestHandler):
 
     def post(self):
-        response = {}
+        # TODO: To be modified for stats, memes and other media content
         name = str(self.get_argument('name'))
         content = self.get_argument('content')
         type = str(self.get_argument('type'))
@@ -148,6 +162,20 @@ class NewsConsoleAddCuratedArticle(BaseRequestHandler):
         QueryHandler.execute(query, variables)
 
     def post(self):
+        """
+        It enables content writer to add new curated article.
+        It uploads news_image and ice_breaker_image on s3.
+        It also updates database for the new article.
+        Input: {'article_headline': text, 'article_image': base64, 'article_content': text,
+        'article_ice_breaker_image': base64, 'article_poll_question': text, 'article_notification_content': text,
+        'article_sport_type': either of [‘c’, ‘f’], 'article_stats': list of stat links, 'article_memes': list of meme links,
+        'article_state': either of ['Draft', 'UnPublished', 'Published'], 'username': text}
+        Output: {'status': 400, 'info': 'Missing argument'} In case any required argument not provided
+                {'status': 409, 'info': 'Bad Request: This Key already exists in the bucket'} In case any of the
+                news_image or ice_breaker_image already exists in the bucket
+                {'status': 200, 'info': 'Success'} In case article is successfully added to the database
+                {'status': 500, 'info': 'Internal Server Error'} In case of any other error
+        """
         response = {}
 
         self.article_writer = str(self.get_argument('username'))
@@ -212,6 +240,12 @@ class NewsConsoleFetchArticles(BaseRequestHandler):
             raise BadInfoSuppliedError('article_state')
 
     def get(self):
+        """
+        It enables console users to view all curated articles; sorted by creation date, by default
+        Input: {'username': text, 'article_sport_type': either of ['c', 'f'], 'article_state': either of ['Draft', 'Published', 'UnPublished']}
+        Output: {'status': 200, 'info': 'Success', 'articles': list of articles containing details:
+            article_id, article_headline, article_sport_type, article_image, article_publish_date, article_state, arrticle_writer}
+        """
         response = {}
         self.username = str(self.get_argument('username'))
         self.article_sport_type = str(self.get_argument('article_sport_type', ''))
@@ -227,6 +261,13 @@ class NewsConsoleFetchArticles(BaseRequestHandler):
 class NewsConsoleGetArticle(BaseRequestHandler):
 
     def get(self):
+        """
+        It enables console user to fetch all deatils of particular article.
+        Input: {'article_id': int}
+        Output: {'status': 200, 'info': 'Success', 'article': all fields of the article} In case of success
+                {'status': 400, 'info': 'Bad Info Supplied'} In case invalid article_id is provided
+                {'status': 500, 'info': 'Internal Server Error'} In case of any other error
+        """
         response = {}
         self.article_id = int(self.get_argument('article_id'))
         query = "SELECT article_id, article_headline, article_content, article_image, article_poll_question, " \
@@ -283,6 +324,14 @@ class NewsConsoleEditArticle(BaseRequestHandler):
         QueryHandler.execute(query, variables)
 
     def post(self):
+        """
+        It enables console user to edit details of Drafted/Unpublished article.
+        Input: {'article_id': integer, all those fields whose values are updated}
+        Output: {'status': 200, 'info': 'Success'} In case of success
+                {'status': 400, 'info': 'Bad Key provided'} In case wrong post data provided
+                {'status': 400, 'info': 'Missing argument'} In case article_id not provided
+                {'status': 500, 'info': 'Internal Server Error'} In case of any other error
+        """
         response = {}
         self.article_image_new_link = ''
         self.ice_breaker_image_new_link = ''
@@ -317,6 +366,15 @@ class NewsConsoleDeleteArticle(BaseRequestHandler):
         requests.post(url=settings.DELETE_ARTICLE_FROM_MONGO_URL, data={'article_id': str(self.article_id)})
 
     def post(self):
+        """
+        It enables console user to delete any particular article.
+        Input: {'article_id': integer, 'force_delete': 1/0}
+        Output: {'status': 400, 'info': 'Missing argument'} In case article_id/force_delete parameter not provided
+                {'status': 200, 'info': 'Success', 'in_carousel': True} If article is in carousel and not deleted yet;
+                {'status': 200, 'info': 'Success', 'in_carousel': False} If article not in carousel and deleted from database
+                {'status': 200, 'info': 'Success'} If article was in carousel and now forcefully deleted
+                {'status': 500, 'info': 'Internal Server Error'} In case of any other error
+        """
         response = {}
         self.article_id = int(self.get_argument('article_id'))
         self.force_deletion = int(self.get_argument('force_delete'))
@@ -362,6 +420,14 @@ class NewsConsolePublishArticle(BaseRequestHandler):
             raise PushNotificationError
 
     def post(self):
+        """
+        It enables console user to publish any curated news.
+        Input: {'article_id': integer}
+        Output: {'status': 400, 'info': 'Missing argument'} In case article_id not provided
+                {'status': 400, 'info': 'Bad Info Supplied'} In case invalid article_id provided
+                {'status': 200, 'info': 'Success', 'article': info of published article with updated state} In case of success
+                {'status': 500, 'info': 'Internal Server Error'} In case of any other error
+        """
         response = {}
         self.article_id = self.get_argument('article_id')
         query = "UPDATE articles SET article_state='Published', article_publish_date=%s WHERE article_id = %s RETURNING article_id, " \
@@ -380,6 +446,12 @@ class NewsConsolePublishArticle(BaseRequestHandler):
 class NewsConsoleGetCarouselArticles(BaseRequestHandler):
 
     def get(self):
+        """
+        It enables console user(s) to fetch all published articles; so that user could add them in carousel.
+        Input: No Input
+        Output: {'carousel_articles': [{'article_id': int, 'priority': int},
+                {'article_id': int, 'priority': int},..], 'published_articles': [{'article_id': int, ….}, {'article_id': int, ….}]}
+        """
         response = {}
         query = "SELECT article_id, priority FROM carousel_articles;"
         carousel_articles = QueryHandler.get_results(query)
@@ -399,6 +471,13 @@ class NewsConsolePostArticlesOnCarousel(BaseRequestHandler):
         requests.post(url=settings.CAROUSEL_ARTICLES_POST_URL, data=json.dumps(data))
 
     def post(self):
+        """
+        It enables console user(s) to add article on carousel.
+        Input: {'articles': list of published articles, that are to be sent on carousel}
+        Output: {'status': 200, 'info': 'Success'} In case of success
+                {'status': 400, 'info': 'Bad Info Supplied'} In case no article ids provided
+                {'status': 500, 'info': 'Internal Server Error'} In case of any other error
+        """
         response = {}
         self.articles = json.loads(self.get_argument('articles'))
 
