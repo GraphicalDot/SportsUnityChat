@@ -27,7 +27,7 @@ BEGIN
 
 		CREATE TEMPORARY TABLE tmp_container ON COMMIT DROP AS SELECT  'user_already_in_group'::TEXT AS action_taken, 'null'::TEXT AS discussion_id, 'null'::TEXT AS username FROM articles_discussions LIMIT 1;
 	
-	ELSIF  (SELECT COUNT(users_poll_responses.username) from users_poll_responses WHERE users_poll_responses.article_id = _article_id AND users_poll_responses.username NOT IN (SELECT DISTINCT discussions_users.username FROM discussions_users, articles_discussions WHERE articles_discussions.article_id = _article_id AND discussions_users.discussion_id = articles_discussions.discussion_id)) = min_discussion_users THEN  
+	ELSIF  (SELECT COUNT(users_poll_responses.username) from users_poll_responses WHERE users_poll_responses.article_id = _article_id AND users_poll_responses.username NOT IN (SELECT DISTINCT discussions_users.username FROM discussions_users, articles_discussions WHERE articles_discussions.article_id = _article_id AND discussions_users.discussion_id = articles_discussions.discussion_id)) >= min_discussion_users THEN  
 
 		_discussion_id := 'DIS_' || ((EXTRACT(epoch from now())*100)::int8)::text || '%' || _article_id::text || '%%';
 		INSERT INTO articles_discussions (article_id, discussion_id) VALUES (_article_id, _discussion_id);
@@ -41,7 +41,7 @@ BEGIN
 	ELSIF EXISTS (SELECT g.id, COUNT(g.poll_answer) FROM 
 		( SELECT DISTINCT users_poll_responses.username, articles_discussions.discussion_id AS id, users_poll_responses.poll_answer AS poll_answer FROM articles_discussions, discussions_users, users_poll_responses, articles WHERE discussions_users.discussion_id = articles_discussions.discussion_id AND articles_discussions.article_id = _article_id AND articles.article_id = users_poll_responses.article_id GROUP BY users_poll_responses.username ,  articles_discussions.discussion_id, users_poll_responses.poll_answer 
 		) g
-		GROUP BY g.id HAVING SUM(CASE WHEN g.poll_answer::char = _poll_answer THEN 1 ELSE 0 END) / ((CASE WHEN COUNT(g.poll_answer) = 0 THEN 1 ELSE COUNT(g.poll_answer) END)::float) > min_discussion_users_ratio AND ((SUM(CASE WHEN g.poll_answer::char = _poll_answer THEN 1 ELSE 0 END) + 1)::float) / GREATEST(SUM(CASE WHEN g.poll_answer != _poll_answer THEN 1 ELSE 0 END ), 0.01) < max_discussion_ratio AND COUNT(g.poll_answer)  < max_discussion_users 
+		GROUP BY g.id HAVING SUM(CASE WHEN g.poll_answer::char = _poll_answer THEN 1 ELSE 0 END) / ((CASE WHEN COUNT(g.poll_answer) = 0 THEN 1 ELSE COUNT(g.poll_answer) END)::float) > min_discussion_users_ratio AND ((SUM(CASE WHEN g.poll_answer::char = _poll_answer THEN 1 ELSE 0 END) + 1)::float) / GREATEST(SUM(CASE WHEN g.poll_answer != _poll_answer THEN 1 ELSE 0 END ), 1) < max_discussion_ratio AND COUNT(g.poll_answer)  < max_discussion_users 
 		) THEN
 	
 		RAISE NOTICE 'adding to existing_discussion';	
