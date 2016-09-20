@@ -63,7 +63,7 @@ class Discussion(Node):
             content = S3Object(name = article_image_link , bucket_name = self.article_images_bucket).download()
         else:
             content = self.get_random_avatar()
-        Dp(self.name).upload_dp(content)
+        Dp(self.name).upload_dp(content, is_b64_encoded = False)
 
     def add_users(self, info):
         self.server_component_factory.send(self.get_affiliate_users_xml(info["users"]))

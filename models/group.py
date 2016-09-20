@@ -17,7 +17,7 @@ class Group(Node):
 		self.dp_bucket = str.strip(config.get('amazon', 'dp_bucket_name'))
 
 	def upload_dp(self, content):
-		image = S3Image(self.name, self.dp_bucket, content)
+		image = S3Image(self.name, self.dp_bucket, content = content)
 		image.version()
 		image.handle_upload()
 

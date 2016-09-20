@@ -10,11 +10,10 @@ class S3Image(object):
 	def __init__(self, name, bucket_name, content = None):
 		self.name = name
 		self.bucket_name = bucket_name
-		self.content = content
 		self.versions = []
+		self.content = content
 
 	def version(self):
-		self.content = base64.b64decode(self.content)
 		image = wand.image.Image(blob = self.content)
 
 		large_version_name = str(self.name) + "/L" + ".jpg"

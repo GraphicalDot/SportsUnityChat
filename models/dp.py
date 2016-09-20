@@ -1,4 +1,5 @@
 import ConfigParser
+import base64
 config = ConfigParser.ConfigParser()
 config.read('config.py')
 from s3_image import S3Image
@@ -16,8 +17,10 @@ class Dp(object):
 		self.dp_bucket = str.strip(config.get('amazon', 'dp_bucket_name'))
 		self.acl = str.strip(config.get('amazon', 'dp_objects_acl'))
 
-	def upload_dp(self, content):
-		image = S3Image(self.jid, self.dp_bucket, content)
+	def upload_dp(self, content, is_b64_encoded = True):
+		if is_b64_encoded:
+			content = base64.b64decode(content)
+		image = S3Image(self.jid, self.dp_bucket, content = content)
 		image.version()
 		image.handle_upload()
 
