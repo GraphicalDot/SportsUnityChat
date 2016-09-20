@@ -5,6 +5,7 @@ from server_component_factory import ServerComponentFactory
 from common.funcs import QueryHandler
 import settings
 import urllib
+import threading
 import json
 from node import Node
 from s3_object import S3Object
@@ -57,6 +58,9 @@ class Discussion(Node):
     def create(self):
         self.server_component_factory.send(self.discussion_creation_xml.format(self.name.strip(), self.group_name))
 
+    def handle_dp(self):
+	    threading.Thread(group = None, target = self.set_dp, name = None, args = ()).start()
+
     def set_dp(self):
         article_image_link = str(self.article_id) + "_xhdpi.png"
         if S3Object(name = article_image_link, bucket_name = self.article_images_bucket).exists():
@@ -106,7 +110,7 @@ class Discussion(Node):
 
     def create_and_add_users(self, info):
         self.create()
-        self.set_dp()
+        self.handle_dp()
         self.add_users(info)
 
     def unsubscribe_user(self, user):
