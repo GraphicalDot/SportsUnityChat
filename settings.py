@@ -90,8 +90,8 @@ articles_BUCKETS = {
     'memes': 'curated.article.memes'
 }
 
-# NEWS_SERVER = 'http://NewsLB-388179569.ap-northeast-2.elb.amazonaws.com'
-NEWS_SERVER = 'http://52.78.123.19:8000'
+NEWS_SERVER = 'http://NewsLB-388179569.ap-northeast-2.elb.amazonaws.com'
+# NEWS_SERVER = 'http://52.78.123.19:8000'
 PUBLISH_ARTICLE_POST_URL = NEWS_SERVER + '/publish_article'
 CAROUSEL_ARTICLES_POST_URL = NEWS_SERVER + '/post_carousel_article'
 DELETE_ARTICLE_FROM_MONGO_URL = NEWS_SERVER + '/delete_curated_article'
