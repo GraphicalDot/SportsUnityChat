@@ -18,7 +18,7 @@ BEGIN
 	END IF;
 	min_discussion_users := (SELECT min_discussion_users.count FROM min_discussion_users LIMIT 1);
 	max_discussion_users := (SELECT max_discussion_users.count FROM max_discussion_users LIMIT 1);
-	max_discussion_ratio := (SELECT max_discussion_ratio.count FROM max_discussion_ratio LIMIT 1);
+	max_discussion_ratio := (SELECT max_discussion_ratio.count + 1 FROM max_discussion_ratio LIMIT 1);
 	min_discussion_users_ratio := (SELECT min_discussion_users_ratio.count FROM min_discussion_users_ratio LIMIT 1);
 	LOCK discussions_users;
 	LOCK articles_discussions;
@@ -38,10 +38,26 @@ BEGIN
 		
 		RAISE NOTICE 'creating new_discussion';	
 
-	ELSIF EXISTS (SELECT g.id, COUNT(g.poll_answer) FROM 
-		( SELECT DISTINCT users_poll_responses.username, articles_discussions.discussion_id AS id, users_poll_responses.poll_answer AS poll_answer FROM articles_discussions, discussions_users, users_poll_responses, articles WHERE discussions_users.discussion_id = articles_discussions.discussion_id AND articles_discussions.article_id = _article_id AND articles.article_id = users_poll_responses.article_id GROUP BY users_poll_responses.username ,  articles_discussions.discussion_id, users_poll_responses.poll_answer 
-		) g
-		GROUP BY g.id HAVING SUM(CASE WHEN g.poll_answer::char = _poll_answer THEN 1 ELSE 0 END) / ((CASE WHEN COUNT(g.poll_answer) = 0 THEN 1 ELSE COUNT(g.poll_answer) END)::float) > min_discussion_users_ratio AND ((SUM(CASE WHEN g.poll_answer::char = _poll_answer THEN 1 ELSE 0 END) + 1)::float) / GREATEST(SUM(CASE WHEN g.poll_answer != _poll_answer THEN 1 ELSE 0 END ), 1) < max_discussion_ratio AND COUNT(g.poll_answer)  < max_discussion_users 
+	ELSIF EXISTS (SELECT g.id FROM 
+			(SELECT DISTINCT 
+					users_poll_responses.username, 
+					articles_discussions.discussion_id AS id, 
+					users_poll_responses.poll_answer AS poll_answer 
+				FROM 
+					articles_discussions, 
+					discussions_users, 
+					users_poll_responses
+				WHERE 
+					discussions_users.discussion_id = articles_discussions.discussion_id 
+					AND articles_discussions.article_id = _article_id 
+					AND articles_discussions.article_id = users_poll_responses.article_id 
+					AND discussions_users.username = users_poll_responses.username 
+				GROUP BY 
+					users_poll_responses.username , 
+					articles_discussions.discussion_id, 
+					users_poll_responses.poll_answer
+			) g
+		GROUP BY g.id HAVING (((SUM(CASE WHEN g.poll_answer::char = _poll_answer THEN 1 ELSE 0 END) + 1)::float) / GREATEST(SUM(CASE WHEN g.poll_answer != _poll_answer THEN 1 ELSE 0 END ), 1)) < max_discussion_ratio AND COUNT(g.poll_answer) < max_discussion_users 
 		) THEN
 	
 		RAISE NOTICE 'adding to existing_discussion';	
@@ -49,16 +65,15 @@ BEGIN
 		_discussion_id = 
 		(
 			WITH discussion_info AS (
-				SELECT g.id AS id, COUNT(g.poll_answer) FROM ( 
+				SELECT g.id AS id, COUNT(g.poll_answer) AS user_count FROM ( 
 					SELECT DISTINCT users_poll_responses.username, articles_discussions.discussion_id AS id, users_poll_responses.poll_answer AS poll_answer FROM articles_discussions, discussions_users, users_poll_responses, articles WHERE discussions_users.discussion_id = articles_discussions.discussion_id AND articles_discussions.article_id = _article_id AND articles.article_id = users_poll_responses.article_id GROUP BY users_poll_responses.username ,  articles_discussions.discussion_id, users_poll_responses.poll_answer 
 				) g
 			GROUP BY g.id 
-			HAVING SUM(CASE WHEN g.poll_answer::char = _poll_answer THEN 1 ELSE 0 END) / ((CASE WHEN COUNT(g.poll_answer) = 0 THEN 1 ELSE COUNT(g.poll_answer) END)::float) > min_discussion_users_ratio 
-				AND ((SUM(CASE WHEN g.poll_answer::char = _poll_answer THEN 1 ELSE 0 END) + 1)::float) / GREATEST(SUM(CASE WHEN g.poll_answer != _poll_answer THEN 1 ELSE 0 END ), 0.01) < max_discussion_ratio 
-			ORDER BY SUM(CASE WHEN g.poll_answer::char = _poll_answer THEN 1 ELSE 0 END) / ((CASE WHEN COUNT(g.poll_answer) = 0 THEN 1 ELSE COUNT(g.poll_answer) END)::float ) 
+			HAVING ((SUM(CASE WHEN g.poll_answer::char = _poll_answer THEN 1 ELSE 0 END) + 1)::float) / GREATEST(SUM(CASE WHEN g.poll_answer != _poll_answer THEN 1 ELSE 0 END ), 1) < max_discussion_ratio 
+			ORDER BY SUM(CASE WHEN g.poll_answer::char = _poll_answer THEN 1 ELSE 0 END) / GREATEST(SUM(CASE WHEN g.poll_answer != _poll_answer THEN 1 ELSE 0 END ), 1) 
 			LIMIT 1
 		)
-		SELECT discussion_info.id FROM discussion_info);
+		SELECT discussion_info.id FROM discussion_info ORDER BY discussion_info.user_count LIMIT 1);
 		INSERT INTO discussions_users (discussion_id, username) VALUES (_discussion_id, _username);
 			
 		CREATE TEMPORARY TABLE tmp_container ON COMMIT DROP AS  SELECT  'existing_discussion'::TEXT AS action_taken, _discussion_id AS discussion_id, 'null'::TEXT AS username; 
