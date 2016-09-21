@@ -115,7 +115,8 @@ class CreationTest(unittest.TestCase):
 		for user in self._friends:
 			test_utils.delete_user(username = user[0])
 			test_utils.create_user(username = user[0], password = user[1], phone_number = user[2])
-		test_utils.delete_user(username=self._username, phone_number=self._phone_number)
+		test_utils.delete_user(username=self._username)
+		test_utils.delete_user(phone_number=self._phone_number)
 		test_utils.delete_registered_user(phone_number=self._phone_number)
 		for interest in self._interests:
 			Interest(interest['name'], interest['id']).delete()
@@ -560,9 +561,11 @@ class ContactListTest(unittest.TestCase):
 
 	def setUp(self):
 		test_utils.delete_user(phone_number = self._phone_number)
+		test_utils.delete_user(username = self._username)
 		test_utils.create_user(phone_number = self._phone_number, username = self._username, password = self._password)
 
 		test_utils.delete_user(phone_number = self._friend_phone_number)
+		test_utils.delete_user(username = self._friend_username)
 		test_utils.create_user(phone_number = self._friend_phone_number, username = self._friend_username, password = self._friend_password)
 
 	def test_unauthenticated_contacts_retrieval(self):
@@ -1859,7 +1862,6 @@ class ArticlePollAnswerSubmissionTest(unittest.TestCase):
 			response = json.loads(requests.post(self._poll_answer_submission_url,  data = json.dumps(payload)).content)
 			
 			assert response['status'] == settings.STATUS_200		
-
 			self.check_group_allocation(self._users[index])
 
 

@@ -1198,7 +1198,7 @@ class PollAnswerHandler(UserApiRequestHandler):
         response = {}
         self.username = self.get_argument("username")
         self.article_id = self.get_argument('article_id')
-        self.article_group_name = self.get_argument('group_name')
+        self.article_group_name = self.get_argument('group_name', None)
         self.poll_answer = self.get_argument('poll_answer')
         if not self.poll_answer in settings.ARTICLE_POLL_ANSWER_TYPES:
             raise BadInfoSuppliedError("poll_answer")
