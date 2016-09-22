@@ -53,6 +53,9 @@ class Discussion(Node):
 
         self.notify_user_of_user_addition = "<iq to='pubsub.mm.io' from='" + self.discussion_admin_jid + "' type='set'><pubsub xmlns='http://jabber.org/protocol/pubsub'><publish node='{}'><item><message xmlns='pubsub:text:message'>{}</message></item></publish></pubsub></iq>"
 
+        self.unaffiliate_user_xml = "<iq type='set' from='" + self.discussion_admin_jid + "' to='pubsub.mm.io'><pubsub xmlns='http://jabber.org/protocol/pubsub#owner'><affiliations node='{}'><affiliation jid='{}' affiliation='none'/></affiliations></pubsub></iq>"
+
+
         self.article_image_bucket = ""
 
     def create(self):
@@ -112,6 +115,9 @@ class Discussion(Node):
         self.create()
         self.handle_dp()
         self.add_users(info)
+
+    def unaffiliate_user(self, user):
+        self.server_component_factory.send(self.unaffiliate_user_xml.format(self.name, user))
 
     def unsubscribe_user(self, user):
         self.server_component_factory.send(self.get_unsubscribe_user_xml(user))

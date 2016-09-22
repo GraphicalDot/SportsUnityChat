@@ -1250,6 +1250,7 @@ class ExitDiscussionHandler(UserApiRequestHandler):
         self.username = self.get_argument("username")
         self.discussion_id = self.get_argument('discussion_id')
         self.article_id = int(self.get_argument('article_id'))
+        Discussion(self.discussion_id).unaffiliate_user(self.username)
         result = self.exit_discussion()
         response['status'] = settings.STATUS_200
         response['info'] = settings.SUCCESS_RESPONSE
