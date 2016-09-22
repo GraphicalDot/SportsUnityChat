@@ -402,8 +402,9 @@ class NewsConsolePublishArticle(BaseRequestHandler):
     def publish_article(self):
         self.article = self.articles[0]
         self.article.update({'type': 'published'})
-        requests.post(url=settings.PUBLISH_ARTICLE_POST_URL, data=self.article)
-        self.notify_user()
+        response = requests.post(url=settings.PUBLISH_ARTICLE_POST_URL, data=self.article)
+        return response
+
 
     def notify_user(self):
         self.article = self.articles[0]
@@ -438,8 +439,12 @@ class NewsConsolePublishArticle(BaseRequestHandler):
         self.articles = QueryHandler.get_results(query, variables)
         if not self.articles:
             raise BadInfoSuppliedError('article_id')
-        threading.Thread(group = None, target = self.publish_article, name = None, args = ()).start()
-        response.update({'status': settings.STATUS_200, 'info': settings.SUCCESS_RESPONSE, 'article': self.articles[0]})
+        publish_response = self.publish_article()
+        if int(json.loads(publish_response)["status"]) == 200:
+            self.notify_user()
+            response.update({'status': settings.STATUS_200, 'info': settings.SUCCESS_RESPONSE, 'article': self.articles[0]})
+        else:
+            response.update({'status': publish_response.status, 'info': publish_response.content})
         self.write(response)
 
 
