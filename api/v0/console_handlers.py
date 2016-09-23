@@ -11,6 +11,7 @@ import tornado
 import tornado.escape
 import tornado.web
 import threading
+import time
 import urlparse
 import uuid
 from dateutil import parser
@@ -431,23 +432,23 @@ class NewsConsolePublishArticle(BaseRequestHandler):
         """
         response = {}
         self.article_id = self.get_argument('article_id')
-        query = "SeLECT article_id, " \
+        query = "UPDATE articles SET article_publish_date=to_timestamp(%s) RETURNING article_id, " \
                 "article_headline, article_content, article_image, article_poll_question, article_sport_type, " \
-                "to_char(article_publish_date, 'Dy, DD Mon YYYY HH:MI:SS') as article_publish_date, article_state, article_writer, " \
+                "EXTRACT(EPOCH FROM article_publish_date) as article_publish_date, article_state, article_writer, " \
                 "article_notification_content, article_group_name FROM articles WHERE article_id = %s;"
-        variables = (self.article_id,)
+        variables = (time.time(), self.article_id,)
         self.articles = QueryHandler.get_results(query, variables)
         if not self.articles:
             raise BadInfoSuppliedError('article_id')
         publish_response = self.publish_article()
         if int(json.loads(publish_response)["status"]) == 200:
-            query = "UPDATE articles SET article_state='Published', article_publish_date=%s WHERE article_id = %s;"
-            variables = (datetime.datetime.now(), self.article_id,)
+            query = "UPDATE articles SET article_state='Published'  WHERE article_id = %s;"
+            variables = (self.article_id,)
             QueryHandler.execute(query, variables)
             self.notify_user()
             response.update({'status': settings.STATUS_200, 'info': settings.SUCCESS_RESPONSE, 'article': self.articles[0]})
         else:
-            response.update({'status': publish_response.status, 'info': publish_response.content})
+            response.update({'status': int(json.loads(publish_response)["status"]), 'info': json.loads(publish_response)["info"]})
         self.write(response)
 
 
