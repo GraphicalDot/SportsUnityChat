@@ -418,8 +418,6 @@ class NewsConsolePublishArticle(BaseRequestHandler):
         query = "SELECT device_token, token_type FROM users;"
         users = QueryHandler.get_results(query)
         gcm_response = GCMHandler().send_notifications(users, payload)
-        if gcm_response.get('errors'):
-            raise PushNotificationError
 
     def post(self):
         """
@@ -434,7 +432,7 @@ class NewsConsolePublishArticle(BaseRequestHandler):
         self.article_id = self.get_argument('article_id')
         query = "UPDATE articles SET article_publish_date= %s WHERE article_id = %s RETURNING article_id, " \
                 "article_headline, article_content, article_image, article_poll_question, article_sport_type, " \
-                "article_publish_date as article_publish_date, article_state, article_writer, " \
+                "to_char(article_publish_date, 'Dy, DD Mon YYYY HH:MI:SS') as article_publish_date,  article_state, article_writer, " \
                 "article_notification_content, article_group_name;"
         variables = (datetime.datetime.now(), self.article_id,)
         self.articles = QueryHandler.get_results(query, variables)
@@ -445,6 +443,7 @@ class NewsConsolePublishArticle(BaseRequestHandler):
             query = "UPDATE articles SET article_state='Published'  WHERE article_id = %s;"
             variables = (self.article_id,)
             QueryHandler.execute(query, variables)
+            self.articles[0]["article_state"] = 'Published'
             self.notify_user()
             response.update({'status': settings.STATUS_200, 'info': settings.SUCCESS_RESPONSE, 'article': self.articles[0]})
         else:
