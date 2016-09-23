@@ -432,11 +432,11 @@ class NewsConsolePublishArticle(BaseRequestHandler):
         """
         response = {}
         self.article_id = self.get_argument('article_id')
-        query = "UPDATE articles SET article_publish_date=to_timestamp(%s) WHERE article_id = %s RETURNING article_id, " \
+        query = "UPDATE articles SET article_publish_date= %s WHERE article_id = %s RETURNING article_id, " \
                 "article_headline, article_content, article_image, article_poll_question, article_sport_type, " \
                 "EXTRACT(EPOCH FROM article_publish_date) as article_publish_date, article_state, article_writer, " \
                 "article_notification_content, article_group_name;"
-        variables = (time.time(), self.article_id,)
+        variables = (datetime.datetime.now(), self.article_id,)
         self.articles = QueryHandler.get_results(query, variables)
         if not self.articles:
             raise BadInfoSuppliedError('article_id')
