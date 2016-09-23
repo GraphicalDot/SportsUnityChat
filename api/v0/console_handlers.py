@@ -418,8 +418,6 @@ class NewsConsolePublishArticle(BaseRequestHandler):
         query = "SELECT device_token, token_type FROM users;"
         users = QueryHandler.get_results(query)
         gcm_response = GCMHandler().send_notifications(users, payload)
-        if gcm_response.get('errors'):
-            raise PushNotificationError
 
     def post(self):
         """
