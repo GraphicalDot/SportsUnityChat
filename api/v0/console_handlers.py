@@ -158,8 +158,13 @@ class NewsConsoleAddCuratedArticle(BaseRequestHandler):
         s3_object.handle_upload()
         self.ice_breaker_link = "{}/{}/{}".format(s3_object.client.meta.endpoint_url, s3_object.bucket_name, s3_object.name)
 
-        query = "UPDATE articles SET article_image = %s, article_ice_breaker_image = %s WHERE article_id = %s;"
-        variables = (self.article_image_link, self.ice_breaker_link, self.article_id)
+        s3_object = ConsoleS3Object(object_type='article_group_header_image', image_name=str(self.article_id) + '.' + self.article_group_header_image_type,
+                        content=self.article_group_header_image, acl='public-read')
+        s3_object.handle_upload()
+        self.article_group_header_image = "{}/{}/{}".format(s3_object.client.meta.endpoint_url, s3_object.bucket_name, s3_object.name)
+
+        query = "UPDATE articles SET article_image = %s, article_ice_breaker_image = %s, article_group_header_image = %s WHERE article_id = %s;"
+        variables = (self.article_image_link, self.ice_breaker_link, self.article_group_header_image, self.article_id)
         QueryHandler.execute(query, variables)
 
     def post(self):
@@ -195,6 +200,12 @@ class NewsConsoleAddCuratedArticle(BaseRequestHandler):
         if self.article_ice_breaker_image_type == 'unknown':
             self.article_ice_breaker_image_type = 'jpeg'
 
+        article_group_header_file = self.request.files['article_group_header_image'][0]
+        self.article_group_header_image = article_group_header_file['body']
+        self.article_group_header_image_type = str(article_group_header_file['content_type']).split('/')[1]
+        if self.article_group_header_image_type == 'unknown':
+            self.article_group_header_image_type = 'jpeg'
+
         self.article_poll_question = str(self.get_argument('article_poll_question'))
         self.article_notification_content = str(self.get_argument('article_notification_content', self.article_headline))
         self.article_sport_type = str(self.get_argument('article_sport_type'))
@@ -220,7 +231,7 @@ class NewsConsoleFetchArticles(BaseRequestHandler):
 
     def get_query(self):
         query = "SELECT article_id, article_headline, article_sport_type, article_image, to_char(article_publish_date, 'DD MM YYYY') " \
-                "as article_publish_date, article_state, article_writer FROM articles "
+                "as article_publish_date, article_state, article_writer, article_group_header_image FROM articles "
 
         query += "WHERE article_id NOT IN (SELECT article_id FROM articles WHERE article_state='Draft' AND article_writer!='%s') " \
                  % self.username if self.is_admin else "WHERE article_writer='%s' " % self.username
@@ -273,7 +284,7 @@ class NewsConsoleGetArticle(BaseRequestHandler):
         self.article_id = int(self.get_argument('article_id'))
         query = "SELECT article_id, article_headline, article_content, article_image, article_poll_question, " \
                 "article_ice_breaker_image, article_sport_type, to_char(article_publish_date, 'DD MM YYYY') as article_publish_date, article_stats, article_memes, " \
-                "article_state, article_notification_content, article_writer, article_group_name FROM articles WHERE article_id = %s;"
+                "article_state, article_notification_content, article_writer, article_group_name, article_group_header_image FROM articles WHERE article_id = %s;"
         variables = (self.article_id,)
         article = QueryHandler.get_results(query, variables)
         if not article:
@@ -285,11 +296,11 @@ class NewsConsoleGetArticle(BaseRequestHandler):
 class NewsConsoleEditArticle(BaseRequestHandler):
 
     def get_previous_image_links(self):
-        query = "SELECT article_image, article_ice_breaker_image FROM articles WHERE article_id=%s;" % self.article_id
+        query = "SELECT article_image, article_ice_breaker_image, article_group_header_image FROM articles WHERE article_id=%s;" % self.article_id
         article = QueryHandler.get_results(query)
         if not article:
             raise BadInfoSuppliedError('article_id')
-        return (article[0]['article_image'], article[0]['article_ice_breaker_image'])
+        return (article[0]['article_image'], article[0]['article_ice_breaker_image'], article[0]['article_group_header_image'])
 
     def delete_old_image_upload_new(self, object_type, bucket, old_link, new_image_body, new_image_type):
         old_image_link = old_link.split(bucket + '/')
@@ -318,10 +329,10 @@ class NewsConsoleEditArticle(BaseRequestHandler):
     def update_database(self):
         query = "UPDATE articles SET article_headline=%s, article_content=%s, article_image=%s, article_poll_question=%s, " \
                 "article_ice_breaker_image=%s, article_sport_type=%s, article_stats=%s, article_memes=%s, article_state=%s, " \
-                "article_notification_content=%s, article_group_name=%s WHERE article_id=%s;"
+                "article_notification_content=%s, article_group_name=%s, article_group_header_image=%s WHERE article_id=%s;"
         variables = (self.article_headline, self.article_content, self.article_image_new_link, self.article_poll_question,
                      self.ice_breaker_image_new_link, self.article_sport_type, self.article_stats, self.article_memes,
-                     self.article_state, self.article_notification_content, self.article_group_name, self.article_id)
+                     self.article_state, self.article_notification_content, self.article_group_name, self.article_group_header_image, self.article_id)
         QueryHandler.execute(query, variables)
 
     def post(self):
@@ -336,6 +347,7 @@ class NewsConsoleEditArticle(BaseRequestHandler):
         response = {}
         self.article_image_new_link = ''
         self.ice_breaker_image_new_link = ''
+        self.article_group_header_image_new_link = ''
 
         self.article_id = int(self.get_argument('article_id'))
         self.article_group_name = str(self.get_argument('article_group_name'))
@@ -347,15 +359,19 @@ class NewsConsoleEditArticle(BaseRequestHandler):
         self.article_stats = self.get_arguments('article_stats')
         self.article_memes = self.get_arguments('article_memes')
         self.article_state = str(self.get_argument('article_state'))
+        self.article_group_header_image = str(self.get_argument('article_group_header_image'))
         self.news_bucket = settings.articles_BUCKETS.get('news_image')
         self.ice_breaker_bucket = settings.articles_BUCKETS.get('ice_breaker_image')
+        self.article_group_header_image_bucket = settings.articles_BUCKETS.get('article_group_header_image')
 
-        (self.article_image_old_link, self.article_ice_breaker_image_old_link) = self.get_previous_image_links()
+        (self.article_image_old_link, self.article_ice_breaker_image_old_link, self.article_group_header_image_old_link) = self.get_previous_image_links()
         self.article_image_new_link = self.article_image_old_link
         self.ice_breaker_image_new_link = self.article_ice_breaker_image_old_link
+        self.article_group_header_image_new_link = self.article_group_header_image_old_link
         self.handle_new_image(file_type='article_image', object_type='news_image', bucket=self.news_bucket, old_link=self.article_image_old_link)
         self.handle_new_image(file_type='article_ice_breaker_image', object_type='ice_breaker_image',
                               bucket=self.ice_breaker_bucket, old_link=self.article_ice_breaker_image_old_link)
+        self.handle_new_image(file_type='article_group_header_image', object_type='article_group_header_image',bucket=self.article_group_header_image_bucket, old_link=self.article_group_header_image_old_link)
         self.update_database()
         response.update({'status': settings.STATUS_200, 'info': settings.SUCCESS_RESPONSE})
         self.write(response)
@@ -433,7 +449,7 @@ class NewsConsolePublishArticle(BaseRequestHandler):
         query = "UPDATE articles SET article_publish_date= %s WHERE article_id = %s RETURNING article_id, " \
                 "article_headline, article_content, article_image, article_poll_question, article_sport_type, " \
                 "to_char(article_publish_date, 'Dy, DD Mon YYYY HH:MI:SS') as article_publish_date,  article_state, article_writer, " \
-                "article_notification_content, article_group_name;"
+                "article_notification_content, article_group_name, article_group_header_image;"
         variables = (datetime.datetime.now(), self.article_id,)
         self.articles = QueryHandler.get_results(query, variables)
         if not self.articles:
