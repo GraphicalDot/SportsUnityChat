@@ -83,13 +83,14 @@ class NewsConsoleAddUserTests(unittest.TestCase):
         self.add_user_url = TORNADO_SERVER + '/news_add_user'
         self.data = dict()
         test_utils.delete_field_from_table('content_writers', 'username', 'test_user_1')
+        test_utils.delete_field_from_table('content_writers', 'username', 'test_user_2')
         test_utils.register_content_writer(username='test_user_1', password='test_user_1', role='admin')
 
     def test_get(self):
         response = requests.get(self.add_user_url)
         self.assertEqual(response.status_code, settings.STATUS_405)
 
-    def test_post(self):
+    def test_already_registered_error(self):
         # case: user already registered
         self.data = {'username': 'test_user_1', 'password': 'test_user_1', 'user_role': 'admin'}
         response = requests.post(url=self.add_user_url, data=self.data)
@@ -97,6 +98,7 @@ class NewsConsoleAddUserTests(unittest.TestCase):
         self.assertEqual(res['status'], settings.STATUS_409)
         self.assertEqual(res['info'], settings.DUPLICATE_KEY_ERROR.format('username'))
 
+    def test_wrong_role_error(self):
         # case: new user registered with wrong role type
         self.data = {'username': 'test_user_2', 'password': 'test_user_2', 'user_role': 'writer'}
         response = requests.post(url=self.add_user_url, data=self.data)
@@ -104,7 +106,9 @@ class NewsConsoleAddUserTests(unittest.TestCase):
         self.assertEqual(res['status'], settings.STATUS_400)
         self.assertEqual(res['info'], settings.INTERNAL_SERVER_ERROR)
 
+    def test_post(self):
         # case: new user registered with correct role type
+        self.data = {'username': 'test_user_2', 'password': 'test_user_2', 'user_role': 'writer'}
         self.data['user_role'] = 'author'
         response = requests.post(url=self.add_user_url, data=self.data)
         res = json.loads(response.text)
@@ -116,53 +120,58 @@ class NewsConsoleAddUserTests(unittest.TestCase):
     def tearDown(self):
         test_utils.delete_user_from_table(field='username', table='content_writers', field_value='test_user_1')
         test_utils.delete_user_from_table(field='username', table='content_writers', field_value='test_user_2')
+        test_utils.delete_user(username = 'test_user_1')
+        test_utils.delete_user(username = 'test_user_2')
 
 
-class NewsConsoleUploadS3ObjectTests(unittest.TestCase):
 
-    def setUp(self):
-        self.upload_object_url = TORNADO_SERVER + '/news_upload_s3_object'
-        self.data = dict()
-        self.bucket_name = None
-        self.s3_client = boto3.client('s3', aws_access_key_id = amazon_access_key, aws_secret_access_key = amazon_secret_key)
-        self.content = base64.b64encode(wImage(width=640, height=640, background=Color('blue')).make_blob(format='png'))
+# class NewsConsoleUploadS3ObjectTests(unittest.TestCase):
 
-    def test_post(self):
+#     def setUp(self):
+#         self.upload_object_url = TORNADO_SERVER + '/news_upload_s3_object'
+#         self.data = dict()
+#         self.bucket_name = None
+#         self.s3_client = boto3.client('s3', aws_access_key_id = amazon_access_key, aws_secret_access_key = amazon_secret_key)
+#         self.content = base64.b64encode(wImage(width=640, height=640, background=Color('blue')).make_blob(format='png'))
 
-        # incomplete post data
-        self.data = {'name': 'test_image_blue', 'type': 'news_image'}
-        response = requests.post(url=self.upload_object_url, data=self.data)
-        res = json.loads(response.text)
-        self.assertEqual(res['status'], settings.STATUS_400)
-        self.assertEqual(res['info'], 'Missing argument content')
+#     def test_post(self):
 
-        # invalid object type
-        self.data['content'] = self.content
-        self.data['type'] = 'invalid'
-        response = requests.post(url=self.upload_object_url, data=self.data)
-        res = json.loads(response.text)
-        self.assertEqual(res['status'], settings.STATUS_400)
-        self.assertEqual(res['info'], settings.INVALID_BUCKET_ERROR)
+#         # incomplete post data
+#         self.data = {'name': 'test_image_blue', 'type': 'news_image'}
+#         response = requests.post(url=self.upload_object_url, data=self.data)
+#         res = json.loads(response.text)
+#         self.assertEqual(res['status'], settings.STATUS_400)
+#         self.assertEqual(res['info'], 'Missing argument content')
 
-        # new object upload
-        self.data['type'] = 'news_image'
-        self.bucket_name = settings.articles_BUCKETS.get(self.data['type'])
-        response = requests.post(url=self.upload_object_url, data=self.data)
-        res = json.loads(response.text)
-        self.assertEqual(res['status'], settings.STATUS_200)
-        self.assertEqual(res['info'], settings.SUCCESS_RESPONSE)
-        self.assertEqual(res['link'], "{}/{}/{}".format(self.s3_client.meta.endpoint_url, self.bucket_name, base64.encodestring(self.data['name'])))
-        self.s3_client.get_object(Bucket = self.bucket_name, Key = base64.encodestring(self.data['name']))
+#         # invalid object type
+#         self.data['content'] = self.content
+#         self.data['type'] = 'invalid'
+#         response = requests.post(url=self.upload_object_url, data=self.data)
+#         res = json.loads(response.text)
+#         self.assertEqual(res['status'], settings.STATUS_400)
+#         self.assertEqual(res['info'], settings.INVALID_BUCKET_ERROR)
 
-        # object already exists
-        response = requests.post(url=self.upload_object_url, data=self.data)
-        res = json.loads(response.text)
-        self.assertEqual(res['status'], settings.STATUS_409)
-        self.assertEqual(res['info'], settings.KEY_ALREADY_EXISTS)
+#         # new object upload
+#         self.data['type'] = 'news_image'
+#         self.bucket_name = settings.articles_BUCKETS.get(self.data['type'])
+#         response = requests.post(url=self.upload_object_url, data=self.data)
+#         res = json.loads(response.text)
+#         from IPython import embed
+#         embed()
+#         self.assertEqual(res['status'], settings.STATUS_200)
+#         self.assertEqual(res['info'], settings.SUCCESS_RESPONSE)
+#         self.assertEqual(res['link'], "{}/{}/{}".format(self.s3_client.meta.endpoint_url, self.bucket_name, base64.encodestring(self.data['name'])))
+#         self.s3_client.get_object(Bucket = self.bucket_name, Key = base64.encodestring(self.data['name']))
 
-    def tearDown(self):
-        if self.bucket_name:
-            self.s3_client.delete_object(Bucket = self.bucket_name, Key = base64.encodestring(self.data['name']))
+#         # object already exists
+#         response = requests.post(url=self.upload_object_url, data=self.data)
+#         res = json.loads(response.text)
+#         self.assertEqual(res['status'], settings.STATUS_409)
+#         self.assertEqual(res['info'], settings.KEY_ALREADY_EXISTS)
+
+#     def tearDown(self):
+#         if self.bucket_name:
+#             self.s3_client.delete_object(Bucket = self.bucket_name, Key = base64.encodestring(self.data['name']))
 
 
 class NewsConsoleAddCuratedArticleTests(unittest.TestCase):
@@ -173,6 +182,7 @@ class NewsConsoleAddCuratedArticleTests(unittest.TestCase):
         self.add_curated_article_url = TORNADO_SERVER + '/add_article'
         self.news_image_bucket = settings.articles_BUCKETS.get('news_image')
         self.ice_breaker_bucket = settings.articles_BUCKETS.get('ice_breaker_image')
+        self.article_group_header_image_bucket = settings.articles_BUCKETS.get('article_group_header_image')
         self.s3_client = boto3.client('s3', aws_access_key_id = amazon_access_key, aws_secret_access_key = amazon_secret_key)
         test_utils.delete_field_from_table('content_writers', 'username', 'test_user')
         test_utils.register_content_writer('test_user', 'test_user', 'author')
@@ -192,7 +202,7 @@ class NewsConsoleAddCuratedArticleTests(unittest.TestCase):
                           'article_memes': ['meme_1'], 'article_state': 'UnPublished'})
 
         image_path = os.getcwd() + '/tests/test_image.jpeg'
-        self.files = {'article_image': open(image_path, 'r').read(), 'article_ice_breaker_image': open(image_path, 'r').read()}
+        self.files = {'article_image': open(image_path, 'r').read(), 'article_ice_breaker_image': open(image_path, 'r').read(), 'article_group_header_image': open(image_path, 'r').read()}
         response = requests.post(url=self.add_curated_article_url, data=self.data, files=self.files)
         res = json.loads(response.text)
         self.assertEqual(res['status'], settings.STATUS_200)
@@ -203,12 +213,14 @@ class NewsConsoleAddCuratedArticleTests(unittest.TestCase):
         self.article_id = str(result[0]['article_id'])
         self.s3_client.get_object(Bucket = self.news_image_bucket, Key = str(self.article_id) + '.jpeg')
         self.s3_client.get_object(Bucket = self.ice_breaker_bucket, Key = str(self.article_id) + '.jpeg')
+        self.s3_client.get_object(Bucket = self.article_group_header_image_bucket, Key = str(self.article_id) + '.jpeg')
 
     def tearDown(self):
         test_utils.delete_field_from_table('articles', 'article_headline', 'TEST_HEADLINE')
         test_utils.delete_field_from_table('content_writers', 'username', 'test_user')
         self.s3_client.delete_object(Bucket=self.news_image_bucket, Key=str(self.article_id) + '.jpeg')
         self.s3_client.delete_object(Bucket=self.ice_breaker_bucket, Key=str(self.article_id) + '.jpeg')
+        self.s3_client.delete_object(Bucket=self.article_group_header_image_bucket, Key=str(self.article_id) + '.jpeg')
 
 
 class NewsConsoleFetchArticlesTests(unittest.TestCase):
@@ -335,9 +347,9 @@ class NewsConsoleEditArticleTests(unittest.TestCase):
     def upload_image(self, object_type, image_name, content):
         s3_object = ConsoleS3Object(object_type, image_name, content, acl='public-read').handle_upload()
 
-    def update_database(self, article_image_link, article_ice_breaker_image_link, article_id):
-        query = "UPDATE articles SET article_image=%s, article_ice_breaker_image=%s WHERE article_id=%s;"
-        variables = (article_image_link, article_ice_breaker_image_link, article_id)
+    def update_database(self, article_image_link, article_ice_breaker_image_link, article_group_header_image_link, article_id):
+        query = "UPDATE articles SET article_image=%s, article_ice_breaker_image=%s,  article_group_header_image = %s WHERE article_id=%s;"
+        variables = (article_image_link, article_ice_breaker_image_link, article_group_header_image_link, article_id)
         QueryHandler.execute(query, variables)
 
     def setUp(self):
@@ -356,7 +368,8 @@ class NewsConsoleEditArticleTests(unittest.TestCase):
         self.link = "https://s3.amazonaws.com/{}/{}"
         self.article_image_link = self.link.format(settings.articles_BUCKETS.get('news_image'), self.image_name)
         self.ice_breaker_image_link = self.link.format(settings.articles_BUCKETS.get('ice_breaker_image'), self.image_name)
-        self.update_database(self.article_image_link, self.ice_breaker_image_link, self.article_ids[0])
+        self.article_group_header_image_link = self.link.format(settings.articles_BUCKETS.get('article_group_header_image'), self.image_name)
+        self.update_database(self.article_image_link, self.ice_breaker_image_link, self.article_group_header_image_link, self.article_ids[0])
 
     def test_post(self):
 
@@ -364,7 +377,7 @@ class NewsConsoleEditArticleTests(unittest.TestCase):
         self.data = {'article_id': self.article_ids[0] + 1000, 'article_group_name': 'test_group', 'article_headline': 'text', 'article_content': 'chnaged_text',
                      'article_poll_question': 'text', 'article_notification_content': 'text', 'article_sport_type': 'c',
                      'article_state': 'UnPublished', 'article_image': self.jpeg_content,
-                     'article_ice_breaker_image': self.jpeg_content, 'article_stats': ['STAT_LINK_1', 'STAT_LINK_2']}
+                     'article_ice_breaker_image': self.jpeg_content,'article_group_header_image': self.jpeg_content, 'article_stats': ['STAT_LINK_1', 'STAT_LINK_2']}
         response = requests.post(self.edit_article_url, self.data)
         res = json.loads(response.text)
         self.assertEqual(res['status'], settings.STATUS_400)
@@ -373,7 +386,7 @@ class NewsConsoleEditArticleTests(unittest.TestCase):
         # valid 'article_id'
         self.data.update({'article_id': self.article_ids[0]})
         image_path = os.getcwd() + '/tests/test_image.jpeg'
-        self.files = {'article_image': open(image_path, 'r').read(), 'article_ice_breaker_image': open(image_path, 'r').read()}
+        self.files = {'article_image': open(image_path, 'r').read(), 'article_ice_breaker_image': open(image_path, 'r').read(), 'article_group_header_image': open(image_path, 'r').read()}
         response = requests.post(self.edit_article_url, data=self.data, files=self.files)
         res = json.loads(response.text)
         self.assertEqual(res['status'], settings.STATUS_200)
@@ -490,52 +503,52 @@ class NewsConsolePublishArticleTests(unittest.TestCase):
         test_utils.delete_articles(self.article_ids)
 
 
-# class NewsConsolePostArticlesOnCarouselTests(unittest.TestCase):
-#
-#     def setUp(self):
-#         self.post_carousel_article_url = TORNADO_SERVER + '/post_carousel_articles'
-#         test_utils.delete_field_from_table('content_writers', 'username', 'test_user')
-#         test_utils.register_content_writer('test_user', 'test_user', 'author')
-#         self.articles = [{'headline': 'article_1', 'sport_type': 'c', 'state': 'Published', 'writer': 'test_user'},
-#                          {'headline': 'article_2', 'sport_type': 'f', 'state': 'Published', 'writer': 'test_user'},
-#                          {'headline': 'article_3', 'sport_type': 'c', 'state': 'Published', 'writer': 'test_user'}]
-#         self.article_ids = test_utils.create_articles(self.articles)
-#         self.s3_client = boto3.client('s3', aws_access_key_id = amazon_access_key, aws_secret_access_key = amazon_secret_key)
-#
-#     def test_get(self):
-#         response = requests.get(self.post_carousel_article_url)
-#         self.assertEqual(response.status_code, settings.STATUS_405)
-#
-#     def test_post(self):
-#         # article_ids not provided
-#         response = requests.post(self.post_carousel_article_url)
-#         res = json.loads(response.text)
-#         self.assertEqual(res['status'], settings.STATUS_400)
-#         self.assertEqual(res['info'], 'Missing argument articles')
-#
-#         # valid article_ids provided
-#         response = requests.post(self.post_carousel_article_url,
-#                                  {'articles': json.dumps({'100': self.article_ids[0], '101': self.article_ids[1]})})
-#         res = json.loads(response.text)
-#         self.assertEqual(res['status'], settings.STATUS_200)
-#         self.assertEqual(res['info'], settings.SUCCESS_RESPONSE)
-#         query = "SELECT article_id FROM carousel_articles WHERE priority = 100;"
-#         result = QueryHandler.get_results(query)
-#         self.assertEqual(result[0]['article_id'], self.article_ids[0])
-#
-#         # put another article in carousel n priority '100'
-#         response = requests.post(self.post_carousel_article_url,
-#                                  {'articles': json.dumps({'100': self.article_ids[2]})})
-#         res = json.loads(response.text)
-#         self.assertEqual(res['status'], settings.STATUS_200)
-#         self.assertEqual(res['info'], settings.SUCCESS_RESPONSE)
-#         query = "SELECT article_id FROM carousel_articles WHERE priority = 100;"
-#         result = QueryHandler.get_results(query)
-#         self.assertEqual(result[0]['article_id'], self.article_ids[2])
-#
-#     def tearDown(self):
-#         test_utils.delete_field_from_table('content_writers', 'username', 'test_user')
-#         test_utils.delete_articles(self.article_ids)
+class NewsConsolePostArticlesOnCarouselTests(unittest.TestCase):
+
+    def setUp(self):
+        self.post_carousel_article_url = TORNADO_SERVER + '/post_carousel_articles'
+        test_utils.delete_field_from_table('content_writers', 'username', 'test_user')
+        test_utils.register_content_writer('test_user', 'test_user', 'author')
+        self.articles = [{'headline': 'article_1', 'sport_type': 'c', 'state': 'Published', 'writer': 'test_user'},
+                         {'headline': 'article_2', 'sport_type': 'f', 'state': 'Published', 'writer': 'test_user'},
+                         {'headline': 'article_3', 'sport_type': 'c', 'state': 'Published', 'writer': 'test_user'}]
+        self.article_ids = test_utils.create_articles(self.articles)
+        self.s3_client = boto3.client('s3', aws_access_key_id = amazon_access_key, aws_secret_access_key = amazon_secret_key)
+
+    def test_get(self):
+        response = requests.get(self.post_carousel_article_url)
+        self.assertEqual(response.status_code, settings.STATUS_405)
+
+    def test_post(self):
+        # article_ids not provided
+        response = requests.post(self.post_carousel_article_url)
+        res = json.loads(response.text)
+        self.assertEqual(res['status'], settings.STATUS_400)
+        self.assertEqual(res['info'], 'Missing argument articles')
+
+        # valid article_ids provided
+        response = requests.post(self.post_carousel_article_url,
+                                 {'articles': json.dumps({'100': self.article_ids[0], '101': self.article_ids[1]})})
+        res = json.loads(response.text)
+        self.assertEqual(res['status'], settings.STATUS_200)
+        self.assertEqual(res['info'], settings.SUCCESS_RESPONSE)
+        query = "SELECT article_id FROM carousel_articles WHERE priority = 100;"
+        result = QueryHandler.get_results(query)
+        self.assertEqual(result[0]['article_id'], self.article_ids[0])
+
+        # put another article in carousel n priority '100'
+        response = requests.post(self.post_carousel_article_url,
+                                 {'articles': json.dumps({'100': self.article_ids[2]})})
+        res = json.loads(response.text)
+        self.assertEqual(res['status'], settings.STATUS_200)
+        self.assertEqual(res['info'], settings.SUCCESS_RESPONSE)
+        query = "SELECT article_id FROM carousel_articles WHERE priority = 100;"
+        result = QueryHandler.get_results(query)
+        self.assertEqual(result[0]['article_id'], self.article_ids[2])
+
+    def tearDown(self):
+        test_utils.delete_field_from_table('content_writers', 'username', 'test_user')
+        test_utils.delete_articles(self.article_ids)
 
 
 class NewsConsoleGetCarouselArticlesTests(unittest.TestCase):
