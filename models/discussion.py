@@ -46,7 +46,9 @@ class Discussion(Node):
         self.subscribe_user_skeleton = "<iq to='pubsub.mm.io' type='set' from='" + self.discussion_admin_jid + "'><pubsub xmlns='http://jabber.org/protocol/pubsub#owner'><subscriptions node='{}'>{}</subscriptions></pubsub></iq>"
         self.subscribe_user_iterable = "<subscription jid='{}' node='{}' subscription='subscribed'/>"
 
-        self.notification_message = "<message to='{}' from='" + self.discussion_admin_jid + "' type='chat'><body>{}</body><thread>0d34ecb4-47a9-4ffc-afd8-7b064ea7d8be</thread><properties xmlns='http://www.jivesoftware.com/xmlns/xmpp/properties'><property><name>mime_type</name><value type='string'>t</value></property><property><name>time</name><value type='string'>1472631060</value></property></properties></message>"
+        # self.notification_message = "<iq to='pubsub.mm.io' from'" + self.discussion_admin_jid + "' type='set'><pubsub xmlns='http://jabber.org/protocol/pubsub'><publish node='{}'><item><message xmlns='pubsub:text:message'>%7B%22message_type%22%3A%22a%22%2C%22message_from%22%3A%220198654ba3%22%2C%22group_server_id%22%3A%220198654ba31475056838736%25ynyjjy%25%25%22%2C%22member_add_jid%22%3A%5B%22018a8417d4%22%5D%7D</message></item></publish></pubsub></iq>"
+
+        # self.notification_message = "<message to='{}' from='" + self.discussion_admin_jid + "' type='chat'><body>{}</body><thread>0d34ecb4-47a9-4ffc-afd8-7b064ea7d8be</thread><properties xmlns='http://www.jivesoftware.com/xmlns/xmpp/properties'><property><name>mime_type</name><value type='string'>t</value></property><property><name>time</name><value type='string'>1472631060</value></property></properties></message>"
 
         self.unsubscribe_user_xml = " <iq to='pubsub.mm.io' from='" + self.discussion_admin_jid + "' type='set'><pubsub xmlns='http://jabber.org/protocol/pubsub'><unsubscribe jid='{}' node='{}'/></pubsub></iq>"
         self.discussion_deletion_xml = "<iq type='set' from='" + self.discussion_admin_jid + "' to='pubsub.mm.io'><pubsub xmlns='http://jabber.org/protocol/pubsub#owner'><delete node='{}'/> </pubsub></iq>"
@@ -102,13 +104,12 @@ class Discussion(Node):
 
     def get_notify_users_xml(self, users):
         user_added_notification_message = ""
-        for user in users:
-            username = user + self.domain
-            user_added_notification_payload = urllib.quote(json.dumps({u'group_server_id': unicode(self.name),
-                                                                       u'message_from': unicode(self.discussion_admin_jid),
-                                                                       u'message_type': unicode(settings.USER_ADDITION_GROUP_MESSAGE_TYPE)
-                                                                       }).encode('utf-8'))
-            user_added_notification_message += self.notify_user_of_user_addition.format(self.name, user_added_notification_payload)
+        user_added_notification_payload = urllib.quote(json.dumps({u'group_server_id': unicode(self.name),
+                                                                   u'message_from': unicode(self.discussion_admin_jid),
+                                                                   u'message_type': unicode(settings.USER_ADDITION_GROUP_MESSAGE_TYPE),
+                                                                   u'member_add_jid': users
+                                                                   }).encode('utf-8'))
+        user_added_notification_message += self.notify_user_of_user_addition.format(self.name, user_added_notification_payload)
         return user_added_notification_message
 
     def create_and_add_users(self, info):
